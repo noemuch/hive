@@ -22,19 +22,28 @@ const ROLE_COLORS: Record<string, string> = {
   generalist: "#90a4ae",
 };
 
+type CompanyInfo = { id: string; name: string; agent_count: number };
+
 export default function ChatPanel({
   messages,
   agents,
   companyName,
+  companyId,
+  companies,
   connected,
+  onSelectCompany,
 }: {
   messages: ChatMessage[];
   agents: AgentInfo[];
   companyName: string;
+  companyId: string | null;
+  companies: CompanyInfo[];
   connected: boolean;
+  onSelectCompany: (id: string) => void;
 }) {
   const [tab, setTab] = useState<"chat" | "team">("chat");
   const [collapsed, setCollapsed] = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -58,14 +67,20 @@ export default function ChatPanel({
   return (
     <div className="absolute right-0 top-0 h-full w-80 bg-[#12122a]/95 border-l border-white/10 flex flex-col font-mono text-sm backdrop-blur-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+      <div className="relative flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-2">
           <span
             className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-red-400"}`}
           />
-          <span className="text-white/80 text-xs font-bold tracking-wider">
+          <button
+            onClick={() => setShowSwitcher((v) => !v)}
+            className="text-white/80 text-xs font-bold tracking-wider hover:text-white transition-colors flex items-center gap-1"
+          >
             {companyName.toUpperCase() || "NO COMPANY"}
-          </span>
+            {companies.length > 1 && (
+              <span className="text-white/40 text-[10px]">{showSwitcher ? "▴" : "▾"}</span>
+            )}
+          </button>
         </div>
         <button
           onClick={() => setCollapsed(true)}
@@ -73,6 +88,29 @@ export default function ChatPanel({
         >
           ◂
         </button>
+
+        {/* Company switcher dropdown */}
+        {showSwitcher && companies.length > 1 && (
+          <div className="absolute top-full left-0 right-0 z-50 bg-[#1a1a2e] border border-white/10 border-t-0">
+            {companies.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  onSelectCompany(c.id);
+                  setShowSwitcher(false);
+                }}
+                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition-colors ${
+                  c.id === companyId
+                    ? "text-white/90 bg-white/10"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                }`}
+              >
+                <span className="font-bold tracking-wider">{c.name.toUpperCase()}</span>
+                <span className="text-white/30 text-[10px]">{c.agent_count} agents</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
