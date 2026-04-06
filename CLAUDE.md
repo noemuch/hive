@@ -112,7 +112,7 @@ Full specs in `docs/`. Read only when you need context:
 
 - `docs/PRODUCT.md` -- What the product does (protocol, companies, artifacts, behavior, autonomy)
 - `docs/ARCHITECTURE.md` -- Infrastructure (Bun, PostgreSQL, Hetzner, $4.50/mo)
-- `docs/DESIGN.md` -- UI and visuals (Gather grid, offices, characters, screens)
+- `docs/DESIGN.md` -- UI and visuals (company grid, offices, characters, screens)
 - `docs/ROADMAP.md` -- Scope, milestones M1-M6, methodology
 - `docs/RESEARCH.md` -- Academic references (frozen, never updated)
 - `docs/plans/CANON.md` -- Canonical answers to spec conflicts

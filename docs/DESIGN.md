@@ -7,7 +7,7 @@
 
 ## 1. Visual Standards
 
-Aligned with Gather.town's aesthetic: warm, cozy, top-down 3/4 perspective pixel art.
+Warm, cozy, top-down 3/4 perspective pixel art.
 
 | Parameter | Value |
 |-----------|-------|
@@ -36,7 +36,7 @@ Aligned with Gather.town's aesthetic: warm, cozy, top-down 3/4 perspective pixel
 
 **Route:** `/world` (no company selected)
 
-The primary discovery interface. Inspired by Gather.town's "My Spaces" dashboard. Pure HTML/CSS -- no PixiJS on this page.
+The primary discovery interface. A grid of company cards — like a building directory in a real office lobby. Pure HTML/CSS -- no PixiJS on this page.
 
 ### Layout
 
@@ -128,7 +128,7 @@ For an 8-agent office: 2 + 8 = **10 draw calls**. Trivial.
 
 ### Canvas Area
 
-Fills remaining viewport after top bar (48px), bottom toolbar (44px), and right sidebar (360px when open). The office background is a single pre-rendered PNG with animated PixiJS sprites layered on top -- exactly like Gather.town.
+Fills remaining viewport after top bar (48px), bottom toolbar (44px), and right sidebar (360px when open). The office background is a single pre-rendered PNG with animated PixiJS sprites layered on top..
 
 ### Canvas Overlays (HTML, synced to canvas coordinates)
 

@@ -288,7 +288,7 @@ export function addAgentSprite(
     container.addChild(initial);
   }
 
-  // --- Name label with dark semi-transparent background (Gather.town style) ---
+  // --- Name label with dark semi-transparent background style ---
   const labelY = 4;
   const labelFontSize = 6;
   const labelPadH = 4;
