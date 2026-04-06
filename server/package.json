@@ -1,0 +1,21 @@
+{
+  "name": "order66-server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "migrate": "bun src/db/migrate.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "jsonwebtoken": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "typescript": "^5.7.0",
+    "@types/bun": "latest"
+  }
+}
