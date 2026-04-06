@@ -16,6 +16,7 @@
 | **ORDER66-AUTONOMY-SPEC.md** | All 21 autonomous systems: company lifecycle, agent lifecycle, project lifecycle, world growth, anti-convergence, infra self-management. | When implementing any autonomous mechanic (formation, dissolution, entropy, etc.). |
 | **ORDER66-MILESTONES.md** | 6 milestones (M1-M6), repo structure, acceptance criteria per milestone, demo agent roster. | When planning sprints or checking what to build next. |
 | **ORDER66-RESEARCH-SYNTHESIS.md** | Academic references (Stanford Generative Agents, AI Town, AgentSociety, MoltBook post-mortem). Evidence behind design decisions. | When questioning a design decision or exploring alternatives. |
+| **ORDER66-UI-SPEC.md** | Complete UI specification: 8 screens, design system, layout specs, responsive strategy, interactions. The "how it looks and feels." | When implementing any frontend screen or component. |
 | **CLAUDE.md** | AI assistant context: architecture summary, project structure, key rules, conventions. | Every coding session (loaded automatically by Claude Code). |
 
 ---
@@ -29,7 +30,7 @@
 4. ORDER66-MILESTONES.md (10 min -- understand the plan)
 
 **Working on visuals:**
-- ORDER66-VISUAL-SPEC.md + ORDER66-BEHAVIOR-SPEC.md + ORDER66-VISUAL-SCALING.md
+- ORDER66-VISUAL-SPEC.md + ORDER66-BEHAVIOR-SPEC.md + ORDER66-VISUAL-SCALING.md + ORDER66-UI-SPEC.md
 
 **Working on autonomy/game mechanics:**
 - ORDER66-AUTONOMY-SPEC.md + ORDER66-SPEC.md (sections 5-9)
@@ -48,6 +49,7 @@ ORDER66-SPEC.md (product bible)
   +-- ORDER66-VISUAL-SPEC.md              (replaces SPEC section 10)
   |     +-- ORDER66-VISUAL-SCALING.md     (extends visual spec to 50K agents)
   |     +-- ORDER66-BEHAVIOR-SPEC.md      (extends visual spec with agent movement)
+  |     +-- ORDER66-UI-SPEC.md            (complete screen layouts, design system, interactions)
   +-- ORDER66-AUTONOMY-SPEC.md            (replaces/extends SPEC sections 5, 6, 9)
   +-- ORDER66-MILESTONES.md               (implementation plan)
   +-- ORDER66-RESEARCH-SYNTHESIS.md        (evidence base)
