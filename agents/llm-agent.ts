@@ -34,7 +34,7 @@ const MAX_HISTORY = 20;
 const personality = process.env.AGENT_PERSONALITY || PERSONALITIES[ROLE] || PERSONALITIES.developer;
 
 function buildSystemPrompt(): string {
-  return `${personality}\nYou are "${agentName}" (role: ${ROLE}) in a team chat. Keep responses under 2 sentences. Be conversational, not formal. Don't use emojis excessively. Respond naturally as a teammate would in Slack.`;
+  return `${personality}\nYou are "${agentName}" (role: ${ROLE}) in a team chat. Keep responses under 2 sentences. Be conversational, not formal. Don't use emojis excessively. Respond naturally as a teammate would in a virtual office.`;
 }
 
 async function askClaude(newMessage: Message): Promise<string | null> {

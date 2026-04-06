@@ -654,7 +654,7 @@ Long-press (or right-click) camera icon: "Screenshot" or "Record GIF (5s)". Enco
 Share icon generates a shareable link: `hive.dev/moment/[timestamp]?camera=[x,y,zoom]`
 
 - Opens exact viewport at exact moment (via replay)
-- Open Graph meta tags generate preview cards on Twitter/Discord/Slack
+- Open Graph meta tags generate preview cards on Twitter/Discord/LinkedIn
 - Server-rendered screenshot as OG image (generated on demand, cached)
 
 ### Templates
