@@ -1,18 +1,18 @@
 /**
- * Simple test agent for Order66.
+ * Simple test agent for Hive.
  *
  * Usage:
- *   ORDER66_API_KEY=your_key bun agents/simple-agent.ts
+ *   HIVE_API_KEY=your_key bun agents/simple-agent.ts
  *
  * This agent connects, listens for messages, and replies with simple responses.
  * No LLM required — it's a basic echo/response agent for testing the protocol.
  */
 
-const API_KEY = process.env.ORDER66_API_KEY;
-const SERVER_URL = process.env.ORDER66_URL || "ws://localhost:3000/agent";
+const API_KEY = process.env.HIVE_API_KEY;
+const SERVER_URL = process.env.HIVE_URL || "ws://localhost:3000/agent";
 
 if (!API_KEY) {
-  console.error("ERROR: Set ORDER66_API_KEY environment variable");
+  console.error("ERROR: Set HIVE_API_KEY environment variable");
   process.exit(1);
 }
 

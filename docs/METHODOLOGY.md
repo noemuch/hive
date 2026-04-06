@@ -1,4 +1,4 @@
-# Order66 -- Development Methodology (Solo Dev + Claude Code)
+# Hive -- Development Methodology (Solo Dev + Claude Code)
 
 > From working prototype to v1.0 launch. Concrete steps, real time estimates, zero hand-waving.
 
@@ -6,7 +6,7 @@
 
 ## 1. Resolve Spec Conflicts: The Canon File (Day 1, 3 hours)
 
-Do NOT rewrite 13 documents. Create one new file: `ORDER66-CANON.md`. It contains ONLY decisions where specs disagree, formatted as:
+Do NOT rewrite 13 documents. Create one new file: `HIVE-CANON.md`. It contains ONLY decisions where specs disagree, formatted as:
 
 ```
 ### Topic: [e.g., "NPC pathfinding library"]
@@ -16,7 +16,7 @@ Do NOT rewrite 13 documents. Create one new file: `ORDER66-CANON.md`. It contain
 - Applies to: M2 NPC movement
 ```
 
-Twenty to thirty entries maximum. Each conflict gets a one-line ruling. When a future Claude Code session encounters ambiguity, CLAUDE.md says "check ORDER66-CANON.md first." This takes 2-3 hours because you already know where the conflicts are. Do not update the original specs -- they are historical context, not living contracts.
+Twenty to thirty entries maximum. Each conflict gets a one-line ruling. When a future Claude Code session encounters ambiguity, CLAUDE.md says "check HIVE-CANON.md first." This takes 2-3 hours because you already know where the conflicts are. Do not update the original specs -- they are historical context, not living contracts.
 
 Going forward, new features get specced directly in their milestone implementation file (see below), not in a separate spec document. The 13 existing specs are frozen reference material.
 
@@ -121,7 +121,7 @@ The drift exists because specs describe a finished product and code implements w
 - **Freeze the 13 spec docs.** They are reference material, not living documents. Stop updating them.
 - **CLAUDE.md describes what EXISTS.** Update it every session to match reality.
 - **M(n)-IMPL.md describes what is BEING BUILT.** It contains only the current milestone's tasks.
-- **ORDER66-CANON.md resolves ambiguity.** It is the tiebreaker when two specs disagree.
+- **HIVE-CANON.md resolves ambiguity.** It is the tiebreaker when two specs disagree.
 
 Three files that stay current. Thirteen files that are frozen context. Drift eliminated.
 
@@ -156,7 +156,7 @@ That gets you to 6/10, which is enough for launch. Do not spend time on contribu
 ## 9. Deployment: Set Up in Phase B, Not Before
 
 - **Now through Phase A:** localhost only. No deployment overhead.
-- **Phase B start (Week 3):** Set up the Hetzner VPS. Deploy server + PostgreSQL. Point `order66.dev` at it. This takes 1 session and you need it because the demo team agents need a persistent server to run against.
+- **Phase B start (Week 3):** Set up the Hetzner VPS. Deploy server + PostgreSQL. Point `hive.dev` at it. This takes 1 session and you need it because the demo team agents need a persistent server to run against.
 - **CI/CD:** A single GitHub Action that runs `bun test` on push and deploys to Hetzner on merge to main. Set this up in the same session as the VPS. Keep it simple: `ssh + rsync + systemctl restart`.
 - **Vercel for web:** Already free tier. Connect the repo, auto-deploy on push to main. Zero config.
 
@@ -166,7 +166,7 @@ That gets you to 6/10, which is enough for launch. Do not spend time on contribu
 
 | Day | Time | Deliverable |
 |-----|------|-------------|
-| 1 | 3h | ORDER66-CANON.md with all conflict resolutions |
+| 1 | 3h | HIVE-CANON.md with all conflict resolutions |
 | 1 | 1h | M2-IMPL.md and M3-IMPL.md with ordered task lists |
 | 2 | 4h | NPC state machine + PathFinding.js integration |
 | 3 | 4h | Agent behavioral state machine (walk_to, meeting, idle) |

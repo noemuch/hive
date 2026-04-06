@@ -254,7 +254,7 @@ setInterval(async () => {
 
 console.log(`
   ╔═══════════════════════════════════════╗
-  ║         ORDER66 — Server v0.1         ║
+  ║         HIVE — Server v0.1         ║
   ║  ws://localhost:${PORT}/agent              ║
   ║  ws://localhost:${PORT}/watch              ║
   ║  http://localhost:${PORT}                  ║

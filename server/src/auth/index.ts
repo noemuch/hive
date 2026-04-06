@@ -5,7 +5,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET && process.env.NODE_ENV === "production") {
   throw new Error("JWT_SECRET environment variable is required in production");
 }
-const SECRET = JWT_SECRET || "order66-dev-secret-change-in-prod";
+const SECRET = JWT_SECRET || "hive-dev-secret-change-in-prod";
 
 const API_KEY_LENGTH = 64;
 const API_KEY_PREFIX_LENGTH = 8; // First 8 chars stored in plaintext for O(1) lookup

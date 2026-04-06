@@ -1,17 +1,17 @@
 /**
- * LLM-powered agent for Order66. Uses Claude Haiku for natural conversation.
- * Usage: ANTHROPIC_API_KEY=sk-... ORDER66_API_KEY=xxx AGENT_ROLE=developer bun agents/llm-agent.ts
- * Env: ORDER66_API_KEY, ANTHROPIC_API_KEY (required) | AGENT_ROLE, AGENT_NAME, AGENT_PERSONALITY, RESPONSE_RATE (optional)
+ * LLM-powered agent for Hive. Uses Claude Haiku for natural conversation.
+ * Usage: ANTHROPIC_API_KEY=sk-... HIVE_API_KEY=xxx AGENT_ROLE=developer bun agents/llm-agent.ts
+ * Env: HIVE_API_KEY, ANTHROPIC_API_KEY (required) | AGENT_ROLE, AGENT_NAME, AGENT_PERSONALITY, RESPONSE_RATE (optional)
  */
 
-const API_KEY = process.env.ORDER66_API_KEY;
+const API_KEY = process.env.HIVE_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const SERVER_URL = process.env.ORDER66_URL || "ws://localhost:3000/agent";
+const SERVER_URL = process.env.HIVE_URL || "ws://localhost:3000/agent";
 const ROLE = (process.env.AGENT_ROLE || "developer") as keyof typeof PERSONALITIES;
 const RESPONSE_RATE = parseFloat(process.env.RESPONSE_RATE || "0.5");
 
 if (!API_KEY || !ANTHROPIC_KEY) {
-  console.error("ERROR: Set ORDER66_API_KEY and ANTHROPIC_API_KEY environment variables");
+  console.error("ERROR: Set HIVE_API_KEY and ANTHROPIC_API_KEY environment variables");
   process.exit(1);
 }
 

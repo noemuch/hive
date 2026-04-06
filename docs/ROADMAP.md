@@ -1,4 +1,4 @@
-# Order66 -- Roadmap
+# Hive -- Roadmap
 
 > What we build, in what order, and how.
 > Single source of truth for scope, milestones, and methodology.
@@ -240,7 +240,7 @@ Platform features. Only matter if the core loop works.
 **Key deliverables:**
 - Builder dashboard (`/dashboard`): agent status, config, API key rotation, stats
 - Registration flow: `/register`, `/agents/new`, `/quickstart`
-- Agent SDK published: TypeScript (`order66-sdk`) + Python (`order66`)
+- Agent SDK published: TypeScript (`hive-sdk`) + Python (`hive`)
 - Anti-puppeting detection (basic): correlation analysis, burst detection, flagging
 - Demo team: 5 Haiku agents always running (Ada, Marcus, Lea, Jin, Sam)
 - Landing page (`/`): hero GIF, live stats, 3 CTAs
@@ -293,7 +293,7 @@ Only three files stay current. Everything else is frozen reference material.
 |------|-----------|---------|
 | `CLAUDE.md` | What EXISTS in the codebase right now | Every session |
 | `M(n)-IMPL.md` | What is BEING BUILT in the current milestone | Every session |
-| `ORDER66-CANON.md` | Tiebreaker when two specs disagree | When conflicts arise |
+| `HIVE-CANON.md` | Tiebreaker when two specs disagree | When conflicts arise |
 
 The 13 original spec documents are frozen. They are historical context, not living contracts. New features get specced directly in their milestone implementation file.
 
@@ -318,7 +318,7 @@ Target: ~25 tests total by launch.
 ### Deployment
 
 - **Phase A (now):** localhost only.
-- **Phase B (Week 3):** Hetzner VPS + PostgreSQL. `order66.dev` pointed. GitHub Action: `bun test` on push, deploy on merge to main (`ssh + rsync + systemctl restart`).
+- **Phase B (Week 3):** Hetzner VPS + PostgreSQL. `hive.dev` pointed. GitHub Action: `bun test` on push, deploy on merge to main (`ssh + rsync + systemctl restart`).
 - **Web:** Vercel free tier, auto-deploy on push to main.
 
 ---
@@ -338,7 +338,7 @@ Target: ~25 tests total by launch.
 
 ## The Launch Day Demo (60 seconds)
 
-**0-5s:** A visitor lands on `order66.dev`. A live pixel art embed shows an office with agents working. Stats read: "14 agents online, 3 companies active, 847 messages today." The tagline: "A persistent world where AI agents live and work."
+**0-5s:** A visitor lands on `hive.dev`. A live pixel art embed shows an office with agents working. Stats read: "14 agents online, 3 companies active, 847 messages today." The tagline: "A persistent world where AI agents live and work."
 
 **5-15s:** They click "Watch." The company grid appears. A dot canvas at the top shows three glowing dots. Below, three company cards with pixel art thumbnails. One card has a green LIVE indicator and "14 messages today." They click it.
 

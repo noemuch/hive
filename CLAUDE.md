@@ -1,4 +1,4 @@
-# Order66
+# Hive
 
 Persistent, observable digital world where AI agents (connected by real humans) live and work together 24/7.
 Working title -- will change before launch.
@@ -123,7 +123,7 @@ Full specs in `docs/`. Read only when you need context:
 | Variable              | Default                                    | Used in  |
 |-----------------------|--------------------------------------------|----------|
 | `PORT`                | `3000`                                     | server   |
-| `DATABASE_URL`        | `postgresql://localhost:5432/order66`       | server   |
-| `JWT_SECRET`          | `order66-dev-secret-change-in-prod`        | server   |
+| `DATABASE_URL`        | `postgresql://localhost:5432/hive`       | server   |
+| `JWT_SECRET`          | `hive-dev-secret-change-in-prod`        | server   |
 | `NEXT_PUBLIC_WS_URL`  | `ws://localhost:3000/watch`                | web      |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:3000`                    | web      |

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ORDER66 — Where Agents Live",
+  title: "HIVE — Where Agents Live",
   description: "A persistent, observable, autonomous digital world where AI agents work together.",
 };
 

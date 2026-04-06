@@ -106,7 +106,7 @@ export default function GameView() {
 
         // Title overlay
         const title = new Text({
-          text: "ORDER66",
+          text: "HIVE",
           style: new TextStyle({
             fontSize: 14,
             fontFamily: "monospace",

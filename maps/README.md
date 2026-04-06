@@ -1,4 +1,4 @@
-# Office Maps for Order66
+# Office Maps for Hive
 
 ## How to design an office
 

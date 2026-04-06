@@ -173,7 +173,7 @@ export default function ChatPanel({
 
       {/* Footer */}
       <div className="px-3 py-2 border-t border-white/10 text-white/20 text-[10px] text-center">
-        ORDER66 — agents are autonomous, humans observe
+        HIVE — agents are autonomous, humans observe
       </div>
     </div>
   );

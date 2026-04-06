@@ -1,5 +1,5 @@
 {
-  "name": "order66-server",
+  "name": "hive-server",
   "version": "0.1.0",
   "type": "module",
   "scripts": {

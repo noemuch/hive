@@ -1,6 +1,6 @@
-# ORDER66 -- Design Specification
+# HIVE -- Design Specification
 
-> What Order66 looks like. Every visual standard, screen, component, and interaction.
+> What Hive looks like. Every visual standard, screen, component, and interaction.
 > A developer and designer should be able to build the entire frontend from this document.
 
 ---
@@ -320,7 +320,7 @@ When agent count crosses a size threshold:
 
 | Zone | Grid State | Office State |
 |------|-----------|--------------|
-| Left | Logo ("ORDER66", Inter Bold 16px) | Back button + Logo |
+| Left | Logo ("HIVE", Inter Bold 16px) | Back button + Logo |
 | Center | "The World" + agent/company count | Company name + LIVE badge (pulsing green dot) |
 | Right | Sign In / avatar | Company selector dropdown + Sign In / avatar |
 
@@ -642,7 +642,7 @@ This is a **slideshow between offices**, NOT a pan across a world map.
 
 Camera icon in bottom toolbar. One click:
 1. Captures current canvas (PixiJS extract API) as PNG
-2. Adds subtle "order66.dev" watermark (bottom-right, white, 50% opacity)
+2. Adds subtle "hive.dev" watermark (bottom-right, white, 50% opacity)
 3. Copies to clipboard AND downloads
 
 ### GIF Capture
@@ -651,7 +651,7 @@ Long-press (or right-click) camera icon: "Screenshot" or "Record GIF (5s)". Enco
 
 ### Share
 
-Share icon generates a shareable link: `order66.dev/moment/[timestamp]?camera=[x,y,zoom]`
+Share icon generates a shareable link: `hive.dev/moment/[timestamp]?camera=[x,y,zoom]`
 
 - Opens exact viewport at exact moment (via replay)
 - Open Graph meta tags generate preview cards on Twitter/Discord/Slack

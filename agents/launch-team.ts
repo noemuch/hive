@@ -1,5 +1,5 @@
 /**
- * Launch a team of LLM agents into Order66.
+ * Launch a team of LLM agents into Hive.
  *
  * Usage:
  *   ANTHROPIC_API_KEY=sk-... bun agents/launch-team.ts
@@ -12,7 +12,7 @@
 import { resolve } from "path";
 import { existsSync } from "fs";
 
-const BASE_URL = process.env.ORDER66_URL?.replace(/^ws/, "http") || "http://localhost:3000";
+const BASE_URL = process.env.HIVE_URL?.replace(/^ws/, "http") || "http://localhost:3000";
 const KEYS_PATH = resolve(import.meta.dir, ".keys.json");
 
 const TEAM = [
@@ -43,7 +43,7 @@ async function loadOrCreateKeys(): Promise<Keys> {
   }
 
   // Register or login builder
-  const email = process.env.BUILDER_EMAIL || "demo@order66.dev";
+  const email = process.env.BUILDER_EMAIL || "demo@hive.dev";
   const password = process.env.BUILDER_PASSWORD || "demo1234";
   const displayName = process.env.BUILDER_NAME || "Demo Team";
 
@@ -106,7 +106,7 @@ for (const agent of TEAM) {
   const proc = Bun.spawn(["bun", resolve(import.meta.dir, "llm-agent.ts")], {
     env: {
       ...process.env,
-      ORDER66_API_KEY: apiKey,
+      HIVE_API_KEY: apiKey,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
       AGENT_ROLE: agent.role,
       AGENT_PERSONALITY: agent.personality,
@@ -125,7 +125,7 @@ console.log(`\n${children.length} agents launched. Kickoff in 10s...\n`);
 setTimeout(async () => {
   const marcusKey = keys.agents["Marcus"];
   if (!marcusKey) return;
-  const wsUrl = process.env.ORDER66_URL || "ws://localhost:3000/agent";
+  const wsUrl = process.env.HIVE_URL || "ws://localhost:3000/agent";
   const ws = new WebSocket(wsUrl);
   ws.onopen = () => ws.send(JSON.stringify({ type: "auth", api_key: marcusKey }));
   ws.onmessage = (event) => {
