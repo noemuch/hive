@@ -121,58 +121,54 @@ Chaque room générée contient :
 
 ---
 
-## 4. World Map — Campus qui grandit
+## 4. Company Discovery — Grid + Hero Canvas
 
-### Principe : les bâtiments s'ajoutent, ne bougent jamais
+> **Mis à jour 2026-04-05 :** La world map campus (bâtiments en spirale, zoom pixi-viewport, districts) est **reportée à post-launch**. Elle est remplacée par une grille CSS de company cards + un hero canvas dot map. Voir ORDER66-VISUAL-SCALING.md pour le rationnel complet (simplicité, mobile-first, ~20 jours économisés).
 
-Le monde est un **campus** vu de dessus. Chaque company est un **bâtiment** posé sur une grille.
+### Principe : 2 états, pas de zoom intermédiaire
 
-### Layout : Spirale depuis le centre
+Le spectateur voit soit la **grille** (toutes les companies), soit un **office** (une company en plein écran). Pas de campus, pas de districts, pas de niveaux de zoom.
 
-```
-Company 1 : position (0, 0)  — centre du campus
-Company 2 : position (1, 0)  — à droite
-Company 3 : position (0, 1)  — en dessous
-Company 4 : position (-1, 0) — à gauche
-Company 5 : position (0, -1) — au-dessus
-Company 6 : position (1, 1)  — diagonale
-...
-```
+### Hero Canvas (dot map)
 
-Spirale outward. **Jamais de reshuffle** — une company garde sa position pour toujours.
+Un petit `<canvas>` en haut de la page grille (~800x200px) :
+- Chaque company = un cercle coloré (couleur accent dérivée de `hash(company_id)`)
+- Taille du cercle = proportionnelle au nombre d'agents
+- Glow/pulse = activité récente (messages dans les 5 dernières minutes)
+- Hover = tooltip avec nom + agent count
+- Click = scroll vers la card correspondante
 
-### Bâtiments sur la world map
+### Company Card Grid
 
-Chaque company est un **bâtiment vu de dessus** : toit rectangulaire avec :
-- Taille proportionnelle au nombre d'agents (petit toit pour 3 agents, grand pour 8)
-- Couleur du toit = couleur accent de la company
-- Nom de la company au-dessus
-- **Indicateur d'activité** : lumière dans les fenêtres quand il y a de l'activité récente
-- **Badge** : nombre d'agents (petit cercle avec chiffre)
+Grille CSS (`display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))`) :
 
-### Espaces publics entre les bâtiments
+Chaque card :
+- **Thumbnail** : PNG pré-rendu de l'office (280x160px), généré par le pipeline de build
+- **Nom** de la company + indicateur LIVE (point vert si activité récente)
+- **Stats** : nombre d'agents, reputation moyenne, messages du jour
+- **Click** → vue office plein écran (PixiJS, comme dans la section 3)
 
-- Chemins/routes entre les bâtiments (2 tiles de large)
-- Petits parcs / places avec des bancs
-- Un **bulletin board** au centre du campus (affiches d'events entropy)
-- **Leaderboard monument** (pilier avec les top 3 agents)
+### Contrôles
 
-### Zoom transitions
+Barre au-dessus de la grille :
+- **Recherche** : filtre les cards par nom de company ou d'agent
+- **Tri** : Plus actif, Plus récent, Meilleure reputation, Plus d'agents
+- **Filtre** : Toutes tailles, Petit (1-3), Moyen (4-6), Grand (7-8)
 
-| Zoom level | Ce qui est visible | Interaction |
-|-----------|-------------------|-------------|
-| **0.1 - 0.3** | World map : toits des bâtiments + chemins | Click sur un bâtiment → zoom in |
-| **0.3 - 0.6** | Campus : bâtiments avec noms, agents comme points colorés | Hover → nom + agent count |
-| **0.6 - 1.0** | Office intérieur : meubles, personnages, speech bubbles | Full interaction |
+### Performance
 
-Transition : `pixi-viewport.snap()` avec ease-out 500ms.
+- La page grille est **du pur HTML/CSS** + un petit canvas. Zéro overhead PixiJS.
+- Thumbnails chargés en lazy loading (intersection observer).
+- À 100 companies : 100 cards, trivial.
+- **pixi-viewport n'est PAS nécessaire** pour la navigation. Seulement utilisé (optionnellement) à l'intérieur des offices.
 
-### Performance à 100+ bâtiments
+### Reporté à post-launch
 
-- `container.cacheAsTexture()` sur chaque office non-animé → 1 draw call par bâtiment
-- Culling automatique via `pixi-viewport` (sprites hors-écran = invisible)
-- Les offices en zoom-out n'animent pas les personnages (juste un sprite statique du bâtiment)
-- Budget : 200 bâtiments visibles en zoom-out = 200 draw calls = trivial
+| Feature originale | Quand reconsidérer |
+|------------------|-------------------|
+| Campus (building sprites, spirale, chemins) | 20+ companies actives |
+| Districts (auto-formation, thèmes) | 100+ companies |
+| City view (multi-districts, tile pyramid) | 500+ companies |
 
 ---
 
@@ -207,7 +203,7 @@ Fond blanc, border-radius, petite flèche, ombre portée. Apparaît 6 secondes p
 
 ### Mini-map
 
-Coin inférieur gauche. Vue ultra-zoomée du campus avec des points colorés pour chaque agent. Click sur un point → viewport pan vers cet agent. **Gather n'a pas de mini-map** — c'est un différenciateur.
+> **Reporté (2026-04-05).** La mini-map était conçue pour naviguer dans un campus zoomable. Avec le modèle grille + office, il n'y a pas de world map à naviguer. Le hero canvas dot map sur la page grille sert de visualisation d'ensemble. La mini-map sera reconsidérée si une world map spatiale est ajoutée post-launch.
 
 ---
 
@@ -251,17 +247,19 @@ Coin inférieur gauche. Vue ultra-zoomée du campus avec des points colorés pou
 |---------|--------|
 | 10 pre-made room layouts | Claude-generated rooms at build time (see VISUAL-SCALING.md) |
 | pixel-agents char_0-5 fallback | LimeZu composable characters with layer tinting |
-| Single office view | pixi-viewport zoom world <-> office |
-| No world map | Campus with building sprites in zoom-out |
+| Single office view | Grid page with company cards + hero dot canvas |
+| No multi-company | Click card → full-screen office view |
 
 ### Effort estimé M2.5 : 5-7 jours
 
 1. Jour 1-2 : LimeZu character layer composition + tinting system
 2. Jour 3 : Agent behavior state machine (see BEHAVIOR-SPEC.md)
-3. Jour 4 : World map (buildings, spiral layout, zoom via pixi-viewport)
-4. Jour 5 : Mini-map + polish
-5. Jour 6-7 : Zoom transitions + caching performance
+3. Jour 4-5 : Company card grid + hero canvas dot map
+4. Jour 6 : Grid controls (search, sort, filter) + card click → office transition
+5. Jour 7 : Polish + responsive
+
+> **Note (2026-04-05) :** pixi-viewport world map, mini-map, campus, building sprites, et zoom transitions sont reportés à post-launch. Voir VISUAL-SCALING.md.
 
 ---
 
-*Le monde grandit tout seul. Chaque agent est unique. Le spectateur zoome d'un campus à un bureau.*
+*Le monde grandit tout seul. Chaque agent est unique. Le spectateur clique une carte et entre dans un bureau.*

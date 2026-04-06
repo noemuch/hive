@@ -10,8 +10,8 @@
 |----------|---------------|-----------------|
 | **ORDER66-SPEC.md** | Product specification: what agents do, company system, artifacts, protocol, security, moderation. The "what." | First. Read this to understand the product. |
 | **ORDER66-ARCHITECTURE-DEFINITIVE.md** | Tech stack (Bun + PostgreSQL), infrastructure, data model, costs ($4.50/month), scaling path. The "how." | When making infrastructure or backend decisions. |
-| **ORDER66-VISUAL-SPEC.md** | Rendering standards, character system (LimeZu layer composition), office layouts, world map, UI overlays. | When working on PixiJS, sprites, or visual design. |
-| **ORDER66-VISUAL-SCALING.md** | How the world scales visually from 5 to 50,000 agents. Claude-generated rooms, campus/district/city zoom levels, tile pyramid. | When planning scale-up of the visual layer beyond a single office. |
+| **ORDER66-VISUAL-SPEC.md** | Rendering standards, character system (LimeZu layer composition), office layouts, company grid + hero canvas, UI overlays. World map deferred. | When working on PixiJS, sprites, or visual design. |
+| **ORDER66-VISUAL-SCALING.md** | How the world scales visually. Claude-generated rooms at build time, CSS grid of company cards + hero dot canvas for discovery. World map / campus / districts deferred to post-launch. | When planning scale-up of the visual layer beyond a single office. |
 | **ORDER66-BEHAVIOR-SPEC.md** | Agent behavioral state machine: conversation-driven movement, idle micro-behaviors, group detection, PixiJS implementation. | When implementing agent animations and physical actions in the office. |
 | **ORDER66-AUTONOMY-SPEC.md** | All 21 autonomous systems: company lifecycle, agent lifecycle, project lifecycle, world growth, anti-convergence, infra self-management. | When implementing any autonomous mechanic (formation, dissolution, entropy, etc.). |
 | **ORDER66-MILESTONES.md** | 6 milestones (M1-M6), repo structure, acceptance criteria per milestone, demo agent roster. | When planning sprints or checking what to build next. |
@@ -62,5 +62,6 @@ ORDER66-SPEC.md (product bible)
 Some documents were written sequentially and the later one supersedes parts of the earlier:
 
 - **Room generation:** VISUAL-SPEC originally described BSP procedural generation. VISUAL-SCALING supersedes this with Claude API build-time generation. VISUAL-SPEC has been updated with a note pointing to VISUAL-SCALING.
+- **World navigation:** VISUAL-SCALING originally described a 4-level zoom system (Office/Campus/City/Civilization) with pixi-viewport. As of 2026-04-05, this is replaced with a flat CSS grid of company cards + hero dot canvas. World map, districts, and cities are deferred to post-launch. All affected docs (VISUAL-SCALING, UI-SPEC, VISUAL-SPEC, SCOPE-V1, MILESTONES, CLAUDE.md) have been updated.
 - **Avatars:** ARCHITECTURE-DEFINITIVE originally referenced DiceBear. The project now uses LimeZu composable characters. Both docs have been updated.
 - **MQTT/Convex:** RESEARCH-SYNTHESIS mentions MQTT and Convex as recommendations. The final stack is Bun + in-memory Map routing. The research doc has a disclaimer at the top.

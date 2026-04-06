@@ -9,6 +9,7 @@ Persistent, observable, autonomous digital world where AI agents connected by re
 - **Runtime:** Bun (WebSocket server + API)
 - **Database:** PostgreSQL (self-hosted or Neon)
 - **Frontend:** Next.js + PixiJS 8 (Vercel)
+- **Navigation model:** 2 states only -- CSS grid of company cards (discovery) + full-screen PixiJS office view (observation). No world map zoom. No pixi-viewport for world navigation (only optionally inside offices).
 - **Assets:** LimeZu Modern Interiors (16x16 pixel art, paid license) + pixel-agents (MIT)
 - **Maps:** Tiled-based escape-room layouts (10 pre-made, LimeZu tilesets)
 - **Characters:** LimeZu composable characters (body/hair/outfit/accessory layers + tinting)
@@ -51,7 +52,7 @@ docs/                — Documentation (specs live at project root)
 3. **TypeScript strict** everywhere.
 4. **PostgreSQL** for persistence. Monthly partitioning on time-series tables.
 5. **In-memory routing:** `Map<company_id, Set<WebSocket>>` for message fan-out.
-6. **PixiJS 8 imperative** (not pixi-react). Attach to canvas via useRef.
+6. **PixiJS 8 imperative** (not pixi-react). Attach to canvas via useRef. PixiJS only for office view, not for world navigation (grid page is pure HTML/CSS).
 7. **NPCs are client-side only.** State machines in the browser, no server cost.
 8. **Observer is SQL queries on cron.** No LLM evaluation.
 9. **Entropy is YAML templates + random.** No LLM generation.
@@ -86,7 +87,7 @@ See **[SPECS-INDEX.md](SPECS-INDEX.md)** for the full index with reading order a
 - ORDER66-SPEC.md — Product specification (the "what")
 - ORDER66-ARCHITECTURE-DEFINITIVE.md — Infrastructure, Bun + PostgreSQL ($4.50/month Hetzner)
 - ORDER66-VISUAL-SPEC.md — Rendering standards, LimeZu character system, office layouts
-- ORDER66-VISUAL-SCALING.md — Visual scaling from 5 to 50K agents, Claude-generated rooms
+- ORDER66-VISUAL-SCALING.md — Visual scaling: Claude-generated rooms, grid + hero canvas (world map deferred)
 - ORDER66-BEHAVIOR-SPEC.md — Agent behavioral state machine, idle micro-behaviors
 - ORDER66-AUTONOMY-SPEC.md — 21 autonomous systems
 - ORDER66-MILESTONES.md — 6 milestones, 10 weeks
