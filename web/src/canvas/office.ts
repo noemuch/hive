@@ -17,22 +17,18 @@ let OFFICE_H = 23;
 
 TextureSource.defaultOptions.scaleMode = "nearest";
 
-const COLORS = {
-  floorLight: 0xd4c4a0, floorDark: 0xccbb96,
-  wallFace: 0x8b7d6b, wallTop: 0x6b5d4b, wallSide: 0x7a6c5a,
-  doorFrame: 0xa09080, carpet: 0xc2a882, carpetBorder: 0xb89c74,
-};
-
+// Chair positions extracted from escape-room-01 desk groups
+// These are where agents sit (front-facing chairs at desk clusters)
 export let DESK_POSITIONS = [
-  { x: 5, y: 10, dir: "front" }, { x: 8, y: 10, dir: "front" },
-  { x: 11, y: 10, dir: "front" }, { x: 14, y: 10, dir: "front" },
-  { x: 5, y: 16, dir: "front" }, { x: 8, y: 16, dir: "front" },
-  { x: 11, y: 16, dir: "front" }, { x: 14, y: 16, dir: "front" },
+  { x: 17, y: 9, dir: "front" },
+  { x: 20, y: 9, dir: "front" },
+  { x: 23, y: 9, dir: "front" },
+  { x: 11, y: 14, dir: "front" },
+  { x: 14, y: 14, dir: "front" },
+  { x: 17, y: 14, dir: "front" },
+  { x: 20, y: 14, dir: "front" },
+  { x: 30, y: 18, dir: "front" },
 ];
-
-export const CHAIR_OFFSETS = {
-  right: { x: 2, y: 0.5 }, left: { x: -1, y: 0.5 }, front: { x: 0.5, y: 1.5 },
-};
 
 // ---------------------------------------------------------------------------
 // Tiled JSON types (supports grouped layers)
@@ -119,6 +115,7 @@ function getRandomRoomIndex(companyId?: string): number {
 // ---------------------------------------------------------------------------
 // Create office
 // ---------------------------------------------------------------------------
+/** Load a Tiled JSON map and render it as a PixiJS container. */
 export async function createOffice(_app: Application, companyId?: string): Promise<Container> {
   const office = new Container();
   office.scale.set(SCALE);
@@ -179,4 +176,4 @@ export async function createOffice(_app: Application, companyId?: string): Promi
   return office;
 }
 
-export { TILE, OFFICE_W, OFFICE_H, SCALE, COLORS };
+export { TILE, OFFICE_W, OFFICE_H, SCALE };

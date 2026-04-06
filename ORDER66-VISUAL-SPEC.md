@@ -9,8 +9,8 @@
 
 | Paramètre | Gather.town | Order66 |
 |-----------|------------|---------|
-| Tile size | 32×32 | **32×32** |
-| Character size | 32×48 | **32×48** (plus grand que le tile = effet de profondeur) |
+| Tile size | 32×32 | **16×16** (LimeZu assets — rendered at 2x = 32px on screen) |
+| Character size | 32×48 | **16×32** (LimeZu characters — rendered at 2x = 32×64 on screen) |
 | Perspective | Top-down 3/4 (oblique) | **Idem** |
 | Name labels | Sans-serif propre, fond semi-transparent | **Idem** — PAS en pixel art |
 | Palette | Warm, soft, désaturé, cozy | **Idem** — tons terre, bois chaud, verts doux |
@@ -51,24 +51,13 @@ accessory    = (seed >> 23) & 0x0F   // 4 bits → 12 options + 4 "aucun"
 
 **Déterministe** : même agent_id → même personnage toujours, sur tous les clients.
 
-### Assets nécessaires
+### Assets
 
-~50 petits PNGs en niveaux de gris, tous sur la **même grille d'animation** :
+**Primary:** LimeZu characters (16x16 base, paid license). Located at `web/public/tilesets/limezu/characters/`. Includes bodies, hairstyles, outfits, accessories, eyes — composable layers with a character generator guide.
 
-```
-Grille par layer : 4 directions × 4 frames = 16 frames
-Frame size : 32×48 pixels
-Sheet size : 128×192 pixels par layer variant
+**Secondary (placeholder):** pixel-agents characters (char_0 to char_5, MIT license) at `web/public/tilesets/characters/`. 6 pre-made characters, usable as fallback.
 
-body/body_0.png ... body_7.png          (8 fichiers)
-hair/hair_0.png ... hair_15.png         (16 fichiers)
-shirt/shirt_0.png ... shirt_7.png       (8 fichiers)
-pants/pants_0.png ... pants_3.png       (4 fichiers)
-accessory/acc_0.png ... acc_11.png      (12 fichiers)
-                                    Total: ~48 fichiers, <1MB
-```
-
-Tous en grayscale → `sprite.tint = couleur` à runtime = variation infinie.
+The layer composition concept remains valid — LimeZu characters support body/hair/outfit/accessory layering. Animation grid: 4 directions x 6 frames per direction (per BEHAVIOR-SPEC). Grayscale tinting works on the outfit/hair layers for color variation.
 
 ### Rendering PixiJS
 
@@ -90,7 +79,7 @@ Character = Container {
 |------|-------|
 | **Active** | Animation idle (léger mouvement, 2 frames @ 0.05 speed) |
 | **Working** | Assis au desk, face au PC, frame "front" statique |
-| **Walking** | Walk cycle 4 frames dans la direction du mouvement |
+| **Walking** | Walk cycle 6 frames dans la direction du mouvement (LimeZu spritesheet) |
 | **Idle** | Même que active mais sprite légèrement assombri (alpha 0.7) |
 | **Sleeping** | Sprite très assombri (alpha 0.4) + "zzz" particle au-dessus |
 
@@ -98,46 +87,22 @@ Character = Container {
 
 ## 3. Office System — Scale autonome
 
+> **Note:** L'approche de génération a évolué. La section ci-dessous décrit les tailles et le concept.
+> Pour la pipeline de génération définitive (Claude API at build time, pas BSP runtime),
+> voir **ORDER66-VISUAL-SCALING.md** section "The Build-Time Generation Pipeline."
+
 ### Principe : les offices grandissent avec le nombre d'agents
 
-Pas de layout fixe. L'office se **génère procéduralement** basé sur le nombre d'agents.
+Les offices sont générés par **Claude API at build time** à partir d'un style bible de 15-20 rooms exemplaires dessinées à la main dans Tiled. Ceci produit des rooms qui semblent hand-designed (plantes dans les coins, tapis sous la table de meeting, détails uniques) au lieu du rendu algorithmique d'un BSP.
 
-### Algorithme de génération
+### Furniture et détails
 
-**Étape 1 — Room layout (BSP)**
-
-```
-Si ≤ 4 agents : 1 seule room (open space)
-Si 5-6 agents : 2 zones (workspace + meeting nook)
-Si 7-8 agents : 3 rooms (workspace + meeting room + break area) connectées par couloir
-```
-
-BSP tree : subdiviser le rectangle total en rooms rectangulaires.
-
-**Étape 2 — Furniture placement (contraintes)**
-
-Ordre de placement :
-1. **Porte** (côté bas du rectangle principal)
-2. **Couloir** (flood-fill depuis la porte, réserver 1 tile de large)
-3. **Desks** sur les murs opposés à la porte (2×3 tiles par workstation : desk + chair space)
-4. **Meeting table** dans la room meeting (si ≥5 agents)
-5. **Kitchen counter / machine à café** dans break area (si ≥7 agents)
-6. **Plantes, étagères, déco** dans les coins et espaces restants
-
-Contraintes :
-- Chaque desk doit être accessible depuis le couloir (pathfind)
-- Min 1 tile de passage entre les meubles
-- Plantes uniquement dans les coins ou contre les murs
-- Whiteboard sur le mur de la meeting room
-
-**Étape 3 — Détails (déco)**
-
-Remplir les espaces vides avec :
-- Tapis (zone meeting)
-- Petites peintures sur les murs
-- Horloges
-- Poubelles près des portes
-- Variété de sols (bois pour l'espace principal, moquette pour le meeting)
+Chaque room générée contient :
+- Desks avec espace chaise (1 par agent)
+- Meeting table (si ≥5 agents)
+- Kitchen counter / machine à café (si ≥7 agents)
+- Plantes, étagères, déco — placés par Claude pour un rendu organique
+- Variété de sols, murs, accents — guidée par une "personnalité" de company injectée dans le prompt
 
 ### Tailles d'offices
 
@@ -246,58 +211,54 @@ Coin inférieur gauche. Vue ultra-zoomée du campus avec des points colorés pou
 
 ---
 
-## 6. Assets à Créer
+## 6. Assets Disponibles
 
-### Phase 1 : Utiliser les assets pixel-agents (déjà téléchargés)
+### Tilesets (16x16)
 
-Ce qu'on a → ce qu'on en fait :
+| Asset | Source | Licence | Chemin |
+|-------|--------|---------|--------|
+| Room_Builder_16x16.png | LimeZu | Paid | `tilesets/limezu/` |
+| Interiors_16x16.png | LimeZu | Paid | `tilesets/limezu/` |
+| office-tile-catalog.json | Custom (GID mapping) | -- | `tilesets/limezu/` |
+| Pre-rendered room PNGs | LimeZu rooms | Paid | `tilesets/rooms/` |
+| furniture/* | pixel-agents | MIT | `tilesets/furniture/` |
+| floors/*, walls/* | pixel-agents | MIT | `tilesets/floors/`, `tilesets/walls/` |
 
-| Asset pixel-agents | Usage dans Order66 |
-|-------------------|-------------------|
-| furniture/DESK | Workstation |
-| furniture/PC | Écran sur le desk |
-| furniture/CUSHIONED_CHAIR | Chaise devant le desk |
-| furniture/WHITEBOARD | Meeting room |
-| furniture/COFFEE | Break area |
-| furniture/SOFA | Meeting area |
-| furniture/BOOKSHELF | Déco |
-| furniture/PLANT, LARGE_PLANT, HANGING_PLANT, CACTUS | Déco |
-| furniture/SMALL_TABLE, COFFEE_TABLE | Meeting |
-| characters/char_0 → char_5 | Personnages temporaires (6 uniques) |
-| floors/floor_0 → floor_8 | Sols variés |
-| walls/wall_0 | Murs |
+### Characters
 
-### Phase 2 : Créer les character layers (unique characters)
+| Asset | Source | Licence | Chemin |
+|-------|--------|---------|--------|
+| LimeZu characters (composable) | LimeZu | Paid | `tilesets/limezu/characters/` |
+| char_0 to char_5 (placeholders) | pixel-agents | MIT | `tilesets/characters/` |
 
-Besoin : **48 PNGs grayscale** sur grille 32×48, 4 directions × 4 frames.
-
-Options :
-1. **Dessiner dans Figma** (tu as le MCP figma-console)
-2. **Adapter le LPC generator** (open source, GPL — attention à la licence)
-3. **Commander sur Fiverr** (~$50-100 pour un set complet)
-4. **Utiliser les char_0→5 comme placeholder** et scaler avec color tinting en attendant
-
-**Recommandation : Option 4 maintenant (color tinting des 6 existants = 6×16 = 96 variantes), Option 1 ou 3 pour la v1 publique.**
+**Current state:** LimeZu composable characters are available (bodies, hairstyles, outfits, accessories, eyes). The pixel-agents char_0-5 serve as simple fallback. Color tinting on LimeZu layers provides effectively unlimited visual variation.
 
 ---
 
-## 7. Ce qui Change dans les Milestones
+## 7. Current State vs Future Visual Milestones
 
-### M2 (actuel) → M2.5 (upgrade visuel)
+### What's Done (M2 in progress)
 
-| Avant (M2 actuel) | Après (M2.5) |
-|-------------------|-------------|
-| Office layout fixe 24×18 | Procédural selon nombre d'agents |
-| 6 character sprites | 6 × color tinting = 96 variantes |
-| PixiJS Text pour noms | HTML overlay pour noms + bubbles |
-| Pas de zoom | pixi-viewport zoom world ↔ office |
-| Pas de world map | Bâtiments en zoom-out |
+- 10 LimeZu escape-room tilemaps (40x23 tiles, 16x16, rendered at 2.5x)
+- PixiJS 8 imperative rendering (office.ts, agents.ts, npcs.ts)
+- Agent sprites at desks with speech bubbles
+- HTML overlay labels (AgentLabels.tsx)
+- ChatPanel with live conversation
+
+### What's Next (M2.5 -- upgrade visuel)
+
+| Current | Target |
+|---------|--------|
+| 10 pre-made room layouts | Claude-generated rooms at build time (see VISUAL-SCALING.md) |
+| pixel-agents char_0-5 fallback | LimeZu composable characters with layer tinting |
+| Single office view | pixi-viewport zoom world <-> office |
+| No world map | Campus with building sprites in zoom-out |
 
 ### Effort estimé M2.5 : 5-7 jours
 
-1. Jour 1-2 : Office procédural (BSP + furniture constraints)
-2. Jour 3 : Character color tinting + HTML label overlay
-3. Jour 4 : World map (bâtiments, spiral layout, zoom)
+1. Jour 1-2 : LimeZu character layer composition + tinting system
+2. Jour 3 : Agent behavior state machine (see BEHAVIOR-SPEC.md)
+3. Jour 4 : World map (buildings, spiral layout, zoom via pixi-viewport)
 4. Jour 5 : Mini-map + polish
 5. Jour 6-7 : Zoom transitions + caching performance
 

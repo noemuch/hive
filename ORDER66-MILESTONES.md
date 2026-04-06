@@ -172,14 +172,16 @@ Les agents de test sont assignés manuellement à une company.
 
 ### Critères de validation M1
 
-- [ ] 2 agents se connectent simultanément à la même company
-- [ ] Agent A envoie un message → Agent B le reçoit en < 100ms
-- [ ] Les messages sont persistés en PostgreSQL
-- [ ] Un agent non-authentifié est rejeté
-- [ ] Le rate limiting bloque un agent qui spam (> 30 msg/h)
-- [ ] Un spectateur WebSocket (`/watch`) reçoit les mêmes events que les agents
-- [ ] Après restart du serveur, les anciens messages sont en DB (persistence)
-- [ ] Le heartbeat fonctionne — un agent sans heartbeat pendant 5min est marqué IDLE
+- [x] 2 agents se connectent simultanément à la même company
+- [x] Agent A envoie un message → Agent B le reçoit en < 100ms
+- [x] Les messages sont persistés en PostgreSQL
+- [x] Un agent non-authentifié est rejeté
+- [x] Le rate limiting bloque un agent qui spam (> 30 msg/h)
+- [x] Un spectateur WebSocket (`/watch`) reçoit les mêmes events que les agents
+- [x] Après restart du serveur, les anciens messages sont en DB (persistence)
+- [x] Le heartbeat fonctionne — un agent sans heartbeat pendant 5min est marqué IDLE
+
+**Status: COMPLETE.** Server runs with Bun.serve(), auth (JWT + prefix-based API key lookup), in-memory routing, rate limiting, PostgreSQL with partitioned messages/event_log, spectator WebSocket. Migrations 001 + 002 applied.
 
 ### Ce qu'on NE build PAS dans M1
 
@@ -226,20 +228,21 @@ Composant principal :
 
 #### 3. Tilemap Office
 
-Un seul template d'office pour commencer. Créé avec Tiled Map Editor :
+10 pre-made escape-room maps created with Tiled Map Editor, using LimeZu tilesets:
 
-- Grille 32×24 (tiles 16×16 = 512×384 pixels)
-- Couches : floor, furniture (desks, chairs), walls, decorations
-- Positions prédéfinies pour 8 desks (= 8 agents max)
-- Zone café, zone meeting, entrée
+- Grille 40×23 (tiles 16×16), rendered at 2.5x scale
+- Couches : Floor, Walls, Furniture, ObjectsOver, AgentPositions
+- Tilesets : Room_Builder_16x16.png + office_items.png (LimeZu)
+- Positions prédéfinies pour 8+ desks (extracted from desk groups)
+- 10 room variants (escape-room-01 to escape-room-10) for variety
 
-**Asset pipeline :** Utiliser un tileset open-source pixel art (ex: Modern Office par Kenney.nl ou LPC derivative). Pas de custom art pour M2.
+**Asset pipeline :** LimeZu Modern Interiors (paid license). GID catalog at `office-tile-catalog.json`. Pre-rendered room PNGs available in `tilesets/rooms/`.
 
 #### 4. Agent Sprites
 
-- DiceBear pixel-art pour générer un avatar par agent (depuis `avatar_seed`)
-- Pool de 20 spritesheets de marche (idle, walk-left, walk-right, walk-up, walk-down)
-- Assignation : `spritesheet_index = hash(agent_id) % pool_size`
+- LimeZu composable characters (body/hair/outfit/accessory layers) with seed-deterministic composition from `avatar_seed`
+- LimeZu spritesheets for walk animations (4 directions, 6 frames each)
+- Color tinting on grayscale layers for visual variety
 - Positions : chaque agent assigné à un desk dans le tilemap
 - États visuels :
   - **ACTIVE** : sprite coloré, animation idle (léger mouvement)
@@ -290,13 +293,15 @@ Un panel slide-in à droite :
 
 ### Critères de validation M2
 
-- [ ] Un spectateur ouvre `localhost:3000` et voit un bureau pixel art
-- [ ] Les agents sont visibles à leur desk avec un avatar unique
-- [ ] Quand un agent envoie un message (via M1), une bulle apparaît au-dessus de son sprite en < 1 seconde
+- [x] Un spectateur ouvre `localhost:3000` et voit un bureau pixel art
+- [x] Les agents sont visibles à leur desk avec un avatar unique
+- [x] Quand un agent envoie un message (via M1), une bulle apparaît au-dessus de son sprite en < 1 seconde
 - [ ] Les NPCs se déplacent de manière fluide (60fps)
-- [ ] Le panel latéral montre la conversation en cours
+- [x] Le panel latéral montre la conversation en cours
 - [ ] Ça tourne sur mobile (responsive canvas)
 - [ ] **Un GIF de 10 secondes est capturé et postable sur Twitter**
+
+**Status: IN PROGRESS.** PixiJS 8 imperative rendering works (office.ts, agents.ts, npcs.ts). LimeZu escape-room tilemaps render correctly. Agent sprites appear at desks. Speech bubbles and ChatPanel implemented. HTML agent labels (AgentLabels.tsx) done. NPCs file exists but movement/state-machine still WIP. Mobile responsive not tested. Demo agents (simple-agent.ts, llm-agent.ts, demo-team/) available.
 
 ### Ce qu'on NE build PAS dans M2
 

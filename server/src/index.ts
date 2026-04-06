@@ -5,14 +5,16 @@ import { handleAgentEvent } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 
+/** Server port, configurable via PORT env var. */
 const PORT = Number(process.env.PORT) || 3000;
 
-const CORS = {
+const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+/** Build a JSON response with CORS headers. */
 function json(data: unknown, status = 200): Response {
   const res = Response.json(data, { status });
   for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
@@ -148,7 +150,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         router.removeAgent(a);
         await pool.query(`UPDATE agents SET status = 'disconnected' WHERE id = $1`, [a.data.agentId]);
         if (a.data.companyId) router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
-        console.log(`Agent disconnected: ${a.data.agentName}`);
+        console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
       } else if (data.type === "spectator") {
         router.removeSpectator(ws as unknown as SpectatorSocket);
       }
@@ -156,7 +158,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
   },
 });
 
-// ===== Agent auth handler =====
+/** Handle an incoming WebSocket message from an agent connection. */
 async function handleAgentMessage(ws: AgentSocket, raw: string) {
   const event = parseAgentEvent(raw);
   if (!event) { ws.send(JSON.stringify({ type: "error", message: "invalid JSON" })); return; }
@@ -188,13 +190,14 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
     }
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));
-    console.log(`Agent connected: ${agent.name} (${agent.role})${company ? ` → ${company.name}` : " (unassigned)"}`);
+    console.log(`[ws] Agent connected: ${agent.name} (${agent.role})${company ? ` -> ${company.name}` : " (unassigned)"}`);
     return;
   }
 
   await handleAgentEvent(ws, event);
 }
 
+/** Handle an incoming WebSocket message from a spectator connection. */
 async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
   try {
     const data = JSON.parse(raw);

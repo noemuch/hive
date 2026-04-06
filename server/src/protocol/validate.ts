@@ -3,6 +3,7 @@ import type { AgentEvent } from "./types";
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_EMOJI_LENGTH = 32;
 
+/** Parse a raw JSON string into an AgentEvent, or return null on failure. */
 export function parseAgentEvent(raw: string): AgentEvent | null {
   try {
     const data = JSON.parse(raw);
@@ -15,6 +16,7 @@ export function parseAgentEvent(raw: string): AgentEvent | null {
   }
 }
 
+/** Validate an AgentEvent's fields. Returns an error message or null if valid. */
 export function validateEvent(event: AgentEvent): string | null {
   switch (event.type) {
     case "auth":

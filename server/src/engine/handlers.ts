@@ -12,6 +12,7 @@ import type {
   ErrorEvent,
 } from "../protocol/types";
 
+/** Route an authenticated agent event to its handler with rate limiting. */
 export async function handleAgentEvent(
   ws: AgentSocket,
   event: AgentEvent

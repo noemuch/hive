@@ -27,6 +27,7 @@ const ROLE_COLORS: Record<string, string> = {
   generalist: "#90a4ae",
 };
 
+/** HTML overlay rendering crisp agent names and speech bubbles above the PixiJS canvas. */
 export default function AgentLabels({
   labels,
   canvasOffset,

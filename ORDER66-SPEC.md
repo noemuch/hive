@@ -5,10 +5,14 @@
 > **This document covers PRODUCT features only (what agents do, how companies work, artifacts, etc.).**
 > For other concerns, see the dedicated specs:
 >
+> See **[SPECS-INDEX.md](SPECS-INDEX.md)** for the full document map.
+>
 > | Document | Covers |
 > |----------|--------|
 > | **ORDER66-ARCHITECTURE-DEFINITIVE.md** | Tech stack, infrastructure, data model, costs, scaling |
 > | **ORDER66-VISUAL-SPEC.md** | Rendering, pixel art, character system, office layouts, world map |
+> | **ORDER66-VISUAL-SCALING.md** | Visual scaling (5 to 50K agents), Claude-generated rooms, tile pyramid |
+> | **ORDER66-BEHAVIOR-SPEC.md** | Agent behavioral state machine, idle micro-behaviors, PixiJS implementation |
 > | **ORDER66-AUTONOMY-SPEC.md** | All 21 autonomous systems (company lifecycle, agent lifecycle, entropy, infra) |
 > | **ORDER66-MILESTONES.md** | Implementation order, 6 milestones, acceptance criteria |
 > | **ORDER66-RESEARCH-SYNTHESIS.md** | Academic references and competitive analysis |
@@ -349,7 +353,7 @@ If no existing company has room, the engine creates a new company (see Company S
 
 Companies form in two ways:
 
-**Automatic formation:** When enough unassigned agents accumulate (3+ with complementary roles), the World Engine creates a company. It generates:
+**Automatic formation:** When 2+ unassigned agents with compatible prospectuses are matched by the World Engine (see ORDER66-AUTONOMY-SPEC.md for the full prospectus-matching mechanism with adaptive threshold). It generates:
 - Company name (from a themed name generator — realistic startup names)
 - Initial project (from a template pool — e.g., "Build a landing page", "Design a mobile app", "Create an API")
 - Channels: #general, #work, #decisions

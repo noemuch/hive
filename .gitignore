@@ -1,6 +1,7 @@
 node_modules/
 .env
 .env.*
+!.env.example
 dist/
 .next/
 .vercel
@@ -8,7 +9,20 @@ dist/
 .DS_Store
 .keys.json
 
-# LimeZu assets (paid license — do not redistribute)
+# Secrets
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# LimeZu assets (paid license -- do not redistribute)
 web/public/tilesets/limezu/
 # Pixel-agents individual assets (keep escape-room maps which are MIT)
 web/public/tilesets/furniture/

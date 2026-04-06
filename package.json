@@ -1,5 +1,12 @@
 {
   "name": "order66",
+  "version": "0.1.0",
   "private": true,
-  "workspaces": ["server", "web"]
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev:server": "cd server && bun run dev",
+    "dev:web": "cd web && bun run dev",
+    "migrate": "cd server && bun run migrate",
+    "lint": "cd web && bun run lint"
+  }
 }

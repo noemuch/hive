@@ -50,21 +50,9 @@ const ROLE_COLORS: Record<string, number> = {
 };
 
 // LimeZu 16x16 character frame dimensions
-// Sit/idle sheets are single-row strips of 16-wide frames.
-// The actual pixel height per frame varies but the content is 16x17
-// (16 wide, up to 17 tall for sitting characters with hair).
-// We use the full source height for each frame.
+// Sit/idle sheets are 384x32 single-row strips.
+// Each frame is 16px wide, 32px tall (full character height).
 const FRAME_W = 16;
-
-// Sit sheet: 12 frames = 4 directions x 3 frames each
-// Direction order (LimeZu standard): front, back, left, right
-// We want front-facing sit = first 3 frames
-const SIT_FRAMES_PER_DIR = 3;
-const SIT_FRONT_START = 0; // front direction is first row of frames
-
-// Idle anim sheet: 24 frames = 4 directions x 6 frames each
-const IDLE_ANIM_FRAMES_PER_DIR = 6;
-const IDLE_ANIM_FRONT_START = 0;
 
 // Tint hues for agents beyond the 4 base characters
 const TINT_COLORS = [
@@ -115,6 +103,7 @@ function extractFrames(
   return frames;
 }
 
+/** Pre-load all LimeZu character spritesheets into texture cache. */
 export async function loadCharacterTextures(): Promise<void> {
   characterTextureMap.clear();
 
@@ -122,32 +111,25 @@ export async function loadCharacterTextures(): Promise<void> {
 
   for (const name of CHARACTER_NAMES) {
     try {
-      // Load sit spritesheet
-      const sitTex = await Assets.load(`${basePath}/${name}_sit_16x16.png`);
-      const sitSource = sitTex.source as TextureSource;
-      const sitTotalFrames = Math.floor(sitSource.width / FRAME_W);
-      const sitFrames = extractFrames(
-        sitSource,
-        sitTotalFrames,
-        SIT_FRONT_START,
-        SIT_FRAMES_PER_DIR
-      );
-
-      // Load idle anim spritesheet
-      const idleTex = await Assets.load(
-        `${basePath}/${name}_idle_anim_16x16.png`
-      );
+      // Load IDLE spritesheet (64x32 = 4 frames: front, back, left, right)
+      const idleUrl = `${basePath}/${name}_idle_16x16.png`;
+      const idleTex = await Assets.load(idleUrl);
       const idleSource = idleTex.source as TextureSource;
-      const idleTotalFrames = Math.floor(idleSource.width / FRAME_W);
-      const idleAnimFrames = extractFrames(
-        idleSource,
-        idleTotalFrames,
-        IDLE_ANIM_FRONT_START,
-        IDLE_ANIM_FRAMES_PER_DIR
-      );
+
+      // Extract just the front-facing frame (frame 0)
+      const frontFrame = [new Texture({
+        source: idleSource,
+        frame: new Rectangle(0, 0, FRAME_W, idleSource.height),
+      })];
+
+      // Load idle ANIM for subtle breathing (use first 2 frames only)
+      const idleAnimUrl = `${basePath}/${name}_idle_anim_16x16.png`;
+      const idleAnimTex = await Assets.load(idleAnimUrl);
+      const idleAnimSource = idleAnimTex.source as TextureSource;
+      const idleAnimFrames = extractFrames(idleAnimSource, Math.floor(idleAnimSource.width / FRAME_W), 0, 2);
 
       characterTextureMap.set(name, {
-        sit: sitFrames,
+        sit: frontFrame,
         idleAnim: idleAnimFrames,
       });
     } catch (e) {
@@ -191,8 +173,8 @@ function createZzzOverlay(parentContainer: Container): {
   interval: ReturnType<typeof setInterval>;
 } {
   const zzz = new Container();
-  zzz.x = 6;
-  zzz.y = -20;
+  zzz.x = 8;
+  zzz.y = -30; // float above 32px tall character
 
   let frame = 0;
   const interval = setInterval(() => {
@@ -229,6 +211,7 @@ function createZzzOverlay(parentContainer: Container): {
 // Agent sprite creation
 // ---------------------------------------------------------------------------
 
+/** Create and place an agent sprite at the next available desk. */
 export function addAgentSprite(
   parent: Container,
   id: string,
@@ -244,10 +227,15 @@ export function addAgentSprite(
   const color = ROLE_COLORS[role] || ROLE_COLORS.generalist;
 
   const container = new Container();
+  container.sortableChildren = true;
 
-  // Position at chair (in front of desk)
-  container.x = (desk.x + 1) * TILE;
-  container.y = (desk.y + 2.5) * TILE;
+  // Position at desk chair — desk.x/y are tile coords of the chair.
+  // Center horizontally in the tile. For Y, the sprite anchor is bottom-center,
+  // so we place at the bottom of the chair tile (desk.y + 1).
+  // But the chairs are already in "front" position (below the desk), so
+  // we DON'T add extra offset — just center in the chair tile.
+  container.x = (desk.x + 0.5) * TILE;
+  container.y = (desk.y + 0.5) * TILE; // center of chair tile
 
   // Determine which character sprite to use
   const { characterName, tint } = getCharacterForAgent(id);
@@ -256,12 +244,19 @@ export function addAgentSprite(
   let animSprite: AnimatedSprite | null = null;
 
   if (charTextures && charTextures.sit.length > 0) {
-    // Use sitting animation for desk-bound agents
-    animSprite = new AnimatedSprite(charTextures.sit);
-    animSprite.animationSpeed = 0.06;
+    // Use sitting frame — static single frame, no animation loop
+    const frames = charTextures.sit.length === 1
+      ? [...charTextures.sit, ...charTextures.sit] // AnimatedSprite needs 2+ frames
+      : charTextures.sit;
+    animSprite = new AnimatedSprite(frames);
+    animSprite.animationSpeed = 0.02; // Very slow — barely perceptible breathing
     animSprite.anchor.set(0.5, 1.0);
-    animSprite.scale.set(1.5);
-    animSprite.play();
+    animSprite.scale.set(1.0);
+    if (frames.length <= 2) {
+      animSprite.gotoAndStop(0); // Static — don't animate
+    } else {
+      animSprite.play();
+    }
 
     // Apply tint for variety
     if (tint !== 0xffffff) {
@@ -270,23 +265,26 @@ export function addAgentSprite(
 
     container.addChild(animSprite);
   } else {
-    // Fallback: colored circle with initial
+    // Fallback: large colored circle with initial — clearly visible
+    const RADIUS = 6;
     const body = new Graphics();
-    body.circle(0, 0, TILE * 0.7);
+    body.circle(0, -RADIUS, RADIUS);
     body.fill(color);
-    body.stroke({ color: 0xffffff, width: 2 });
+    body.stroke({ color: 0xffffff, width: 1.5 });
     container.addChild(body);
+    // Fallback circle — character textures not available
 
     const initial = new Text({
       text: name[0].toUpperCase(),
       style: new TextStyle({
-        fontSize: 12,
+        fontSize: 8,
         fontFamily: "monospace",
         fontWeight: "bold",
         fill: 0xffffff,
       }),
     });
     initial.anchor.set(0.5);
+    initial.y = -RADIUS;
     container.addChild(initial);
   }
 
@@ -352,6 +350,7 @@ export function addAgentSprite(
   roleBadge.y = badgeY + badgePadV;
   container.addChild(roleBadge);
 
+  container.zIndex = 900;
   parent.addChild(container);
 
   const sprite: AgentSprite = {
@@ -376,6 +375,7 @@ export function addAgentSprite(
 // Status management
 // ---------------------------------------------------------------------------
 
+/** Update visual appearance of an agent based on their status. */
 export function setAgentStatus(agentId: string, status: AgentStatus): void {
   const sprite = agents.get(agentId);
   if (!sprite) return;
@@ -429,6 +429,7 @@ export function setAgentStatus(agentId: string, status: AgentStatus): void {
 // Speech bubbles
 // ---------------------------------------------------------------------------
 
+/** Display a temporary speech bubble above an agent. */
 export function showSpeechBubble(
   parent: Container,
   agentId: string,
@@ -437,9 +438,9 @@ export function showSpeechBubble(
   const sprite = agents.get(agentId);
   if (!sprite) return;
 
-  // Remove existing bubble
+  // Remove existing bubble (it's a child of sprite.container now)
   if (sprite.bubble) {
-    parent.removeChild(sprite.bubble);
+    sprite.container.removeChild(sprite.bubble);
     sprite.bubble = null;
   }
   if (sprite.bubbleTimeout) {
@@ -452,11 +453,18 @@ export function showSpeechBubble(
   }
 
   const truncated =
-    message.length > 50 ? message.slice(0, 47) + "..." : message;
+    message.length > 60 ? message.slice(0, 57) + "..." : message;
 
+  // Add bubble as child of the agent container so it moves with the agent
+  // and is positioned relative to the agent's origin.
   const bubble = new Container();
-  bubble.x = sprite.container.x;
-  bubble.y = sprite.container.y - TILE * 2;
+  bubble.zIndex = 1000; // Above everything
+
+  // Position above the agent. The agent container origin is at the chair
+  // tile center. The sprite (if loaded) is ~32px tall anchored at bottom.
+  // Place bubble above the sprite.
+  bubble.x = 0;
+  bubble.y = -38; // well above a 32px tall character
 
   // Bubble text
   const text = new Text({
@@ -466,27 +474,27 @@ export function showSpeechBubble(
       fontFamily: "monospace",
       fill: 0x222222,
       wordWrap: true,
-      wordWrapWidth: 100,
+      wordWrapWidth: 80,
       lineHeight: 7,
     }),
   });
 
   // Measure and build background
-  const padding = 5;
-  const bgWidth = Math.min(text.width + padding * 2, 115);
+  const padding = 4;
+  const bgWidth = Math.min(text.width + padding * 2, 95);
   const bgHeight = text.height + padding * 2;
 
   const bg = new Graphics();
 
   // Main bubble rect
-  bg.roundRect(-bgWidth / 2, -bgHeight, bgWidth, bgHeight, 4);
+  bg.roundRect(-bgWidth / 2, -bgHeight, bgWidth, bgHeight, 3);
   bg.fill({ color: 0xffffff, alpha: 0.95 });
-  bg.stroke({ color: 0xcccccc, width: 0.5 });
+  bg.stroke({ color: 0xaaaaaa, width: 0.5 });
 
-  // Tail triangle
-  bg.moveTo(-3, 0);
-  bg.lineTo(0, 5);
-  bg.lineTo(3, 0);
+  // Tail triangle pointing down to agent
+  bg.moveTo(-2, 0);
+  bg.lineTo(0, 4);
+  bg.lineTo(2, 0);
   bg.closePath();
   bg.fill({ color: 0xffffff, alpha: 0.95 });
 
@@ -495,14 +503,16 @@ export function showSpeechBubble(
 
   bubble.addChild(bg);
   bubble.addChild(text);
-  parent.addChild(bubble);
+
+  // Add to agent container (not parent) so it's relative to agent position
+  sprite.container.addChild(bubble);
 
   sprite.bubble = bubble;
 
   // Auto-dismiss after 6 seconds
   sprite.bubbleTimeout = setTimeout(() => {
     if (sprite.bubble === bubble) {
-      parent.removeChild(bubble);
+      sprite.container.removeChild(bubble);
       sprite.bubble = null;
     }
   }, 6000);
@@ -512,14 +522,13 @@ export function showSpeechBubble(
 // Removal
 // ---------------------------------------------------------------------------
 
+/** Remove an agent sprite and clean up timers. */
 export function removeAgentSprite(parent: Container, agentId: string): void {
   const sprite = agents.get(agentId);
   if (!sprite) return;
 
   parent.removeChild(sprite.container);
-  if (sprite.bubble) {
-    parent.removeChild(sprite.bubble);
-  }
+  // Bubble is a child of sprite.container, so removing container removes it too
   if (sprite.bubbleTimeout) {
     clearTimeout(sprite.bubbleTimeout);
   }
@@ -533,6 +542,7 @@ export function removeAgentSprite(parent: Container, agentId: string): void {
 // Accessor
 // ---------------------------------------------------------------------------
 
+/** Get the current map of all active agent sprites. */
 export function getAgents(): Map<string, AgentSprite> {
   return agents;
 }

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Application, Container, Text, TextStyle } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
 import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures } from "@/canvas/agents";
-import { createNPCs } from "@/canvas/npcs";
 import ChatPanel from "./ChatPanel";
 
 type ChatMessage = {
@@ -25,6 +24,7 @@ export default function GameView() {
   const appRef = useRef<Application | null>(null);
   const officeRef = useRef<Container | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const pendingAgentsRef = useRef<{ id: string; name: string; role: string }[]>([]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -47,7 +47,7 @@ export default function GameView() {
           setCompanyName(best.name);
         }
       })
-      .catch(console.error);
+      .catch(() => { /* Server unreachable — will retry on reconnect */ });
   }, []);
 
   // Init PixiJS
@@ -83,6 +83,12 @@ export default function GameView() {
         if (destroyed) return;
         officeRef.current = office;
 
+        // Flush any agents that arrived before the office was ready
+        for (const pending of pendingAgentsRef.current) {
+          addAgentSprite(office, pending.id, pending.name, pending.role);
+        }
+        pendingAgentsRef.current = [];
+
         // Office is already scaled by SCALE internally
         // Center it in the viewport
         const officePixelW = OFFICE_W * TILE * SCALE;
@@ -97,9 +103,6 @@ export default function GameView() {
         office.y = (app.screen.height - officePixelH * fitScale) / 2;
 
         app.stage.addChild(office);
-
-        // Create NPCs
-        createNPCs(office);
 
         // Title overlay
         const title = new Text({
@@ -204,6 +207,9 @@ export default function GameView() {
 
           if (officeRef.current) {
             addAgentSprite(officeRef.current, data.agent_id, data.name, data.role);
+          } else {
+            // Office not ready yet — queue for replay once it loads
+            pendingAgentsRef.current.push({ id: data.agent_id, name: data.name, role: data.role });
           }
           break;
         }
@@ -234,8 +240,6 @@ export default function GameView() {
       wsRef.current = null;
     };
   }, [companyId]);
-
-  // Agents are loaded via WebSocket initial state (server sends agent_joined events on watch)
 
   return (
     <div className="relative w-full h-full">

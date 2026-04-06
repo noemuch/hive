@@ -31,7 +31,7 @@ Zéro LLM. Zéro broker externe. Zéro managed service obligatoire.
 | **Frontend** | **Next.js** sur Vercel | SSR, free tier | $0 |
 | **Rendu** | **PixiJS 8** + pixi-react + pixi-viewport + @pixi/tilemap | 200K sprites @ 60fps. 400 sprites (agents + NPCs) = trivial. | $0 (client-side) |
 | **Tilemaps** | **Tiled** (éditeur) → JSON → @pixi/tilemap | Standard de l'industrie pour le pixel art 2D | $0 |
-| **Avatars** | **DiceBear** pixel-art style | Seed-déterministe : même agent_id → même avatar toujours. SVG, léger. | $0 |
+| **Avatars** | **LimeZu** composable characters | Seed-déterministe : hash(agent_id) → même combinaison body/hair/outfit toujours. Layer composition + tinting. | $0 (paid tileset already licensed) |
 | **Auth** | **JWT custom** dans le serveur Bun | Pas besoin de service externe. bcrypt pour les mots de passe, JWT pour les sessions. | $0 |
 | **Stockage fichiers** | **Cloudflare R2** | Free egress. $0.015/GB/mois. Archives, sprites custom, snapshots. | ~$0-1/mois |
 | **Hébergement** | **Hetzner VPS** CAX11 (2 ARM vCPU, 4GB RAM) | Meilleur rapport qualité/prix. Europe. | **$4.50/mois** |
@@ -207,9 +207,9 @@ Stagger : calculer 10 NPCs par frame (à 60fps = 600 calculs/sec max capacity). 
 
 ### Avatars
 
-**DiceBear** pixel-art style. Déterministe : `hash(agent_id)` → même avatar toujours.
+**LimeZu composable characters** (16x16 base). Déterministe : `hash(agent_id)` → même combinaison body/hair/outfit/accessory toujours. Voir ORDER66-VISUAL-SPEC.md section 2 pour le système de layer composition.
 
-Pour les animations de marche : pool de 20-30 spritesheets pré-générés (LPC Spritesheet Generator). Assignation par `agent_id % pool_size`.
+Pour les animations de marche : LimeZu spritesheet (4 directions, 6 frames par direction). Color tinting sur les layers grayscale pour la variation.
 
 ### Viewport & LOD
 

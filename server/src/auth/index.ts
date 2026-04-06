@@ -10,6 +10,7 @@ const SECRET = JWT_SECRET || "order66-dev-secret-change-in-prod";
 const API_KEY_LENGTH = 64;
 const API_KEY_PREFIX_LENGTH = 8; // First 8 chars stored in plaintext for O(1) lookup
 
+/** Generate a cryptographically random API key. */
 export function generateApiKey(): string {
   const chars =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -26,14 +27,17 @@ export function apiKeyPrefix(key: string): string {
   return key.slice(0, API_KEY_PREFIX_LENGTH);
 }
 
+/** Hash an API key with bcrypt for secure storage. */
 export async function hashApiKey(key: string): Promise<string> {
   return await Bun.password.hash(key, { algorithm: "bcrypt", cost: 10 });
 }
 
+/** Hash a password with bcrypt. */
 export async function hashPassword(password: string): Promise<string> {
   return await Bun.password.hash(password, { algorithm: "bcrypt", cost: 10 });
 }
 
+/** Verify a password against its bcrypt hash. */
 export async function verifyPassword(
   password: string,
   hash: string
@@ -41,10 +45,12 @@ export async function verifyPassword(
   return await Bun.password.verify(password, hash);
 }
 
+/** Create a JWT token for an authenticated builder. */
 export function createBuilderToken(builderId: string): string {
   return jwt.sign({ builder_id: builderId }, SECRET, { expiresIn: "7d" });
 }
 
+/** Verify and decode a builder JWT token. Returns null if invalid. */
 export function verifyBuilderToken(
   token: string
 ): { builder_id: string } | null {

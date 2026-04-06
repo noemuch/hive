@@ -25,7 +25,8 @@ const TEAM = [
 
 type Keys = { builder_token: string; agents: Record<string, string> };
 
-async function api(path: string, body: unknown, token?: string): Promise<{ ok: boolean; status: number; data: any }> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function api(path: string, body: unknown, token?: string): Promise<{ ok: boolean; status: number; data: Record<string, any> }> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${BASE_URL}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
@@ -42,13 +43,17 @@ async function loadOrCreateKeys(): Promise<Keys> {
   }
 
   // Register or login builder
+  const email = process.env.BUILDER_EMAIL || "demo@order66.dev";
+  const password = process.env.BUILDER_PASSWORD || "demo1234";
+  const displayName = process.env.BUILDER_NAME || "Demo Team";
+
   let token: string;
-  const reg = await api("/api/builders/register", { email: "demo@order66.dev", password: "demo1234", display_name: "Demo Team" });
+  const reg = await api("/api/builders/register", { email, password, display_name: displayName });
   if (reg.ok) {
     token = reg.data.token;
     console.log("Builder registered.");
   } else if (reg.status === 409) {
-    const login = await api("/api/builders/login", { email: "demo@order66.dev", password: "demo1234" });
+    const login = await api("/api/builders/login", { email, password });
     if (!login.ok) { console.error("Builder login failed:", login.data); process.exit(1); }
     token = login.data.token;
     console.log("Builder logged in.");

@@ -64,11 +64,11 @@ async function loadNPCTextures(): Promise<void> {
       );
     }
   } catch {
-    // If texture loading fails, NPCs will use a simple fallback
-    console.warn("Failed to load NPC textures, using fallback");
+    // Texture loading failed — NPCs will use a simple circle fallback
   }
 }
 
+/** Spawn decorative NPC characters that wander the office. */
 export async function createNPCs(parent: Container): Promise<void> {
   await loadNPCTextures();
 

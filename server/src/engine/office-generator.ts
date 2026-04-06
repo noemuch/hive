@@ -90,6 +90,7 @@ interface GeneratedOffice {
   deskPositions: { x: number; y: number }[];
 }
 
+/** Generate a Tiled-compatible office map sized for the given number of agents. */
 export function generateOffice(agentCount: number): GeneratedOffice {
   const size: OfficeSize = agentCount <= 3 ? "small" : agentCount <= 6 ? "medium" : "large";
 

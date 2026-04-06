@@ -14,8 +14,6 @@ export type SpectatorSocket = ServerWebSocket<{
   watchingCompanyId: string | null;
 }>;
 
-
-
 class Router {
   // company_id → Set of agent WebSocket connections
   private agentConns = new Map<string, Set<AgentSocket>>();
