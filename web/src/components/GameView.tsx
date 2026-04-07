@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Application, Container, Text, TextStyle } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
 import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures } from "@/canvas/agents";
+import { setupCamera } from "@/canvas/camera";
 import ChatPanel from "./ChatPanel";
 
 type ChatMessage = {
@@ -25,6 +26,7 @@ export default function GameView() {
   const officeRef = useRef<Container | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pendingAgentsRef = useRef<{ id: string; name: string; role: string }[]>([]);
+  const cameraCleanupRef = useRef<(() => void) | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -78,6 +80,12 @@ export default function GameView() {
         app.canvas.style.imageRendering = "pixelated";
         appRef.current = app;
 
+        // Scene graph: stage → worldContainer (camera target) + hudContainer (screen-space)
+        const worldContainer = new Container();
+        const hudContainer = new Container();
+        app.stage.addChild(worldContainer);
+        app.stage.addChild(hudContainer);
+
         // Load character textures, then create office
         await loadCharacterTextures();
         const office = await createOffice(app);
@@ -90,22 +98,18 @@ export default function GameView() {
         }
         pendingAgentsRef.current = [];
 
-        // Office is already scaled by SCALE internally
-        // Center it in the viewport
-        const officePixelW = OFFICE_W * TILE * SCALE;
-        const officePixelH = OFFICE_H * TILE * SCALE;
-        const fitScale = Math.min(
-          app.screen.width / officePixelW,
-          app.screen.height / officePixelH
-        ) * 0.85;
+        // Office scaled by SCALE only — camera handles fit/zoom
+        office.scale.set(SCALE);
+        worldContainer.addChild(office);
 
-        office.scale.set(SCALE * fitScale);
-        office.x = (app.screen.width - officePixelW * fitScale) / 2;
-        office.y = (app.screen.height - officePixelH * fitScale) / 2;
+        // Camera: zoom, pan, resize — lazy bounds accessor reads live OFFICE_W/H
+        const cleanupCamera = setupCamera(app, worldContainer, () => ({
+          width: OFFICE_W * TILE * SCALE,
+          height: OFFICE_H * TILE * SCALE,
+        }));
+        cameraCleanupRef.current = cleanupCamera;
 
-        app.stage.addChild(office);
-
-        // Title overlay
+        // HUD: title overlay (screen-space, unaffected by camera)
         const title = new Text({
           text: "HIVE",
           style: new TextStyle({
@@ -118,9 +122,9 @@ export default function GameView() {
         });
         title.x = 12;
         title.y = 8;
-        app.stage.addChild(title);
+        hudContainer.addChild(title);
 
-        // Status indicator
+        // HUD: status indicator
         const status = new Text({
           text: "● LIVE",
           style: new TextStyle({
@@ -132,11 +136,13 @@ export default function GameView() {
         status.x = app.screen.width - 60;
         status.y = 8;
         status.name = "statusText";
-        app.stage.addChild(status);
+        hudContainer.addChild(status);
       });
 
     return () => {
       destroyed = true;
+      cameraCleanupRef.current?.();
+      cameraCleanupRef.current = null;
       try {
         app.destroy(true, { children: true });
       } catch {
