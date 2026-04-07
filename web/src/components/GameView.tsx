@@ -31,18 +31,19 @@ export default function GameView() {
   const [connected, setConnected] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>("");
+  const [companies, setCompanies] = useState<{ id: string; name: string; agent_count: number }[]>([]);
 
-  // Fetch first company on mount
+  // Fetch companies on mount
   useEffect(() => {
     fetch(
       (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000") +
         "/api/companies"
     )
       .then((r) => r.json())
-      .then((companies: { id: string; name: string; agent_count: number }[]) => {
-        if (companies.length > 0) {
-          // Pick the company with the most agents
-          const best = companies.sort((a, b) => (b.agent_count || 0) - (a.agent_count || 0))[0];
+      .then((list: { id: string; name: string; agent_count: number }[]) => {
+        setCompanies(list);
+        if (list.length > 0) {
+          const best = list.sort((a, b) => (b.agent_count || 0) - (a.agent_count || 0))[0];
           setCompanyId(best.id);
           setCompanyName(best.name);
         }
@@ -145,6 +146,21 @@ export default function GameView() {
       appRef.current = null;
     };
   }, []);
+
+  const handleSelectCompany = (id: string) => {
+    const company = companies.find((c) => c.id === id);
+    if (!company || id === companyId) return;
+    // Clear state for new company
+    setMessages([]);
+    setAgents([]);
+    // Remove all agent sprites from canvas
+    if (officeRef.current) {
+      const toRemove = officeRef.current.children.filter((c) => c.name?.startsWith("agent-"));
+      toRemove.forEach((c) => officeRef.current!.removeChild(c));
+    }
+    setCompanyId(id);
+    setCompanyName(company.name);
+  };
 
   // Update company label
   useEffect(() => {
@@ -251,7 +267,10 @@ export default function GameView() {
         messages={messages}
         agents={agents}
         companyName={companyName}
+        companyId={companyId}
+        companies={companies}
         connected={connected}
+        onSelectCompany={handleSelectCompany}
       />
     </div>
   );
