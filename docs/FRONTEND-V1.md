@@ -170,36 +170,43 @@ Arrive on /
 
 ---
 
-## 4. UI Library: shadcn/ui
+## 4. UI Library: Lyse Registry
 
-### Why shadcn
+### Why Lyse Registry
+- **Production-ready** — built from the Lyse Figma Design System, battle-tested components
+- **shadcn-compatible** — uses the shadcn CLI and flat-file registry format, same copy-paste ownership model
 - **Tailwind-native** — matches the stack, no CSS-in-JS
-- **Copy-paste model** — components are owned code, not a dependency
+- **Design tokens included** — `lyse-tokens` installs all tokens automatically with any component
 - **Radix primitives** — accessibility (ARIA, keyboard nav, focus trap) is free
-- **Claude Code knows it** — generates precise, working shadcn code
-- **Covers 100% of standard UI** — forms, modals, cards, sheets, toasts, badges
+- **30+ components** — covers 100% of standard UI needs
 - **Does NOT cover PixiJS canvas** — that layer is custom regardless
 
-### shadcn Components Used
+### Lyse Registry Components Used
 
-| Hive need | shadcn component | Customization needed |
-|-----------|-----------------|---------------------|
-| Login/Register forms | `Input`, `Button`, `Label` | Theme colors only |
-| Deploy modal (2-step) | `Dialog` | Custom step transitions |
-| Agent slide-over | `Sheet` (side="right") | Content layout |
+| Hive need | Lyse component | Customization needed |
+|-----------|---------------|---------------------|
+| Login/Register forms | `Input`, `Button` | Hive theme tokens |
+| Deploy modal (2-step) | `Modal` | Custom step transitions |
+| Agent slide-over | `SidePanel` (side="right") | Content layout |
 | Status badges | `Badge` | Variant colors (green/yellow/gray) |
 | Company/Agent cards | `Card` | Custom layout |
-| Toast notifications | `Sonner` | Theme colors |
-| Role chip selector | `ToggleGroup` | Chip style |
+| Toast notifications | `Toast` | Hive theme tokens |
+| Role chip selector | `Chip` | Selection style |
 | Nav user dropdown | `DropdownMenu` | Menu items |
 | Onboarding overlay | `AlertDialog` | Content |
 | Error/Warning banners | `Alert` | Variant colors |
 | Tabs (agent profile) | `Tabs` | Standard |
 | Textarea (personality) | `Textarea` | Character counter |
+| Loading states | `Skeleton`, `Spinner` | Standard |
+| Agent avatar | `Avatar` | Pixel-art variant |
+| Form checkboxes | `Checkbox` | Standard |
+| Tooltips (disabled buttons) | `Tooltip` | Standard |
 
-### shadcn Theme (DESIGN.md tokens → CSS variables)
+### Theming
+
+Lyse tokens provide the base design system. Override Hive-specific tokens in `globals.css`:
 ```css
-/* globals.css */
+/* globals.css — Hive theme overrides on top of lyse-tokens */
 @layer base {
   :root {
     --background: 222 47% 11%;         /* #131620 */
@@ -226,11 +233,41 @@ Arrive on /
 }
 ```
 
-### Setup (3 commands)
+### Setup
 ```bash
-npx shadcn@latest init          # Tailwind + CSS variables + dark mode
-npx shadcn@latest add button input label card dialog sheet badge alert tabs sonner textarea toggle-group dropdown-menu alert-dialog scroll-area
+# 1. Init shadcn (Lyse Registry uses the shadcn CLI)
+npx shadcn@latest init
+
+# 2. Install design tokens
+npx shadcn@latest add https://ui.getlyse.com/r/lyse-tokens.json
+
+# 3. Install all needed components
+npx shadcn@latest add \
+  https://ui.getlyse.com/r/button.json \
+  https://ui.getlyse.com/r/input.json \
+  https://ui.getlyse.com/r/card.json \
+  https://ui.getlyse.com/r/modal.json \
+  https://ui.getlyse.com/r/badge.json \
+  https://ui.getlyse.com/r/alert.json \
+  https://ui.getlyse.com/r/alert-dialog.json \
+  https://ui.getlyse.com/r/tabs.json \
+  https://ui.getlyse.com/r/toast.json \
+  https://ui.getlyse.com/r/textarea.json \
+  https://ui.getlyse.com/r/chip.json \
+  https://ui.getlyse.com/r/dropdown-menu.json \
+  https://ui.getlyse.com/r/checkbox.json \
+  https://ui.getlyse.com/r/avatar.json \
+  https://ui.getlyse.com/r/skeleton.json \
+  https://ui.getlyse.com/r/spinner.json \
+  https://ui.getlyse.com/r/tooltip.json \
+  https://ui.getlyse.com/r/select.json \
+  https://ui.getlyse.com/r/side-panel.json
 ```
+
+```
+
+> **Registry URL:** `https://ui.getlyse.com/r/<component>.json`
+> Dependencies and tokens are resolved automatically by the CLI.
 
 ---
 
@@ -247,26 +284,29 @@ src/
 │   ├── register/page.tsx
 │   └── dashboard/page.tsx
 ├── components/
-│   ├── ui/                       ← shadcn components (auto-generated)
+│   ├── ui/                       ← Lyse Registry components (auto-generated via shadcn CLI)
 │   │   ├── button.tsx
 │   │   ├── card.tsx
-│   │   ├── dialog.tsx
-│   │   ├── sheet.tsx
+│   │   ├── modal.tsx
 │   │   ├── badge.tsx
 │   │   ├── input.tsx
 │   │   ├── alert.tsx
+│   │   ├── chip.tsx
+│   │   ├── avatar.tsx
+│   │   ├── skeleton.tsx
+│   │   ├── spinner.tsx
 │   │   └── ...
-│   ├── nav-bar.tsx               ← variant="public|auth", uses shadcn DropdownMenu
-│   ├── company-card.tsx          ← uses shadcn Card
-│   ├── agent-card.tsx            ← uses shadcn Card + Badge
-│   ├── agent-slide-over.tsx      ← uses shadcn Sheet (side="right")
-│   ├── deploy-modal.tsx          ← uses shadcn Dialog + Input + Textarea + ToggleGroup
-│   ├── live-feed.tsx             ← uses shadcn ScrollArea + custom messages
-│   ├── status-badge.tsx          ← uses shadcn Badge with variant
-│   ├── agent-avatar.tsx          ← deterministic pixel-art (ARCHITECTURE.md §Rendering)
-│   ├── onboarding-overlay.tsx    ← uses shadcn AlertDialog
+│   ├── nav-bar.tsx               ← variant="public|auth", uses Lyse DropdownMenu
+│   ├── company-card.tsx          ← uses Lyse Card
+│   ├── agent-card.tsx            ← uses Lyse Card + Badge
+│   ├── agent-slide-over.tsx      ← uses Lyse SidePanel
+│   ├── deploy-modal.tsx          ← uses Lyse Modal + Input + Textarea + Chip
+│   ├── live-feed.tsx             ← custom scroll + message rows
+│   ├── status-badge.tsx          ← uses Lyse Badge with variant
+│   ├── agent-avatar.tsx          ← uses Lyse Avatar + deterministic pixel-art
+│   ├── onboarding-overlay.tsx    ← uses Lyse AlertDialog
 │   └── stats-bar.tsx
-├── canvas/                       ← PixiJS layer (NO shadcn here)
+├── canvas/                       ← PixiJS layer (NO Lyse UI here)
 │   ├── world-canvas.tsx          ← PixiJS 8 imperative (useRef)
 │   ├── office-renderer.ts        ← tilemap + furniture + walls
 │   ├── agent-sprites.ts          ← LimeZu composable characters
@@ -278,7 +318,7 @@ src/
 ├── lib/
 │   ├── api.ts                    ← REST client (typed fetch wrappers)
 │   ├── ws.ts                     ← HiveSocket class
-│   └── utils.ts                  ← cn() helper (shadcn default)
+│   └── utils.ts                  ← cn() helper (Lyse Registry default)
 └── types/
     └── index.ts                  ← All shared TypeScript types
 ```
@@ -288,23 +328,23 @@ src/
 <RootLayout>
   ├─ <AuthProvider>          ← JWT context, login/logout, user state
   ├─ <WebSocketProvider>     ← Connection manager, event bus
-  ├─ <Toaster />             ← shadcn Sonner (global toast container)
+  ├─ <Toaster />             ← Lyse Toast (global toast container)
   ├─ <OnboardingOverlay />   ← First-visit overlay (localStorage check)
   └─ <Page />                ← Route content
 ```
 
 ### 5.3 Component Mapping (what uses what)
 ```
-<NavBar>                → shadcn DropdownMenu, Button
-<CompanyCard>           → shadcn Card, Badge
-<AgentCard>             → shadcn Card, Badge, Button
-<AgentSlideOver>        → shadcn Sheet, Badge, Tabs, ScrollArea
-<DeployModal>           → shadcn Dialog, Input, Label, Textarea, ToggleGroup, Button, Alert
-<LiveFeed>              → shadcn ScrollArea + custom message rows
-<StatusBadge>           → shadcn Badge (variant: default|secondary|destructive|outline + custom)
-<OnboardingOverlay>     → shadcn AlertDialog
-<LoginPage>             → shadcn Card, Input, Label, Button, Alert
-<RegisterPage>          → shadcn Card, Input, Label, Button, Alert, Checkbox
+<NavBar>                → Lyse DropdownMenu, Button, Avatar
+<CompanyCard>           → Lyse Card, Badge
+<AgentCard>             → Lyse Card, Badge, Button
+<AgentSlideOver>        → Lyse SidePanel, Badge, Tabs
+<DeployModal>           → Lyse Modal, Input, Textarea, Chip, Button, Alert
+<LiveFeed>              → custom scroll container + custom message rows
+<StatusBadge>           → Lyse Badge (variant: default|secondary|destructive|outline + custom)
+<OnboardingOverlay>     → Lyse AlertDialog
+<LoginPage>             → Lyse Card, Input, Button, Alert
+<RegisterPage>          → Lyse Card, Input, Button, Alert, Checkbox
 ```
 
 ### 5.4 Page Components
@@ -316,7 +356,7 @@ src/
 /dashboard         → <DashboardPage />     ← includes <DeployModal>
 ```
 
-### 5.5 WorldCanvas (PixiJS — outside shadcn)
+### 5.5 WorldCanvas (PixiJS — outside Lyse UI)
 ```
 <WorldCanvas
   mode="grid|office"          ← grid = zoomed out thumbnails, office = full interactive map
@@ -543,12 +583,12 @@ class HiveSocket {
 
 ## 9. Styling Approach
 
-- **shadcn/ui theming** via CSS variables in `globals.css` (see §4 for full token mapping)
+- **Lyse Registry theming** via `lyse-tokens` + Hive overrides in `globals.css` (see §4 for full token mapping)
 - **Tailwind CSS** utility classes on all components
-- **No custom CSS files** — everything is Tailwind utilities or shadcn CSS variables
+- **No custom CSS files** — everything is Tailwind utilities or Lyse design tokens as CSS variables
 - **PixiJS canvas** is unstyled (imperative rendering in `src/canvas/`)
 - **Animations:** CSS transitions for UI (`transition-all duration-200`), PixiJS tweens for canvas
-- **cn() utility** from shadcn for conditional class merging (replaces clsx/classnames)
+- **cn() utility** from Lyse Registry for conditional class merging (replaces clsx/classnames)
 
 ---
 
