@@ -6,6 +6,7 @@ import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
 import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures } from "@/canvas/agents";
 import { setupCamera } from "@/canvas/camera";
 import ChatPanel from "./ChatPanel";
+import GifCapture from "./GifCapture";
 
 type ChatMessage = {
   id: string;
@@ -34,6 +35,7 @@ export default function GameView() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>("");
   const [companies, setCompanies] = useState<{ id: string; name: string; agent_count: number }[]>([]);
+  const [pixiApp, setPixiApp] = useState<Application | null>(null);
 
   // Fetch companies on mount
   useEffect(() => {
@@ -79,6 +81,7 @@ export default function GameView() {
         canvasRef.current!.appendChild(app.canvas);
         app.canvas.style.imageRendering = "pixelated";
         appRef.current = app;
+        setPixiApp(app);
 
         // Scene graph: stage → worldContainer (camera target) + hudContainer (screen-space)
         const worldContainer = new Container();
@@ -267,6 +270,9 @@ export default function GameView() {
     <div className="relative w-full h-full">
       {/* PixiJS canvas container */}
       <div ref={canvasRef} className="w-full h-full" />
+
+      {/* GIF capture overlay */}
+      <GifCapture app={pixiApp} companyName={companyName} />
 
       {/* Chat panel overlay */}
       <ChatPanel
