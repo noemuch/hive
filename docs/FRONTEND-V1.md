@@ -170,104 +170,136 @@ Arrive on /
 
 ---
 
-## 4. UI Library: Lyse Registry
+## 4. UI Library: shadcn/ui
 
-### Why Lyse Registry
-- **Production-ready** — built from the Lyse Figma Design System, battle-tested components
-- **shadcn-compatible** — uses the shadcn CLI and flat-file registry format, same copy-paste ownership model
+### Why shadcn/ui
+- **Copy-paste ownership** — components live in your codebase, no external dependency to break
 - **Tailwind-native** — matches the stack, no CSS-in-JS
-- **Design tokens included** — `lyse-tokens` installs all tokens automatically with any component
 - **Radix primitives** — accessibility (ARIA, keyboard nav, focus trap) is free
-- **30+ components** — covers 100% of standard UI needs
+- **Tailwind 4 support** — shadcn v2.3+ supports Tailwind 4 CSS-only config natively
 - **Does NOT cover PixiJS canvas** — that layer is custom regardless
 
-### Lyse Registry Components Used
+### shadcn Components Used
 
-| Hive need | Lyse component | Customization needed |
-|-----------|---------------|---------------------|
-| Login/Register forms | `Input`, `Button` | Hive theme tokens |
-| Deploy modal (2-step) | `Modal` | Custom step transitions |
-| Agent slide-over | `SidePanel` (side="right") | Content layout |
-| Status badges | `Badge` | Variant colors (green/yellow/gray) |
-| Company/Agent cards | `Card` | Custom layout |
-| Toast notifications | `Toast` | Hive theme tokens |
-| Role chip selector | `Chip` | Selection style |
-| Nav user dropdown | `DropdownMenu` | Menu items |
-| Onboarding overlay | `AlertDialog` | Content |
-| Error/Warning banners | `Alert` | Variant colors |
-| Tabs (agent profile) | `Tabs` | Standard |
-| Textarea (personality) | `Textarea` | Character counter |
-| Loading states | `Skeleton`, `Spinner` | Standard |
-| Agent avatar | `Avatar` | Pixel-art variant |
-| Form checkboxes | `Checkbox` | Standard |
-| Tooltips (disabled buttons) | `Tooltip` | Standard |
+| Hive need | shadcn component | Customization needed |
+|-----------|-----------------|---------------------|
+| Login/Register forms | `input`, `button` | Hive theme tokens |
+| Deploy modal (2-step) | `dialog` | Custom step transitions |
+| Agent slide-over | `sheet` (side="right") | Content layout |
+| Status badges | `badge` | Variant colors (green/yellow/gray) |
+| Company/Agent cards | `card` | Custom layout |
+| Toast notifications | `sonner` | Hive theme tokens |
+| Role chip selector | `toggle-group` | Selection style |
+| Nav user dropdown | `dropdown-menu` | Menu items |
+| Onboarding overlay | `alert-dialog` | Content |
+| Error/Warning banners | `alert` | Variant colors |
+| Tabs (agent profile) | `tabs` | Standard |
+| Textarea (personality) | `textarea` | Character counter |
+| Loading states | `skeleton` | Standard |
+| Agent avatar | `avatar` | Pixel-art variant |
+| Form checkboxes | `checkbox` | Standard |
+| Tooltips (disabled buttons) | `tooltip` | Standard |
+| Scroll containers | `scroll-area` | Standard |
+| Labels | `label` | Standard |
 
 ### Theming
 
-Lyse tokens provide the base design system. Override Hive-specific tokens in `globals.css`:
+Hive uses a dark navy theme with oklch colors. Dual token system: `:root` for shadcn component vars + `@theme inline` for Tailwind 4 utility class generation.
+
 ```css
-/* globals.css — Hive theme overrides on top of lyse-tokens */
+/* globals.css */
+@import "tailwindcss";
+
 @layer base {
   :root {
-    --background: 222 47% 11%;         /* #131620 */
-    --foreground: 228 8% 92%;          /* #E8E9ED */
-    --card: 229 25% 15%;              /* #1C1F2E */
-    --card-foreground: 228 8% 92%;    /* #E8E9ED */
-    --popover: 229 25% 15%;           /* #1C1F2E */
-    --popover-foreground: 228 8% 92%; /* #E8E9ED */
-    --primary: 218 70% 51%;           /* #2B7ADB */
-    --primary-foreground: 0 0% 100%;  /* white */
-    --secondary: 231 22% 20%;         /* #2A2D3E */
-    --secondary-foreground: 228 8% 92%;
-    --muted: 231 22% 20%;             /* #2A2D3E */
-    --muted-foreground: 232 7% 57%;   /* #8B8D98 */
-    --accent: 147 60% 50%;            /* #33CC66 */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 73% 58%;         /* #E54545 */
-    --destructive-foreground: 0 0% 100%;
-    --border: 231 22% 20%;            /* #2A2D3E */
-    --input: 231 22% 20%;             /* #2A2D3E */
-    --ring: 218 70% 51%;              /* #2B7ADB */
+    --background: oklch(20.2% 0.0206 271.51);      /* #131620 */
+    --foreground: oklch(93.44% 0.0056 274.8);       /* #E8E9ED */
+    --card: oklch(24.35% 0.0291 275.31);             /* #1C1F2E */
+    --card-foreground: oklch(93.44% 0.0056 274.8);   /* #E8E9ED */
+    --popover: oklch(24.35% 0.0291 275.31);           /* #1C1F2E */
+    --popover-foreground: oklch(93.44% 0.0056 274.8); /* #E8E9ED */
+    --primary: oklch(58.32% 0.1666 255.86);           /* #2B7ADB */
+    --primary-foreground: oklch(100% 0.0001);          /* #FFFFFF */
+    --secondary: oklch(30.19% 0.0311 276.6);          /* #2A2D3E */
+    --secondary-foreground: oklch(93.44% 0.0056 274.8);
+    --muted: oklch(30.19% 0.0311 276.6);              /* #2A2D3E */
+    --muted-foreground: oklch(64.53% 0.0165 277.66);  /* #8B8D98 */
+    --accent: oklch(74.5% 0.1897 149.59);             /* #33CC66 */
+    --accent-foreground: oklch(100% 0.0001);           /* #FFFFFF */
+    --destructive: oklch(62.13% 0.197 24.96);         /* #E54545 */
+    --destructive-foreground: oklch(100% 0.0001);      /* #FFFFFF */
+    --border: oklch(30.19% 0.0311 276.6);             /* #2A2D3E */
+    --input: oklch(30.19% 0.0311 276.6);              /* #2A2D3E */
+    --ring: oklch(58.32% 0.1666 255.86);              /* #2B7ADB */
     --radius: 0.75rem;
+
+    /* Semantic accents */
+    --accent-green: oklch(74.5% 0.1897 149.59);       /* #33CC66 */
+    --accent-purple: oklch(60.56% 0.219 292.72);      /* #8B5CF6 */
+    --accent-amber: oklch(74.83% 0.1537 72.22);       /* #E89B1C */
+    --accent-cyan: oklch(70.33% 0.1132 206.15);       /* #26B3C2 */
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+    --shadow-glow-green: 0 0 8px rgba(51,204,102,0.3);
+
+    /* Transitions */
+    --transition-fast: 100ms ease-out;
+    --transition-base: 200ms ease-out;
   }
+}
+
+/* TW4 bridge — maps CSS vars to Tailwind utility classes */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-accent-green: var(--accent-green);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-cyan: var(--accent-cyan);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 ```
 
 ### Setup
 ```bash
-# 1. Init shadcn (Lyse Registry uses the shadcn CLI)
+# 1. Install lucide-react first (shadcn components have hardcoded lucide imports)
+npm install lucide-react
+
+# 2. Init shadcn (if it generates tailwind.config.ts, delete it — TW4 is CSS-only)
 npx shadcn@latest init
 
-# 2. Install design tokens
-npx shadcn@latest add https://ui.getlyse.com/r/lyse-tokens.json
-
 # 3. Install all needed components
-npx shadcn@latest add \
-  https://ui.getlyse.com/r/button.json \
-  https://ui.getlyse.com/r/input.json \
-  https://ui.getlyse.com/r/card.json \
-  https://ui.getlyse.com/r/modal.json \
-  https://ui.getlyse.com/r/badge.json \
-  https://ui.getlyse.com/r/alert.json \
-  https://ui.getlyse.com/r/alert-dialog.json \
-  https://ui.getlyse.com/r/tabs.json \
-  https://ui.getlyse.com/r/toast.json \
-  https://ui.getlyse.com/r/textarea.json \
-  https://ui.getlyse.com/r/chip.json \
-  https://ui.getlyse.com/r/dropdown-menu.json \
-  https://ui.getlyse.com/r/checkbox.json \
-  https://ui.getlyse.com/r/avatar.json \
-  https://ui.getlyse.com/r/skeleton.json \
-  https://ui.getlyse.com/r/spinner.json \
-  https://ui.getlyse.com/r/tooltip.json \
-  https://ui.getlyse.com/r/select.json \
-  https://ui.getlyse.com/r/side-panel.json
+npx shadcn@latest add button card dialog sheet badge input alert \
+  tabs textarea sonner dropdown-menu alert-dialog toggle-group \
+  scroll-area label avatar skeleton tooltip checkbox
 ```
-
-```
-
-> **Registry URL:** `https://ui.getlyse.com/r/<component>.json`
-> Dependencies and tokens are resolved automatically by the CLI.
 
 ---
 
@@ -284,29 +316,28 @@ src/
 │   ├── register/page.tsx
 │   └── dashboard/page.tsx
 ├── components/
-│   ├── ui/                       ← Lyse Registry components (auto-generated via shadcn CLI)
+│   ├── ui/                       ← shadcn/ui components (auto-generated via CLI)
 │   │   ├── button.tsx
 │   │   ├── card.tsx
-│   │   ├── modal.tsx
+│   │   ├── dialog.tsx
+│   │   ├── sheet.tsx
 │   │   ├── badge.tsx
 │   │   ├── input.tsx
 │   │   ├── alert.tsx
-│   │   ├── chip.tsx
 │   │   ├── avatar.tsx
 │   │   ├── skeleton.tsx
-│   │   ├── spinner.tsx
 │   │   └── ...
-│   ├── nav-bar.tsx               ← variant="public|auth", uses Lyse DropdownMenu
-│   ├── company-card.tsx          ← uses Lyse Card
-│   ├── agent-card.tsx            ← uses Lyse Card + Badge
-│   ├── agent-slide-over.tsx      ← uses Lyse SidePanel
-│   ├── deploy-modal.tsx          ← uses Lyse Modal + Input + Textarea + Chip
+│   ├── nav-bar.tsx               ← variant="public|auth", uses DropdownMenu
+│   ├── company-card.tsx          ← uses Card
+│   ├── agent-card.tsx            ← uses Card + Badge
+│   ├── agent-slide-over.tsx      ← uses Sheet (side="right")
+│   ├── deploy-modal.tsx          ← uses Dialog + Input + Textarea + ToggleGroup
 │   ├── live-feed.tsx             ← custom scroll + message rows
-│   ├── status-badge.tsx          ← uses Lyse Badge with variant
-│   ├── agent-avatar.tsx          ← uses Lyse Avatar + deterministic pixel-art
-│   ├── onboarding-overlay.tsx    ← uses Lyse AlertDialog
+│   ├── status-badge.tsx          ← uses Badge with variant
+│   ├── agent-avatar.tsx          ← uses Avatar + deterministic pixel-art
+│   ├── onboarding-overlay.tsx    ← uses AlertDialog
 │   └── stats-bar.tsx
-├── canvas/                       ← PixiJS layer (NO Lyse UI here)
+├── canvas/                       ← PixiJS layer (NO shadcn UI here)
 │   ├── world-canvas.tsx          ← PixiJS 8 imperative (useRef)
 │   ├── office-renderer.ts        ← tilemap + furniture + walls
 │   ├── agent-sprites.ts          ← LimeZu composable characters
@@ -318,7 +349,7 @@ src/
 ├── lib/
 │   ├── api.ts                    ← REST client (typed fetch wrappers)
 │   ├── ws.ts                     ← HiveSocket class
-│   └── utils.ts                  ← cn() helper (Lyse Registry default)
+│   └── utils.ts                  ← cn() helper (shadcn default)
 └── types/
     └── index.ts                  ← All shared TypeScript types
 ```
@@ -328,23 +359,23 @@ src/
 <RootLayout>
   ├─ <AuthProvider>          ← JWT context, login/logout, user state
   ├─ <WebSocketProvider>     ← Connection manager, event bus
-  ├─ <Toaster />             ← Lyse Toast (global toast container)
+  ├─ <Toaster />             ← Sonner (global toast container)
   ├─ <OnboardingOverlay />   ← First-visit overlay (localStorage check)
   └─ <Page />                ← Route content
 ```
 
 ### 5.3 Component Mapping (what uses what)
 ```
-<NavBar>                → Lyse DropdownMenu, Button, Avatar
-<CompanyCard>           → Lyse Card, Badge
-<AgentCard>             → Lyse Card, Badge, Button
-<AgentSlideOver>        → Lyse SidePanel, Badge, Tabs
-<DeployModal>           → Lyse Modal, Input, Textarea, Chip, Button, Alert
-<LiveFeed>              → custom scroll container + custom message rows
-<StatusBadge>           → Lyse Badge (variant: default|secondary|destructive|outline + custom)
-<OnboardingOverlay>     → Lyse AlertDialog
-<LoginPage>             → Lyse Card, Input, Button, Alert
-<RegisterPage>          → Lyse Card, Input, Button, Alert, Checkbox
+<NavBar>                → DropdownMenu, Button, Avatar
+<CompanyCard>           → Card, Badge
+<AgentCard>             → Card, Badge, Button
+<AgentSlideOver>        → Sheet, Badge, Tabs
+<DeployModal>           → Dialog, Input, Textarea, ToggleGroup, Button, Alert
+<LiveFeed>              → ScrollArea + custom message rows
+<StatusBadge>           → Badge (variant: default|secondary|destructive|outline + custom)
+<OnboardingOverlay>     → AlertDialog
+<LoginPage>             → Card, Input, Button, Alert
+<RegisterPage>          → Card, Input, Button, Alert, Checkbox
 ```
 
 ### 5.4 Page Components
@@ -356,7 +387,7 @@ src/
 /dashboard         → <DashboardPage />     ← includes <DeployModal>
 ```
 
-### 5.5 WorldCanvas (PixiJS — outside Lyse UI)
+### 5.5 WorldCanvas (PixiJS — outside shadcn UI)
 ```
 <WorldCanvas
   mode="grid|office"          ← grid = zoomed out thumbnails, office = full interactive map
@@ -367,7 +398,7 @@ src/
 - Grid mode: renders mini-canvas per company card (static snapshot, updated every 30s)
 - Office mode: full interactive PixiJS canvas (see ARCHITECTURE.md §Rendering)
 - Both modes share the same tilemap renderer, sprite system, and animation logic
-- PixiJS is in `src/canvas/`, completely separate from `src/components/ui/`
+- PixiJS is in `src/canvas/`, completely separate from `src/components/ui/` (shadcn)
 
 ---
 
@@ -583,12 +614,12 @@ class HiveSocket {
 
 ## 9. Styling Approach
 
-- **Lyse Registry theming** via `lyse-tokens` + Hive overrides in `globals.css` (see §4 for full token mapping)
+- **shadcn/ui theming** via CSS custom properties in `globals.css` (see §4 for full token mapping)
 - **Tailwind CSS** utility classes on all components
-- **No custom CSS files** — everything is Tailwind utilities or Lyse design tokens as CSS variables
+- **No custom CSS files** — everything is Tailwind utilities or design tokens as CSS variables
 - **PixiJS canvas** is unstyled (imperative rendering in `src/canvas/`)
 - **Animations:** CSS transitions for UI (`transition-all duration-200`), PixiJS tweens for canvas
-- **cn() utility** from Lyse Registry for conditional class merging (replaces clsx/classnames)
+- **cn() utility** from shadcn for conditional class merging (clsx + tailwind-merge)
 
 ---
 
