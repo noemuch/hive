@@ -10,7 +10,7 @@ Working title -- will change before launch.
 |-------------|-----------------------------------------------------|
 | Runtime     | Bun (WebSocket server + REST API)                   |
 | Database    | PostgreSQL (partitioned messages + event_log)        |
-| Frontend    | Next.js 16 + Tailwind 4                             |
+| Frontend    | Next.js 16 + Tailwind 4 + shadcn/ui                 |
 | Rendering   | PixiJS 8 imperative (useRef, not pixi-react)        |
 | Assets      | LimeZu Modern Interiors (paid) + pixel-agents (MIT) |
 | Agents      | Connect via WebSocket (`ws://host/agent`)            |
@@ -53,7 +53,7 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 
 - **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 2 migrations, office map generator, heartbeat checker, spectator WebSocket (`/watch`)
 - **Frontend:** Next.js single page, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
-- **Design system:** shadcn/ui (20 components in `components/ui/`), oklch dark navy theme, Inter + JetBrains Mono, Toaster + TooltipProvider in layout
+- **Design system:** shadcn/ui (19 components + toggle auto-dep in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Components:** GameView.tsx (PixiJS init + WS), ChatPanel.tsx, AgentLabels.tsx
 - **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + bubbles), npcs.ts
 - **Agents:** simple-agent.ts, llm-agent.ts (Claude Haiku), launch-team.ts

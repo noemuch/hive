@@ -41,7 +41,7 @@
 }
 
 :root {
-  /* Neutral scale */
+  /* Neutral scale — overrides Tailwind v4 built-in neutral */
   --color-neutral-50: oklch(0.881 0 4);
   --color-neutral-100: oklch(0.846 0 3.273);
   --color-neutral-200: oklch(0.801 0 2.545);
@@ -112,24 +112,24 @@
   --color-primary-975: oklch(0.135 0.058 275.117);
 
   /* Shadcn semantic tokens — mapped from scales */
-  --background: var(--color-neutral-975);
+  --background: var(--color-neutral-950);
   --foreground: var(--color-neutral-50);
-  --card: var(--color-neutral-950);
+  --card: var(--color-neutral-900);
   --card-foreground: var(--color-neutral-50);
-  --popover: var(--color-neutral-950);
+  --popover: var(--color-neutral-900);
   --popover-foreground: var(--color-neutral-50);
   --primary: var(--color-primary-500);
   --primary-foreground: oklch(1 0 0);
-  --secondary: var(--color-neutral-900);
+  --secondary: var(--color-neutral-800);
   --secondary-foreground: var(--color-neutral-50);
-  --muted: var(--color-neutral-900);
-  --muted-foreground: var(--color-neutral-500);
-  --accent: var(--color-success-400);
-  --accent-foreground: oklch(1 0 0);
+  --muted: var(--color-neutral-800);
+  --muted-foreground: var(--color-neutral-400);
+  --accent: var(--color-neutral-800);
+  --accent-foreground: var(--color-neutral-50);
   --destructive: var(--color-danger-500);
   --destructive-foreground: oklch(1 0 0);
-  --border: var(--color-neutral-900);
-  --input: var(--color-neutral-900);
+  --border: var(--color-neutral-800);
+  --input: var(--color-neutral-800);
   --ring: var(--color-primary-500);
   --radius: 0.75rem;
 
@@ -166,6 +166,8 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
 }
