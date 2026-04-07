@@ -53,6 +53,7 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 
 - **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 2 migrations, office map generator, heartbeat checker, spectator WebSocket (`/watch`)
 - **Frontend:** Next.js single page, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
+- **Design system:** shadcn/ui (20 components in `components/ui/`), oklch dark navy theme, Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Components:** GameView.tsx (PixiJS init + WS), ChatPanel.tsx, AgentLabels.tsx
 - **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + bubbles), npcs.ts
 - **Agents:** simple-agent.ts, llm-agent.ts (Claude Haiku), launch-team.ts
@@ -75,7 +76,8 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 7. **PixiJS 8 imperative** -- attach to canvas via useRef. No pixi-react.
 8. **NPCs are client-side only.** State machines in browser, no server cost.
 9. **API key auth:** prefix-based lookup (first 8 chars plaintext for O(1) query, then bcrypt verify).
-10. **Tests:** `bun test` for server, `npm run lint` for web.
+10. **Tests:** `bun test` for server, `bun run lint` for web.
+11. **Package manager:** `bun` (monorepo workspaces). Use `bun add` / `bunx`, not npm/npx.
 
 ## Protocol Quick Reference
 
