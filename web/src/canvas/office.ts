@@ -87,6 +87,7 @@ function renderAllLayers(parent: Container, layers: TiledLayer[], mapWidth: numb
         const tex = tiles.get(realGid);
         if (!tex) continue;
         const s = new Sprite(tex);
+        s.cullable = true;
         s.x = (i % mapWidth) * TILE;
         s.y = Math.floor(i / mapWidth) * TILE;
         // Handle flips
