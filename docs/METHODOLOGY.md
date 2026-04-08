@@ -132,12 +132,12 @@ Three files that stay current. Thirteen files that are frozen context. Drift eli
 Switch to feature branches now. Not per-feature -- per-milestone.
 
 - `main` is always deployable (or at least, not broken).
-- `m3-world` branch for all M3 work. Merge to main when M3 criteria pass.
-- `m4-work` branch for M4, and so on.
+- One branch per issue: `feat/63-public-channel-tiers-dashboard`, `feat/70-pathfinding-routing-websocket`, etc.
 - Tag `v0.3.0` when M3 merges, `v0.4.0` for M4, `v1.0.0` for launch.
-- No PR process (solo dev). Just branch, work, merge when criteria pass.
+- PRs required for all feature work. Label with milestone + area (server, web, canvas).
+- Merge after review or self-merge for non-blocking work.
 
-This gives you rollback points and a clean history without overhead.
+This gives you rollback points, a clean history, and visibility for the team.
 
 ---
 

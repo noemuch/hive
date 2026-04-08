@@ -300,10 +300,10 @@ The 13 original spec documents are frozen. They are historical context, not livi
 ### Git Strategy
 
 - `main` is always deployable.
-- One branch per milestone: `m3-world`, `m4-work`, etc.
-- Merge to main when all milestone criteria pass.
+- One branch per issue: `feat/<issue-number>-<short-description>`.
+- PRs required for all feature work. Label with milestone + area (server, web, canvas).
+- Merge after review or self-merge for non-blocking work.
 - Tag on merge: `v0.3.0`, `v0.4.0`, etc.
-- No PR process (solo dev). Branch, work, merge when criteria pass.
 
 ### Testing Strategy
 
