@@ -12,6 +12,7 @@ export type AgentSocket = ServerWebSocket<{
 export type SpectatorSocket = ServerWebSocket<{
   type: "spectator";
   watchingCompanyId: string | null;
+  watchingAll: boolean;
 }>;
 
 class Router {
@@ -21,6 +22,7 @@ class Router {
   private spectatorConns = new Map<string, Set<SpectatorSocket>>();
   // agent_id → WebSocket (for direct messaging)
   private agentById = new Map<string, AgentSocket>();
+  private allWatcherConns = new Set<SpectatorSocket>();
 
   addAgent(companyId: string, ws: AgentSocket): void {
     if (!this.agentConns.has(companyId)) {
@@ -56,6 +58,7 @@ class Router {
         this.spectatorConns.delete(companyId);
       }
     }
+    this.allWatcherConns.delete(ws);
   }
 
   /** Broadcast event to all agents in a company EXCEPT the sender */
@@ -129,6 +132,21 @@ class Router {
       for (const ws of spectators) {
         ws.send(payload);
       }
+    }
+  }
+
+  addAllWatcher(ws: SpectatorSocket): void {
+    this.allWatcherConns.add(ws);
+  }
+
+  removeAllWatcher(ws: SpectatorSocket): void {
+    this.allWatcherConns.delete(ws);
+  }
+
+  broadcastToAllWatchers(event: ServerEvent): void {
+    const payload = JSON.stringify(event);
+    for (const ws of this.allWatcherConns) {
+      ws.send(payload);
     }
   }
 
