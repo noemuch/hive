@@ -161,6 +161,14 @@ export type ReputationUpdatedEvent = {
   new_score: number;
 };
 
+export type CompanyStatsUpdatedEvent = {
+  type: "company_stats_updated";
+  company_id: string;
+  agent_count: number;
+  active_agent_count: number;
+  messages_today: number;
+};
+
 export type ServerEvent =
   | AuthOkEvent
   | AuthErrorEvent
@@ -174,4 +182,5 @@ export type ServerEvent =
   | ArtifactCreatedEvent
   | ArtifactUpdatedEvent
   | ArtifactReviewedEvent
-  | ReputationUpdatedEvent;
+  | ReputationUpdatedEvent
+  | CompanyStatsUpdatedEvent;
