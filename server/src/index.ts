@@ -85,8 +85,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       if (!body?.name || !body?.role) return json({ error: "name and role required" }, 400);
       const validRoles = ["pm", "designer", "developer", "qa", "ops", "generalist"];
       if (!validRoles.includes(body.role)) return json({ error: `role must be: ${validRoles.join(", ")}` }, 400);
+      const { rows: builderRows } = await pool.query(`SELECT tier FROM builders WHERE id = $1`, [decoded.builder_id]);
+      const tier = builderRows[0]?.tier || "free";
+      const tierLimits: Record<string, number> = { free: 3, verified: 10, trusted: Infinity };
+      const maxSlots = tierLimits[tier] ?? 3;
       const { rows: counts } = await pool.query(`SELECT COUNT(*)::int as c FROM agents WHERE builder_id = $1 AND status != 'retired'`, [decoded.builder_id]);
-      if (counts[0].c >= 10) return json({ error: "free tier: 10 agents max" }, 403);
+      if (counts[0].c >= maxSlots) return json({ error: "slots_full", message: `${tier} tier limit reached (${maxSlots} agents)`, tier, max_slots: maxSlots }, 403);
       const apiKey = generateApiKey();
       try {
         const { rows } = await pool.query(
@@ -103,7 +107,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           warning: "Save api_key now — cannot retrieve later.",
         }, 201);
       } catch (err: unknown) {
-        if (err instanceof Error && err.message.includes("unique")) return json({ error: "name taken" }, 409);
+        if (err instanceof Error && err.message.includes("unique")) return json({ error: "name_taken", message: "This agent name is already taken" }, 409);
         throw err;
       }
     }
@@ -161,6 +165,68 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const agentCount = Math.max(agents[0]?.c || 0, 3); // minimum 3 for a reasonable office
       const { generateOffice } = await import("./engine/office-generator");
       return json(generateOffice(agentCount));
+    }
+
+    // Builder profile
+    if (url.pathname === "/api/builders/me" && req.method === "GET") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid token" }, 401);
+      const { rows } = await pool.query(
+        `SELECT id, email, display_name, tier, email_verified, created_at FROM builders WHERE id = $1`,
+        [decoded.builder_id]
+      );
+      if (rows.length === 0) return json({ error: "builder not found" }, 404);
+      return json(rows[0]);
+    }
+
+    // Builder dashboard
+    if (url.pathname === "/api/dashboard" && req.method === "GET") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid token" }, 401);
+      const { rows: builderRows } = await pool.query(
+        `SELECT id, email, display_name, tier, email_verified FROM builders WHERE id = $1`,
+        [decoded.builder_id]
+      );
+      if (builderRows.length === 0) return json({ error: "builder not found" }, 404);
+      const builder = builderRows[0];
+      const tierLimits: Record<string, number> = { free: 3, verified: 10, trusted: Infinity };
+      const maxSlots = tierLimits[builder.tier] ?? 3;
+
+      const { rows: agentRows } = await pool.query(
+        `SELECT
+           a.id, a.name, a.role, a.status, a.reputation_score, a.last_heartbeat as last_active_at,
+           c.id as company_id, c.name as company_name,
+           (SELECT COUNT(*)::int FROM messages m
+            JOIN channels ch ON m.channel_id = ch.id
+            WHERE m.author_id = a.id) as messages_sent
+         FROM agents a
+         LEFT JOIN companies c ON a.company_id = c.id
+         WHERE a.builder_id = $1 AND a.status != 'retired'
+         ORDER BY a.created_at`,
+        [decoded.builder_id]
+      );
+
+      const agents = agentRows.map(a => ({
+        id: a.id,
+        name: a.name,
+        role: a.role,
+        status: a.status,
+        company: a.company_id ? { id: a.company_id, name: a.company_name } : null,
+        reputation_score: Number(a.reputation_score),
+        messages_sent: a.messages_sent,
+        last_active_at: a.last_active_at,
+      }));
+
+      return json({
+        builder: { ...builder, email_verified: builder.email_verified ?? false },
+        agents,
+        slots_used: agents.length,
+        slots_max: maxSlots === Infinity ? "unlimited" : maxSlots,
+      });
     }
 
     return new Response("Not Found", { status: 404 });
@@ -225,7 +291,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 
     if (agent.company_id) {
       router.addAgent(agent.company_id, ws);
-      channels = (await pool.query(`SELECT id, name, type FROM channels WHERE company_id = $1`, [agent.company_id])).rows;
+      channels = (await pool.query(`SELECT id, name, type FROM channels WHERE company_id = $1 OR company_id IS NULL`, [agent.company_id])).rows;
       teammates = (await pool.query(`SELECT id, name, role, status FROM agents WHERE company_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`, [agent.company_id, agent.agent_id])).rows;
       company = (await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [agent.company_id])).rows[0] || null;
       router.broadcast(agent.company_id, { type: "agent_joined", agent_id: agent.agent_id, name: agent.name, role: agent.role, company_id: agent.company_id }, agent.agent_id);
