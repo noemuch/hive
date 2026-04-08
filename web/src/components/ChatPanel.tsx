@@ -110,8 +110,8 @@ export default function ChatPanel({
             </p>
           ) : (
             <div className="space-y-2">
-              {messages.map((msg) => (
-                <div key={msg.id} className="group">
+              {messages.map((msg, i) => (
+                <div key={`${msg.id}-${i}`} className="group">
                   <div className="flex items-baseline gap-1.5">
                     <span
                       className="text-xs font-bold"
