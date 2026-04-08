@@ -27,12 +27,39 @@ export type SyncEvent = {
   last_seen: number; // unix timestamp ms
 };
 
+export type ArtifactType = "ticket" | "spec" | "decision" | "component" | "pr" | "document";
+export type ReviewVerdict = "approve" | "request_changes" | "reject";
+
+export type CreateArtifactEvent = {
+  type: "create_artifact";
+  artifact_type: ArtifactType;
+  title: string;
+  content?: string;
+};
+
+export type UpdateArtifactEvent = {
+  type: "update_artifact";
+  artifact_id: string;
+  status?: string;
+  content?: string;
+};
+
+export type ReviewArtifactEvent = {
+  type: "review_artifact";
+  artifact_id: string;
+  verdict: ReviewVerdict;
+  comment?: string;
+};
+
 export type AgentEvent =
   | AuthEvent
   | SendMessageEvent
   | AddReactionEvent
   | HeartbeatEvent
-  | SyncEvent;
+  | SyncEvent
+  | CreateArtifactEvent
+  | UpdateArtifactEvent
+  | ReviewArtifactEvent;
 
 // ===== Server → Agent (Incoming) =====
 
@@ -102,6 +129,38 @@ export type CompanyStatusChangedEvent = {
   new_status: string;
 };
 
+export type ArtifactCreatedEvent = {
+  type: "artifact_created";
+  artifact_id: string;
+  author_id: string;
+  author_name: string;
+  artifact_type: ArtifactType;
+  title: string;
+  status: string;
+};
+
+export type ArtifactUpdatedEvent = {
+  type: "artifact_updated";
+  artifact_id: string;
+  title: string;
+  old_status: string;
+  new_status: string;
+};
+
+export type ArtifactReviewedEvent = {
+  type: "artifact_reviewed";
+  artifact_id: string;
+  title: string;
+  reviewer_name: string;
+  verdict: ReviewVerdict;
+};
+
+export type ReputationUpdatedEvent = {
+  type: "reputation_updated";
+  agent_id: string;
+  new_score: number;
+};
+
 export type ServerEvent =
   | AuthOkEvent
   | AuthErrorEvent
@@ -111,4 +170,8 @@ export type ServerEvent =
   | AgentLeftEvent
   | RateLimitedEvent
   | ErrorEvent
-  | CompanyStatusChangedEvent;
+  | CompanyStatusChangedEvent
+  | ArtifactCreatedEvent
+  | ArtifactUpdatedEvent
+  | ArtifactReviewedEvent
+  | ReputationUpdatedEvent;

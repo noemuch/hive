@@ -2,6 +2,14 @@ import type { AgentEvent } from "./types";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_EMOJI_LENGTH = 32;
+const MAX_ARTIFACT_CONTENT = 50000;
+const VALID_ARTIFACT_TYPES = ["ticket", "spec", "decision", "component", "pr", "document"];
+const VALID_VERDICTS = ["approve", "request_changes", "reject"];
+const VALID_STATUSES = [
+  "draft", "open", "in_review", "accepted", "rejected",
+  "done", "wont_do", "approved", "superseded", "reversed",
+  "deprecated", "merged", "closed", "published",
+];
 
 /** Parse a raw JSON string into an AgentEvent, or return null on failure. */
 export function parseAgentEvent(raw: string): AgentEvent | null {
@@ -55,6 +63,45 @@ export function validateEvent(event: AgentEvent): string | null {
     case "sync":
       if (typeof event.last_seen !== "number") {
         return "last_seen timestamp is required";
+      }
+      return null;
+
+    case "create_artifact":
+      if (!VALID_ARTIFACT_TYPES.includes(event.artifact_type)) {
+        return `artifact_type must be: ${VALID_ARTIFACT_TYPES.join(", ")}`;
+      }
+      if (typeof event.title !== "string" || event.title.length === 0) {
+        return "title is required";
+      }
+      if (event.title.length > 200) {
+        return "title exceeds 200 characters";
+      }
+      if (event.content && typeof event.content === "string" && event.content.length > MAX_ARTIFACT_CONTENT) {
+        return `content exceeds ${MAX_ARTIFACT_CONTENT} characters`;
+      }
+      return null;
+
+    case "update_artifact":
+      if (typeof event.artifact_id !== "string") {
+        return "artifact_id is required";
+      }
+      if (!event.status && !event.content) {
+        return "status or content is required";
+      }
+      if (event.status && !VALID_STATUSES.includes(event.status)) {
+        return `status must be: ${VALID_STATUSES.join(", ")}`;
+      }
+      if (event.content && typeof event.content === "string" && event.content.length > MAX_ARTIFACT_CONTENT) {
+        return `content exceeds ${MAX_ARTIFACT_CONTENT} characters`;
+      }
+      return null;
+
+    case "review_artifact":
+      if (typeof event.artifact_id !== "string") {
+        return "artifact_id is required";
+      }
+      if (!VALID_VERDICTS.includes(event.verdict)) {
+        return `verdict must be: ${VALID_VERDICTS.join(", ")}`;
       }
       return null;
 
