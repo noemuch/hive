@@ -8,27 +8,39 @@ import {
   TextureSource,
   Ticker,
 } from "pixi.js";
-import { TILE, OFFICE_W, OFFICE_H } from "./office";
+import { TILE, OFFICE_W, OFFICE_H, collisionGrid, POI } from "./office";
+import { findPath, randomWalkableTile, type Point } from "./pathfinding";
 
 TextureSource.defaultOptions.scaleMode = "nearest";
 
-type NPCState = "idle" | "walking" | "coffee";
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type NPCState = "IDLE" | "WALKING" | "AT_DESTINATION";
 
 type NPC = {
   container: Container;
   sprite: AnimatedSprite | Sprite;
   state: NPCState;
-  x: number;
-  y: number;
-  targetX: number;
-  targetY: number;
-  stateTimer: number;
-  speed: number;
+  tileX: number;
+  tileY: number;
+  path: Point[];
+  pathIndex: number;
+  lerpProgress: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  stateTimer: number; // seconds
   homeX: number;
   homeY: number;
+  returningHome: boolean;
 };
 
-const npcs: NPC[] = [];
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const NPC_HOMES = [
   { x: 9, y: 5 },
@@ -36,24 +48,29 @@ const NPC_HOMES = [
   { x: 9, y: 11 },
   { x: 11, y: 5 },
   { x: 11, y: 8 },
+  { x: 11, y: 11 },
+  { x: 13, y: 5 },
+  { x: 13, y: 8 },
 ];
 
-const COFFEE_POS = { x: 21, y: 3 };
+const TILES_PER_SECOND = 3;
 
-// Try to load a LimeZu character for NPCs, fall back to simple sprite
+const npcs: NPC[] = [];
+
+// ---------------------------------------------------------------------------
+// Texture loading
+// ---------------------------------------------------------------------------
+
 let npcTextures: Texture[] = [];
 
 async function loadNPCTextures(): Promise<void> {
-  // Use Adam as the NPC character — load idle animation frames
   try {
     const sheet = await Assets.load(
       "/tilesets/limezu/characters/animated/Adam_idle_anim_16x16.png"
     );
     const source = sheet.source;
     const frameW = 16;
-    const frameH = 32; // LimeZu characters are 16 wide, ~32 tall
-
-    // Try to extract frames from the first row
+    const frameH = 32;
     const cols = Math.floor(source.width / frameW);
     for (let c = 0; c < Math.min(cols, 6); c++) {
       npcTextures.push(
@@ -64,29 +81,110 @@ async function loadNPCTextures(): Promise<void> {
       );
     }
   } catch {
-    // Texture loading failed — NPCs will use a simple circle fallback
+    // Fallback to circles
   }
 }
 
-/** Spawn decorative NPC characters that wander the office. */
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function tileToPixel(tx: number, ty: number): { px: number; py: number } {
+  return { px: tx * TILE + TILE / 2, py: ty * TILE + TILE / 2 };
+}
+
+function pickDestination(npc: NPC): Point | null {
+  const roll = Math.random();
+  let target: Point;
+
+  if (roll < 0.3) {
+    // Coffee
+    target = POI.COFFEE;
+  } else if (roll < 0.4) {
+    // Whiteboard
+    target = POI.WHITEBOARD;
+  } else if (roll < 0.5) {
+    // Wander to random walkable tile
+    const wt = randomWalkableTile(collisionGrid, OFFICE_W, OFFICE_H);
+    if (!wt) return null;
+    target = wt;
+  } else {
+    // Stay idle
+    return null;
+  }
+
+  return target;
+}
+
+function findValidHome(home: Point): Point {
+  // If home tile is blocked, find nearest walkable tile
+  if (!collisionGrid[home.y]?.[home.x]) return home;
+  // Search in expanding radius
+  for (let r = 1; r < 5; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const nx = home.x + dx;
+        const ny = home.y + dy;
+        if (nx >= 0 && nx < OFFICE_W && ny >= 0 && ny < OFFICE_H && !collisionGrid[ny][nx]) {
+          return { x: nx, y: ny };
+        }
+      }
+    }
+  }
+  return home;
+}
+
+function startWalking(npc: NPC, target: Point): boolean {
+  const path = findPath(
+    collisionGrid,
+    { x: npc.tileX, y: npc.tileY },
+    target,
+    OFFICE_W,
+    OFFICE_H
+  );
+
+  if (!path || path.length === 0) return false;
+
+  npc.path = path;
+  npc.pathIndex = 0;
+  npc.lerpProgress = 0;
+
+  const from = tileToPixel(npc.tileX, npc.tileY);
+  const to = tileToPixel(path[0].x, path[0].y);
+  npc.fromX = from.px;
+  npc.fromY = from.py;
+  npc.toX = to.px;
+  npc.toY = to.py;
+  npc.state = "WALKING";
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Spawn NPCs
+// ---------------------------------------------------------------------------
+
 export async function createNPCs(parent: Container): Promise<void> {
   await loadNPCTextures();
 
-  for (const home of NPC_HOMES) {
+  // Use up to 8 homes, but only those that are walkable
+  const validHomes = NPC_HOMES
+    .slice(0, Math.min(NPC_HOMES.length, 6))
+    .map(findValidHome);
+
+  for (const home of validHomes) {
     const container = new Container();
 
     let sprite: AnimatedSprite | Sprite;
 
     if (npcTextures.length > 0) {
-      // Use LimeZu character
       const anim = new AnimatedSprite(npcTextures);
       anim.animationSpeed = 0.05;
       anim.anchor.set(0.5, 0.8);
-      anim.alpha = 0.5; // NPCs are dimmed to distinguish from real agents
+      anim.alpha = 0.5;
       anim.play();
       sprite = anim;
     } else {
-      // Fallback: simple circle
       const { Graphics } = await import("pixi.js");
       const g = new Graphics();
       g.circle(0, 0, TILE * 0.3);
@@ -99,96 +197,136 @@ export async function createNPCs(parent: Container): Promise<void> {
 
     container.addChild(sprite);
 
-    const px = home.x * TILE;
-    const py = home.y * TILE;
+    const { px, py } = tileToPixel(home.x, home.y);
     container.x = px;
     container.y = py;
+    container.zIndex = home.y; // depth sorting
 
     parent.addChild(container);
 
     npcs.push({
       container,
       sprite,
-      state: "idle",
-      x: px,
-      y: py,
-      targetX: px,
-      targetY: py,
-      stateTimer: Math.random() * 300 + 200,
-      speed: 0.3 + Math.random() * 0.2,
-      homeX: px,
-      homeY: py,
+      state: "IDLE",
+      tileX: home.x,
+      tileY: home.y,
+      path: [],
+      pathIndex: 0,
+      lerpProgress: 0,
+      fromX: px,
+      fromY: py,
+      toX: px,
+      toY: py,
+      stateTimer: 3 + Math.random() * 5, // 3-8 seconds
+      homeX: home.x,
+      homeY: home.y,
+      returningHome: false,
     });
   }
 
   // Animation loop
   Ticker.shared.add((ticker) => {
+    const dt = ticker.deltaMS / 1000; // convert to seconds
     for (const npc of npcs) {
-      updateNPC(npc, ticker.deltaTime);
+      updateNPC(npc, dt);
     }
   });
 }
 
+// ---------------------------------------------------------------------------
+// Update loop
+// ---------------------------------------------------------------------------
+
 function updateNPC(npc: NPC, dt: number): void {
-  npc.stateTimer -= dt;
-
   switch (npc.state) {
-    case "idle":
+    case "IDLE": {
+      npc.stateTimer -= dt;
       if (npc.stateTimer <= 0) {
-        if (Math.random() < 0.4) {
-          npc.targetX = COFFEE_POS.x * TILE;
-          npc.targetY = COFFEE_POS.y * TILE;
-          npc.state = "walking";
+        const dest = pickDestination(npc);
+        if (dest) {
+          npc.returningHome = false;
+          if (!startWalking(npc, dest)) {
+            // Can't reach destination, try again later
+            npc.stateTimer = 2 + Math.random() * 3;
+          }
         } else {
-          npc.targetX = npc.homeX + (Math.random() - 0.5) * 4 * TILE;
-          npc.targetY = npc.homeY + (Math.random() - 0.5) * 4 * TILE;
-          npc.targetX = Math.max(
-            TILE,
-            Math.min((OFFICE_W - 2) * TILE, npc.targetX)
-          );
-          npc.targetY = Math.max(
-            TILE,
-            Math.min((OFFICE_H - 2) * TILE, npc.targetY)
-          );
-          npc.state = "walking";
+          // Stay idle
+          npc.stateTimer = 3 + Math.random() * 5;
         }
       }
-      break;
-
-    case "walking": {
-      const dx = npc.targetX - npc.x;
-      const dy = npc.targetY - npc.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < 2) {
-        npc.x = npc.targetX;
-        npc.y = npc.targetY;
-        if (
-          Math.abs(npc.x - COFFEE_POS.x * TILE) < TILE &&
-          Math.abs(npc.y - COFFEE_POS.y * TILE) < TILE
-        ) {
-          npc.state = "coffee";
-          npc.stateTimer = 120 + Math.random() * 180;
-        } else {
-          npc.state = "idle";
-          npc.stateTimer = 300 + Math.random() * 600;
-        }
-      } else {
-        npc.x += (dx / dist) * npc.speed * dt;
-        npc.y += (dy / dist) * npc.speed * dt;
-      }
-
-      npc.container.x = Math.round(npc.x);
-      npc.container.y = Math.round(npc.y);
       break;
     }
 
-    case "coffee":
-      if (npc.stateTimer <= 0) {
-        npc.targetX = npc.homeX;
-        npc.targetY = npc.homeY;
-        npc.state = "walking";
+    case "WALKING": {
+      // Advance lerp
+      npc.lerpProgress += TILES_PER_SECOND * dt;
+
+      // Flip sprite based on direction
+      const dx = npc.toX - npc.fromX;
+      if (dx < 0) {
+        npc.sprite.scale.x = -Math.abs(npc.sprite.scale.x);
+      } else if (dx > 0) {
+        npc.sprite.scale.x = Math.abs(npc.sprite.scale.x);
+      }
+
+      if (npc.lerpProgress >= 1) {
+        // Arrived at next tile in path
+        const current = npc.path[npc.pathIndex];
+        npc.tileX = current.x;
+        npc.tileY = current.y;
+        npc.container.zIndex = current.y; // depth sorting
+
+        const { px, py } = tileToPixel(current.x, current.y);
+        npc.container.x = px;
+        npc.container.y = py;
+
+        npc.pathIndex++;
+
+        if (npc.pathIndex >= npc.path.length) {
+          // Arrived at final destination
+          if (npc.returningHome) {
+            npc.state = "IDLE";
+            npc.stateTimer = 3 + Math.random() * 5;
+          } else {
+            npc.state = "AT_DESTINATION";
+            npc.stateTimer = 2 + Math.random() * 3; // 2-5s at destination
+          }
+        } else {
+          // Continue to next tile
+          const next = npc.path[npc.pathIndex];
+          npc.fromX = px;
+          npc.fromY = py;
+          const nextPos = tileToPixel(next.x, next.y);
+          npc.toX = nextPos.px;
+          npc.toY = nextPos.py;
+          npc.lerpProgress = npc.lerpProgress - 1; // carry over excess
+        }
+      } else {
+        // Interpolate position
+        npc.container.x = Math.round(npc.fromX + (npc.toX - npc.fromX) * npc.lerpProgress);
+        npc.container.y = Math.round(npc.fromY + (npc.toY - npc.fromY) * npc.lerpProgress);
       }
       break;
+    }
+
+    case "AT_DESTINATION": {
+      npc.stateTimer -= dt;
+      if (npc.stateTimer <= 0) {
+        // Return home
+        npc.returningHome = true;
+        const home = { x: npc.homeX, y: npc.homeY };
+        if (!startWalking(npc, home)) {
+          // Can't find path home, just teleport
+          npc.tileX = npc.homeX;
+          npc.tileY = npc.homeY;
+          const { px, py } = tileToPixel(npc.homeX, npc.homeY);
+          npc.container.x = px;
+          npc.container.y = py;
+          npc.state = "IDLE";
+          npc.stateTimer = 3 + Math.random() * 5;
+        }
+      }
+      break;
+    }
   }
 }
