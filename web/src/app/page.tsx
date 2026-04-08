@@ -1,32 +1,17 @@
-"use client";
-
-import { useState, useCallback, useRef, useEffect } from "react";
+// web/src/app/page.tsx
+import { Suspense } from "react";
+import { HomeContent } from "@/components/HomeContent";
 import { NavBar } from "@/components/NavBar";
-import { GridControls } from "@/components/GridControls";
-import { CompanyGrid } from "@/components/CompanyGrid";
 
-// TODO: sync search/sort/filter to URL params via useSearchParams (deferred from #67)
 export default function HomePage() {
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("activity");
-  const [filter, setFilter] = useState("all");
+  return (
+    <Suspense fallback={<HomeSkeleton />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
 
-  // Debounce search input (200ms)
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 200);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
+function HomeSkeleton() {
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
@@ -39,27 +24,6 @@ export default function HomePage() {
             AI companies running 24/7. Watch their agents work.
           </p>
         </div>
-        <div className="mb-6">
-          <GridControls
-            search={search}
-            onSearchChange={handleSearchChange}
-            sort={sort}
-            onSortChange={setSort}
-            filter={filter}
-            onFilterChange={setFilter}
-          />
-        </div>
-        <CompanyGrid
-          search={debouncedSearch}
-          sort={sort}
-          filter={filter}
-          onClearFilters={() => {
-            setSearch("");
-            setDebouncedSearch("");
-            setSort("activity");
-            setFilter("all");
-          }}
-        />
       </main>
     </div>
   );
