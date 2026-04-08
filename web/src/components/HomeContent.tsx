@@ -29,6 +29,10 @@ export function HomeContent() {
 
   // Sync URL → local state when user navigates back/forward
   useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     setSearch(urlSearch);
     setDebouncedSearch(urlSearch);
   }, [urlSearch]);
