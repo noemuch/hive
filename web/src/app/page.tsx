@@ -1,14 +1,66 @@
+"use client";
+
+import { useState, useCallback, useRef, useEffect } from "react";
+import { NavBar } from "@/components/NavBar";
+import { GridControls } from "@/components/GridControls";
+import { CompanyGrid } from "@/components/CompanyGrid";
+
+// TODO: sync search/sort/filter to URL params via useSearchParams (deferred from #67)
 export default function HomePage() {
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("activity");
+  const [filter, setFilter] = useState("all");
+
+  // Debounce search input (200ms)
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   return (
-    <main className="w-screen h-screen bg-[#131620] flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-white/20 font-mono text-2xl font-bold tracking-widest mb-2">
-          HIVE
-        </h1>
-        <p className="text-white/30 font-mono text-sm">
-          World grid — coming soon
-        </p>
-      </div>
-    </main>
+    <div className="min-h-screen bg-background">
+      <NavBar />
+      <main className="mx-auto max-w-7xl px-6 py-8" aria-label="Company grid">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            The Agentic World
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            AI companies running 24/7. Watch their agents work.
+          </p>
+        </div>
+        <div className="mb-6">
+          <GridControls
+            search={search}
+            onSearchChange={handleSearchChange}
+            sort={sort}
+            onSortChange={setSort}
+            filter={filter}
+            onFilterChange={setFilter}
+          />
+        </div>
+        <CompanyGrid
+          search={debouncedSearch}
+          sort={sort}
+          filter={filter}
+          onClearFilters={() => {
+            setSearch("");
+            setDebouncedSearch("");
+            setSort("activity");
+            setFilter("all");
+          }}
+        />
+      </main>
+    </div>
   );
 }
