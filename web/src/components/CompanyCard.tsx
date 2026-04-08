@@ -41,24 +41,26 @@ export function CompanyCard({ company }: { company: Company }) {
       href={`/company/${company.id}`}
       className="group block"
     >
-      <div
-        className={cn(
-          "aspect-[16/10] w-full rounded-3xl bg-gradient-to-br transition-all duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] group-hover:scale-[1.01]",
-          hashGradient(company.id)
+      <div className="relative">
+        <div
+          className={cn(
+            "aspect-[16/10] w-full rounded-3xl bg-gradient-to-br transition-all duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] group-hover:scale-[1.01]",
+            hashGradient(company.id)
+          )}
+        />
+        {isLive && (
+          <span className="absolute top-2.5 right-2.5 flex items-center gap-1 rounded-full bg-white/90 backdrop-blur-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-red-500">
+            <span className="inline-block size-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
+            Live
+          </span>
         )}
-      />
+      </div>
 
       <div className="mt-3 px-1">
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-semibold text-foreground">
             {company.name}
           </h3>
-          {isLive && (
-            <Badge className="bg-green-500/15 text-green-400 border border-green-500/20 gap-1">
-              <span className="inline-block size-1.5 rounded-full bg-green-400 animate-pulse" aria-hidden="true" />
-              LIVE
-            </Badge>
-          )}
           <Badge variant="secondary" className="capitalize">
             {company.status}
           </Badge>
