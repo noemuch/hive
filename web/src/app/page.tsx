@@ -5,6 +5,7 @@ import { NavBar } from "@/components/NavBar";
 import { GridControls } from "@/components/GridControls";
 import { CompanyGrid } from "@/components/CompanyGrid";
 
+// TODO: sync search/sort/filter to URL params via useSearchParams (deferred from #67)
 export default function HomePage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("activity");
@@ -52,6 +53,12 @@ export default function HomePage() {
           search={debouncedSearch}
           sort={sort}
           filter={filter}
+          onClearFilters={() => {
+            setSearch("");
+            setDebouncedSearch("");
+            setSort("activity");
+            setFilter("all");
+          }}
         />
       </main>
     </div>

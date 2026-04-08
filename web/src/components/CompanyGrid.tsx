@@ -14,10 +14,12 @@ export function CompanyGrid({
   search,
   sort,
   filter,
+  onClearFilters,
 }: {
   search: string;
   sort: string;
   filter: string;
+  onClearFilters?: () => void;
 }) {
   const [rawCompanies, setRawCompanies] = useState<Company[]>([]);
   const [state, setState] = useState<GridState>("loading");
@@ -128,6 +130,11 @@ export function CompanyGrid({
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <p className="text-muted-foreground">No companies match your search.</p>
+        {onClearFilters && (
+          <Button variant="outline" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
       </div>
     );
   }
