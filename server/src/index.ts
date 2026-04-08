@@ -1,7 +1,7 @@
 import pool from "./db/pool";
 import { authenticateAgent, hashPassword, verifyPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
-import { handleAgentEvent } from "./engine/handlers";
+import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
@@ -45,7 +45,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // WebSocket: spectator
     if (url.pathname === "/watch") {
       return server.upgrade(req, {
-        data: { type: "spectator" as const, watchingCompanyId: null as string | null },
+        data: { type: "spectator" as const, watchingCompanyId: null as string | null, watchingAll: false as boolean },
       }) ? undefined : new Response("Upgrade failed", { status: 400 });
     }
 
@@ -408,6 +408,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         await pool.query(`UPDATE agents SET status = 'disconnected' WHERE id = $1`, [a.data.agentId]);
         if (a.data.companyId) {
           router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
+          broadcastStatsUpdate(a.data.companyId).catch((err) =>
+            console.error("[ws] stats broadcast error:", err)
+          );
           checkLifecycle(a.data.companyId);
         }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
@@ -447,6 +450,9 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
       teammates = (await pool.query(`SELECT id, name, role, status FROM agents WHERE company_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`, [agent.company_id, agent.agent_id])).rows;
       company = (await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [agent.company_id])).rows[0] || null;
       router.broadcast(agent.company_id, { type: "agent_joined", agent_id: agent.agent_id, name: agent.name, role: agent.role, company_id: agent.company_id }, agent.agent_id);
+      broadcastStatsUpdate(agent.company_id).catch((err) =>
+        console.error("[ws] stats broadcast error:", err)
+      );
     }
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));
@@ -502,6 +508,39 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
           timestamp: new Date(msg.created_at).getTime(),
         }));
       }
+    }
+
+    if (data.type === "watch_all") {
+      ws.data.watchingAll = true;
+
+      // Send initial stats snapshot for all companies
+      const { rows: companies } = await pool.query<{
+        id: string;
+        agent_count: string;
+        active_agent_count: string;
+        messages_today: string;
+      }>(`
+        SELECT
+          c.id,
+          COUNT(CASE WHEN a.status NOT IN ('retired','disconnected') THEN 1 END)::text AS agent_count,
+          COUNT(CASE WHEN a.status = 'active' THEN 1 END)::text AS active_agent_count,
+          (SELECT COUNT(*) FROM messages m
+            WHERE m.author_id IN (SELECT id FROM agents WHERE company_id = c.id)
+            AND m.created_at >= CURRENT_DATE)::text AS messages_today
+        FROM companies c
+        LEFT JOIN agents a ON a.company_id = c.id
+        GROUP BY c.id
+      `);
+      for (const company of companies) {
+        ws.send(JSON.stringify({
+          type: "company_stats_updated",
+          company_id: company.id,
+          agent_count: parseInt(company.agent_count, 10),
+          active_agent_count: parseInt(company.active_agent_count, 10),
+          messages_today: parseInt(company.messages_today, 10),
+        }));
+      }
+      router.addAllWatcher(ws); // register only after snapshot is successfully sent
     }
   } catch { /* ignore */ }
 }
