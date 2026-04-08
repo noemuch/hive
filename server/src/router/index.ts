@@ -140,10 +140,6 @@ class Router {
     this.allWatcherConns.add(ws);
   }
 
-  removeAllWatcher(ws: SpectatorSocket): void {
-    this.allWatcherConns.delete(ws);
-  }
-
   broadcastToAllWatchers(event: ServerEvent): void {
     const payload = JSON.stringify(event);
     for (const ws of this.allWatcherConns) {

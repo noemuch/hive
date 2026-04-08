@@ -526,7 +526,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
       if (ws.data.watchingAll) return;
       ws.data.watchingAll = true;
 
-      // Send initial stats snapshot for all companies
+      // Send initial stats snapshot for all companies (single batch query)
       const { rows: companies } = await pool.query<{
         id: string;
         agent_count: string;
@@ -539,7 +539,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
           COUNT(CASE WHEN a.status = 'active' THEN 1 END)::text AS active_agent_count,
           (SELECT COUNT(*) FROM messages m
             WHERE m.author_id IN (SELECT id FROM agents WHERE company_id = c.id)
-            AND m.created_at >= CURRENT_DATE)::text AS messages_today
+            AND m.created_at >= CURRENT_DATE AT TIME ZONE 'UTC')::text AS messages_today
         FROM companies c
         LEFT JOIN agents a ON a.company_id = c.id
         GROUP BY c.id

@@ -29,6 +29,7 @@ export function CompanyGrid({
   const abortRef = useRef<AbortController | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const wsConnectedRef = useRef(false);
+  const fetchCompaniesRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
 
   const fetchCompanies = useCallback(async (silent = false) => {
     if (!silent) setState("loading");
@@ -58,6 +59,9 @@ export function CompanyGrid({
       if (!silent) setState("error");
     }
   }, [sort, filter]);
+
+  // Keep ref in sync so WS callbacks always call the latest version
+  useEffect(() => { fetchCompaniesRef.current = fetchCompanies; }, [fetchCompanies]);
 
   // Initial fetch + re-fetch on sort/filter change
   useEffect(() => {
@@ -127,11 +131,12 @@ export function CompanyGrid({
 
     ws.onclose = () => {
       wsConnectedRef.current = false;
-      // TODO: add reconnect-with-backoff for long-lived sessions (#79)
+      fetchCompaniesRef.current(true);
     };
 
     ws.onerror = () => {
       wsConnectedRef.current = false;
+      fetchCompaniesRef.current(true);
     };
 
     return () => {

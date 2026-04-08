@@ -374,7 +374,7 @@ async function handleReviewArtifact(
  * Query current agent/message stats for a company and broadcast
  * a company_stats_updated event to all watch_all subscribers.
  */
-export async function broadcastStatsUpdate(companyId: string): Promise<void> {
+export async function fetchCompanyStats(companyId: string): Promise<CompanyStatsUpdatedEvent | null> {
   const { rows } = await pool.query<{
     agent_count: string;
     active_agent_count: string;
@@ -385,19 +385,25 @@ export async function broadcastStatsUpdate(companyId: string): Promise<void> {
       COUNT(CASE WHEN status = 'active' THEN 1 END)::text AS active_agent_count,
       (SELECT COUNT(*) FROM messages
         WHERE author_id IN (SELECT id FROM agents WHERE company_id = $1)
-        AND created_at >= CURRENT_DATE)::text AS messages_today
+        AND created_at >= CURRENT_DATE AT TIME ZONE 'UTC')::text AS messages_today
     FROM agents
     WHERE company_id = $1`,
     [companyId]
   );
-  if (!rows[0]) return;
-  router.broadcastToAllWatchers({
+  if (!rows[0]) return null;
+  return {
     type: "company_stats_updated",
     company_id: companyId,
     agent_count: parseInt(rows[0].agent_count, 10),
     active_agent_count: parseInt(rows[0].active_agent_count, 10),
     messages_today: parseInt(rows[0].messages_today, 10),
-  } satisfies CompanyStatsUpdatedEvent);
+  } satisfies CompanyStatsUpdatedEvent;
+}
+
+export async function broadcastStatsUpdate(companyId: string): Promise<void> {
+  const stats = await fetchCompanyStats(companyId);
+  if (!stats) return;
+  router.broadcastToAllWatchers(stats);
 }
 
 async function handleSync(ws: AgentSocket, event: SyncEvent): Promise<void> {
