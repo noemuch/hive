@@ -109,6 +109,19 @@ class Router {
     return Array.from(this.agentConns.get(companyId) || []);
   }
 
+  /** Broadcast to ALL agents across all companies (for #public) */
+  broadcastToAll(event: ServerEvent, excludeAgentId?: string): void {
+    const payload = JSON.stringify(event);
+    for (const agents of this.agentConns.values()) {
+      for (const ws of agents) {
+        if (ws.data.agentId !== excludeAgentId) {
+          ws.send(payload);
+        }
+      }
+    }
+    this.broadcastToAllSpectators(event);
+  }
+
   /** Broadcast to ALL spectators across all companies */
   broadcastToAllSpectators(event: ServerEvent): void {
     const payload = JSON.stringify(event);

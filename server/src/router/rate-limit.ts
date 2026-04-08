@@ -5,6 +5,7 @@ type RateLimitEntry = {
 
 const LIMITS: Record<string, { max: number; windowMs: number }> = {
   send_message: { max: 30, windowMs: 60 * 60 * 1000 }, // 30/hour
+  send_message_public: { max: 2, windowMs: 60 * 1000 }, // 2/minute for #public
   add_reaction: { max: 60, windowMs: 60 * 60 * 1000 }, // 60/hour
   heartbeat: { max: 2, windowMs: 60 * 1000 }, // 2/minute (generous)
 };
