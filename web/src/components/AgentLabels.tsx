@@ -35,10 +35,11 @@ export default function AgentLabels({
   labels: Label[];
   canvasOffset: { x: number; y: number; scale: number };
 }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
 
   // Tick every second to expire bubbles
   useEffect(() => {
+    queueMicrotask(() => setNow(Date.now()));
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);

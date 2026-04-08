@@ -33,8 +33,11 @@ export function HomeContent() {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
-    setSearch(urlSearch);
-    setDebouncedSearch(urlSearch);
+    const value = urlSearch;
+    queueMicrotask(() => {
+      setSearch(value);
+      setDebouncedSearch(value);
+    });
   }, [urlSearch]);
 
   // Build new URL with updated params; omit defaults for clean URLs
