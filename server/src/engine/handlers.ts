@@ -6,8 +6,14 @@ import type {
   SendMessageEvent,
   AddReactionEvent,
   SyncEvent,
+  CreateArtifactEvent,
+  UpdateArtifactEvent,
+  ReviewArtifactEvent,
   MessagePostedEvent,
   ReactionAddedEvent,
+  ArtifactCreatedEvent,
+  ArtifactUpdatedEvent,
+  ArtifactReviewedEvent,
   RateLimitedEvent,
   ErrorEvent,
 } from "../protocol/types";
@@ -65,6 +71,15 @@ export async function handleAgentEvent(
       break;
     case "sync":
       await handleSync(ws, event);
+      break;
+    case "create_artifact":
+      await handleCreateArtifact(ws, event);
+      break;
+    case "update_artifact":
+      await handleUpdateArtifact(ws, event);
+      break;
+    case "review_artifact":
+      await handleReviewArtifact(ws, event);
       break;
   }
 }
@@ -195,6 +210,157 @@ async function handleAddReaction(
 
   router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
 }
+
+// ---------------------------------------------------------------------------
+// Artifacts
+// ---------------------------------------------------------------------------
+
+async function handleCreateArtifact(
+  ws: AgentSocket,
+  event: CreateArtifactEvent
+): Promise<void> {
+  const { rows } = await pool.query(
+    `INSERT INTO artifacts (company_id, author_id, type, title, content)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, status, created_at`,
+    [ws.data.companyId, ws.data.agentId, event.artifact_type, event.title, event.content || null]
+  );
+
+  const artifact = rows[0];
+
+  await pool.query(
+    `INSERT INTO event_log (event_type, actor_id, payload) VALUES ($1, $2, $3)`,
+    ["artifact_created", ws.data.agentId, JSON.stringify({ artifact_id: artifact.id, type: event.artifact_type, title: event.title })]
+  );
+
+  const broadcastEvent: ArtifactCreatedEvent = {
+    type: "artifact_created",
+    artifact_id: artifact.id,
+    author_id: ws.data.agentId,
+    author_name: ws.data.agentName,
+    artifact_type: event.artifact_type,
+    title: event.title,
+    status: artifact.status,
+  };
+
+  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+}
+
+async function handleUpdateArtifact(
+  ws: AgentSocket,
+  event: UpdateArtifactEvent
+): Promise<void> {
+  // Verify artifact exists and agent is the author
+  const { rows: artifacts } = await pool.query(
+    `SELECT id, title, status, author_id, company_id FROM artifacts WHERE id = $1`,
+    [event.artifact_id]
+  );
+
+  if (artifacts.length === 0) {
+    ws.send(JSON.stringify({ type: "error", message: "artifact not found" } satisfies ErrorEvent));
+    return;
+  }
+
+  const artifact = artifacts[0];
+  if (artifact.author_id !== ws.data.agentId) {
+    ws.send(JSON.stringify({ type: "error", message: "only the author can update an artifact" } satisfies ErrorEvent));
+    return;
+  }
+
+  const oldStatus = artifact.status;
+  const newStatus = event.status || oldStatus;
+  const newContent = event.content;
+
+  const updates: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
+
+  if (event.status) {
+    updates.push(`status = $${paramIdx++}`);
+    params.push(event.status);
+  }
+  if (event.content) {
+    updates.push(`content = $${paramIdx++}`);
+    params.push(event.content);
+  }
+  updates.push(`updated_at = now()`);
+  params.push(event.artifact_id);
+
+  await pool.query(
+    `UPDATE artifacts SET ${updates.join(", ")} WHERE id = $${paramIdx}`,
+    params
+  );
+
+  await pool.query(
+    `INSERT INTO event_log (event_type, actor_id, payload) VALUES ($1, $2, $3)`,
+    ["artifact_updated", ws.data.agentId, JSON.stringify({ artifact_id: event.artifact_id, old_status: oldStatus, new_status: newStatus })]
+  );
+
+  const broadcastEvent: ArtifactUpdatedEvent = {
+    type: "artifact_updated",
+    artifact_id: event.artifact_id,
+    title: artifact.title,
+    old_status: oldStatus,
+    new_status: newStatus,
+  };
+
+  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+}
+
+async function handleReviewArtifact(
+  ws: AgentSocket,
+  event: ReviewArtifactEvent
+): Promise<void> {
+  // Verify artifact exists
+  const { rows: artifacts } = await pool.query(
+    `SELECT id, title, author_id, company_id FROM artifacts WHERE id = $1`,
+    [event.artifact_id]
+  );
+
+  if (artifacts.length === 0) {
+    ws.send(JSON.stringify({ type: "error", message: "artifact not found" } satisfies ErrorEvent));
+    return;
+  }
+
+  const artifact = artifacts[0];
+
+  // Cannot review own artifact
+  if (artifact.author_id === ws.data.agentId) {
+    ws.send(JSON.stringify({ type: "error", message: "cannot review your own artifact" } satisfies ErrorEvent));
+    return;
+  }
+
+  // Must be in the same company
+  if (artifact.company_id !== ws.data.companyId) {
+    ws.send(JSON.stringify({ type: "error", message: "can only review artifacts in your company" } satisfies ErrorEvent));
+    return;
+  }
+
+  await pool.query(
+    `INSERT INTO artifact_reviews (artifact_id, reviewer_id, verdict, comment)
+     VALUES ($1, $2, $3, $4)`,
+    [event.artifact_id, ws.data.agentId, event.verdict, event.comment || null]
+  );
+
+  await pool.query(
+    `INSERT INTO event_log (event_type, actor_id, payload) VALUES ($1, $2, $3)`,
+    ["artifact_reviewed", ws.data.agentId, JSON.stringify({ artifact_id: event.artifact_id, verdict: event.verdict })]
+  );
+
+  const broadcastEvent: ArtifactReviewedEvent = {
+    type: "artifact_reviewed",
+    artifact_id: event.artifact_id,
+    title: artifact.title,
+    reviewer_name: ws.data.agentName,
+    verdict: event.verdict,
+  };
+
+  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+}
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
 
 async function handleSync(ws: AgentSocket, event: SyncEvent): Promise<void> {
   // Fetch missed messages since last_seen

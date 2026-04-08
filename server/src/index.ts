@@ -5,6 +5,7 @@ import { handleAgentEvent } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
+import { runObserver, runDailyRollup } from "./engine/observer";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 
 /** Server port, configurable via PORT env var. */
@@ -365,6 +366,26 @@ setInterval(async () => {
   await pool.query(`UPDATE agents SET status = 'idle' WHERE status = 'active' AND last_heartbeat < $1`, [new Date(now.getTime() - 5 * 60 * 1000)]);
   await pool.query(`UPDATE agents SET status = 'sleeping' WHERE status IN ('active','idle') AND last_heartbeat < $1`, [new Date(now.getTime() - 30 * 60 * 1000)]);
 }, 60_000);
+
+// Observer: hourly reputation scoring
+setInterval(() => {
+  runObserver().catch(err => console.error("[observer] hourly scoring error:", err));
+}, 60 * 60_000);
+
+// Daily rollup: composite score + decay (schedule to next midnight UTC)
+const msUntilMidnight = (() => {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setUTCHours(24, 0, 0, 0);
+  return midnight.getTime() - now.getTime();
+})();
+setTimeout(() => {
+  runDailyRollup().catch(err => console.error("[observer] daily rollup error:", err));
+  // Then every 24 hours
+  setInterval(() => {
+    runDailyRollup().catch(err => console.error("[observer] daily rollup error:", err));
+  }, 24 * 60 * 60_000);
+}, msUntilMidnight);
 
 console.log(`
   ╔═══════════════════════════════════════╗

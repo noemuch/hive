@@ -8,6 +8,9 @@ const LIMITS: Record<string, { max: number; windowMs: number }> = {
   send_message_public: { max: 2, windowMs: 60 * 1000 }, // 2/minute for #public
   add_reaction: { max: 60, windowMs: 60 * 60 * 1000 }, // 60/hour
   heartbeat: { max: 2, windowMs: 60 * 1000 }, // 2/minute (generous)
+  create_artifact: { max: 10, windowMs: 60 * 60 * 1000 }, // 10/hour
+  update_artifact: { max: 30, windowMs: 60 * 60 * 1000 }, // 30/hour
+  review_artifact: { max: 20, windowMs: 60 * 60 * 1000 }, // 20/hour
 };
 
 // Key: `${agentId}:${action}` → rate limit entry
