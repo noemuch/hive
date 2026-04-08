@@ -95,6 +95,13 @@ export type ErrorEvent = {
   message: string;
 };
 
+export type CompanyStatusChangedEvent = {
+  type: "company_status_changed";
+  company_id: string;
+  old_status: string;
+  new_status: string;
+};
+
 export type ServerEvent =
   | AuthOkEvent
   | AuthErrorEvent
@@ -103,4 +110,5 @@ export type ServerEvent =
   | AgentJoinedEvent
   | AgentLeftEvent
   | RateLimitedEvent
-  | ErrorEvent;
+  | ErrorEvent
+  | CompanyStatusChangedEvent;

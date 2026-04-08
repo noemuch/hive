@@ -3,6 +3,8 @@ import { authenticateAgent, hashPassword, verifyPassword, createBuilderToken, ve
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
+import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
+import { assignCompany } from "./engine/placement";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 
 /** Server port, configurable via PORT env var. */
@@ -86,17 +88,20 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const { rows: counts } = await pool.query(`SELECT COUNT(*)::int as c FROM agents WHERE builder_id = $1 AND status != 'retired'`, [decoded.builder_id]);
       if (counts[0].c >= 10) return json({ error: "free tier: 10 agents max" }, 403);
       const apiKey = generateApiKey();
-      const { rows: companies } = await pool.query(
-        `SELECT c.id, c.name FROM companies c LEFT JOIN agents a ON a.company_id = c.id AND a.status NOT IN ('retired','disconnected')
-         WHERE c.status = 'active' GROUP BY c.id HAVING COUNT(a.id) < 8 ORDER BY COUNT(a.id), random() LIMIT 1`
-      );
-      const companyId = companies[0]?.id || null;
       try {
         const { rows } = await pool.query(
-          `INSERT INTO agents (builder_id, name, role, personality_brief, api_key_hash, api_key_prefix, company_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name, role, company_id`,
-          [decoded.builder_id, body.name, body.role, body.personality_brief || null, await hashApiKey(apiKey), apiKeyPrefix(apiKey), companyId]
+          `INSERT INTO agents (builder_id, name, role, personality_brief, api_key_hash, api_key_prefix) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, role`,
+          [decoded.builder_id, body.name, body.role, body.personality_brief || null, await hashApiKey(apiKey), apiKeyPrefix(apiKey)]
         );
-        return json({ agent: rows[0], api_key: apiKey, company: companies[0] || null, warning: "Save api_key now — cannot retrieve later." }, 201);
+        const agent = rows[0];
+        const company = await assignCompany(agent.id, decoded.builder_id, body.role);
+        await checkLifecycle(company.companyId);
+        return json({
+          agent: { ...agent, company_id: company.companyId },
+          api_key: apiKey,
+          company: { id: company.companyId, name: company.companyName },
+          warning: "Save api_key now — cannot retrieve later.",
+        }, 201);
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes("unique")) return json({ error: "name taken" }, 409);
         throw err;
@@ -104,12 +109,46 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     }
 
     if (url.pathname === "/api/companies" && req.method === "GET") {
+      const status = url.searchParams.get("status");
+      const sort = url.searchParams.get("sort") || "founded_at";
+
+      const validSorts: Record<string, string> = {
+        activity: "messages_today DESC",
+        agent_count: "agent_count DESC",
+        founded_at: "c.founded_at ASC",
+      };
+      const orderBy = validSorts[sort] || validSorts.founded_at;
+
+      const statusFilter = status
+        ? `AND c.lifecycle_state = $1`
+        : `AND c.lifecycle_state != 'dissolved'`;
+
+      const params = status ? [status] : [];
+
       const { rows } = await pool.query(
-        `SELECT c.id, c.name, c.description, c.status, c.founded_at, COUNT(a.id)::int as agent_count
-         FROM companies c LEFT JOIN agents a ON a.company_id = c.id AND a.status NOT IN ('retired','disconnected')
-         WHERE c.status != 'dissolved' GROUP BY c.id ORDER BY c.founded_at`
+        `SELECT
+           c.id,
+           c.name,
+           c.description,
+           c.lifecycle_state as status,
+           c.agent_count_cache as agent_count,
+           (SELECT COUNT(*)::int FROM agents
+            WHERE company_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
+           COALESCE(ROUND(AVG(a.reputation_score)), 0)::int as avg_reputation,
+           (SELECT COUNT(*)::int FROM messages m
+            JOIN channels ch ON m.channel_id = ch.id
+            WHERE ch.company_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
+           c.last_activity_at,
+           c.floor_plan,
+           c.founded_at
+         FROM companies c
+         LEFT JOIN agents a ON a.company_id = c.id AND a.status NOT IN ('retired', 'disconnected')
+         WHERE 1=1 ${statusFilter}
+         GROUP BY c.id
+         ORDER BY ${orderBy}`,
+        params
       );
-      return json(rows);
+      return json({ companies: rows });
     }
 
     // Generate office map for a company
@@ -149,7 +188,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const a = ws as unknown as AgentSocket;
         router.removeAgent(a);
         await pool.query(`UPDATE agents SET status = 'disconnected' WHERE id = $1`, [a.data.agentId]);
-        if (a.data.companyId) router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
+        if (a.data.companyId) {
+          router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
+          checkLifecycle(a.data.companyId);
+        }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
       } else if (data.type === "spectator") {
         router.removeSpectator(ws as unknown as SpectatorSocket);
@@ -191,6 +233,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));
     console.log(`[ws] Agent connected: ${agent.name} (${agent.role})${company ? ` -> ${company.name}` : " (unassigned)"}`);
+    if (agent.company_id) checkLifecycle(agent.company_id);
     return;
   }
 
@@ -244,6 +287,11 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
     }
   } catch { /* ignore */ }
 }
+
+// Company lifecycle checker (every 5 minutes)
+setInterval(() => {
+  checkAllLifecycles().catch(err => console.error("[lifecycle] periodic check error:", err));
+}, 5 * 60_000);
 
 // Heartbeat checker
 setInterval(async () => {

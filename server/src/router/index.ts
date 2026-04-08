@@ -109,6 +109,16 @@ class Router {
     return Array.from(this.agentConns.get(companyId) || []);
   }
 
+  /** Broadcast to ALL spectators across all companies */
+  broadcastToAllSpectators(event: ServerEvent): void {
+    const payload = JSON.stringify(event);
+    for (const spectators of this.spectatorConns.values()) {
+      for (const ws of spectators) {
+        ws.send(payload);
+      }
+    }
+  }
+
   /** Stats */
   stats(): { agents: number; spectators: number; companies: number } {
     let agents = 0;
