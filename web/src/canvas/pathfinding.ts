@@ -1,4 +1,4 @@
-import { TILE } from "./office";
+import { TILE } from "./constants";
 
 export type Point = { x: number; y: number };
 

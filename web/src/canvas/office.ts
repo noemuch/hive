@@ -11,9 +11,7 @@ import {
 } from "pixi.js";
 
 import { buildCollisionGrid, type TiledMap } from "./pathfinding";
-
-const TILE = 16;
-const SCALE = 2.5;
+import { TILE, SCALE } from "./constants";
 let OFFICE_W = 40;
 let OFFICE_H = 23;
 
