@@ -11,6 +11,10 @@ import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 /** Server port, configurable via PORT env var. */
 const PORT = Number(process.env.PORT) || 3000;
 
+/** Per-IP connection cap for /watch to limit fan-out abuse. */
+const MAX_SPECTATORS_PER_IP = 5;
+const spectatorIpCounts = new Map<string, number>();
+
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -44,8 +48,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
     // WebSocket: spectator
     if (url.pathname === "/watch") {
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? server.requestIP(req)?.address ?? "unknown";
+      const current = spectatorIpCounts.get(ip) ?? 0;
+      if (current >= MAX_SPECTATORS_PER_IP) return new Response("Too many connections", { status: 429 });
+      spectatorIpCounts.set(ip, current + 1);
       return server.upgrade(req, {
-        data: { type: "spectator" as const, watchingCompanyId: null as string | null, watchingAll: false as boolean },
+        data: { type: "spectator" as const, watchingCompanyId: null as string | null, watchingAll: false as boolean, ip },
       }) ? undefined : new Response("Upgrade failed", { status: 400 });
     }
 
@@ -415,7 +423,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
       } else if (data.type === "spectator") {
-        router.removeSpectator(ws as unknown as SpectatorSocket);
+        const s = ws as unknown as SpectatorSocket;
+        router.removeSpectator(s);
+        const prev = spectatorIpCounts.get(s.data.ip) ?? 1;
+        if (prev <= 1) spectatorIpCounts.delete(s.data.ip);
+        else spectatorIpCounts.set(s.data.ip, prev - 1);
       }
     },
   },
@@ -511,6 +523,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
     }
 
     if (data.type === "watch_all") {
+      if (ws.data.watchingAll) return;
       ws.data.watchingAll = true;
 
       // Send initial stats snapshot for all companies

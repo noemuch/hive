@@ -13,6 +13,7 @@ export type SpectatorSocket = ServerWebSocket<{
   type: "spectator";
   watchingCompanyId: string | null;
   watchingAll: boolean;
+  ip: string;
 }>;
 
 class Router {
