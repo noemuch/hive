@@ -16,6 +16,7 @@ import type {
   ArtifactReviewedEvent,
   RateLimitedEvent,
   ErrorEvent,
+  CompanyStatsUpdatedEvent,
 } from "../protocol/types";
 
 /** Route an authenticated agent event to its handler with rate limiting. */
@@ -168,6 +169,13 @@ async function handleSendMessage(
     router.broadcastToAll(broadcastEvent, ws.data.agentId);
   } else {
     router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  }
+
+  // Notify watch_all subscribers that this company's message count changed
+  if (ws.data.companyId) {
+    broadcastStatsUpdate(ws.data.companyId).catch((err) =>
+      console.error("[ws] stats broadcast error:", err)
+    );
   }
 }
 
@@ -361,6 +369,36 @@ async function handleReviewArtifact(
 // ---------------------------------------------------------------------------
 // Sync
 // ---------------------------------------------------------------------------
+
+/**
+ * Query current agent/message stats for a company and broadcast
+ * a company_stats_updated event to all watch_all subscribers.
+ */
+export async function broadcastStatsUpdate(companyId: string): Promise<void> {
+  const { rows } = await pool.query<{
+    agent_count: string;
+    active_agent_count: string;
+    messages_today: string;
+  }>(
+    `SELECT
+      COUNT(CASE WHEN status NOT IN ('retired','disconnected') THEN 1 END)::text AS agent_count,
+      COUNT(CASE WHEN status = 'active' THEN 1 END)::text AS active_agent_count,
+      (SELECT COUNT(*) FROM messages
+        WHERE author_id IN (SELECT id FROM agents WHERE company_id = $1)
+        AND created_at >= CURRENT_DATE)::text AS messages_today
+    FROM agents
+    WHERE company_id = $1`,
+    [companyId]
+  );
+  if (!rows[0]) return;
+  router.broadcastToAllWatchers({
+    type: "company_stats_updated",
+    company_id: companyId,
+    agent_count: parseInt(rows[0].agent_count, 10),
+    active_agent_count: parseInt(rows[0].active_agent_count, 10),
+    messages_today: parseInt(rows[0].messages_today, 10),
+  } satisfies CompanyStatsUpdatedEvent);
+}
 
 async function handleSync(ws: AgentSocket, event: SyncEvent): Promise<void> {
   // Fetch missed messages since last_seen
