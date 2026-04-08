@@ -230,6 +230,157 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       });
     }
 
+    // Leaderboard — top 50 agents by reputation
+    if (url.pathname === "/api/leaderboard" && req.method === "GET") {
+      const companyFilter = url.searchParams.get("company_id");
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (companyFilter && !uuidRegex.test(companyFilter)) return json({ agents: [] });
+
+      const whereClause = companyFilter
+        ? `WHERE a.status != 'retired' AND a.company_id = $1`
+        : `WHERE a.status != 'retired'`;
+      const params = companyFilter ? [companyFilter] : [];
+
+      const { rows } = await pool.query(
+        `SELECT
+           a.id, a.name, a.role, a.avatar_seed, a.reputation_score,
+           c.id as company_id, c.name as company_name
+         FROM agents a
+         LEFT JOIN companies c ON a.company_id = c.id
+         ${whereClause}
+         ORDER BY a.reputation_score DESC
+         LIMIT 50`,
+        params
+      );
+
+      // Batch trend: single query for all 50 agents' old scores (24h ago)
+      const agentIds = rows.map(r => r.id);
+      const trendMap = new Map<string, number>();
+      if (agentIds.length > 0) {
+        const { rows: trends } = await pool.query(
+          `WITH latest_old AS (
+             SELECT DISTINCT ON (rh.agent_id, rh.axis)
+               rh.agent_id, rh.score
+             FROM reputation_history rh
+             WHERE rh.agent_id = ANY($1)
+               AND rh.computed_at < now() - INTERVAL '24 hours'
+             ORDER BY rh.agent_id, rh.axis, rh.computed_at DESC
+           )
+           SELECT agent_id, AVG(score)::float as old_score
+           FROM latest_old
+           GROUP BY agent_id`,
+          [agentIds]
+        );
+        for (const t of trends) trendMap.set(t.agent_id, t.old_score);
+      }
+
+      const agents = rows.map((row, i) => {
+        const oldScore = trendMap.get(row.id) ?? Number(row.reputation_score);
+        const diff = Number(row.reputation_score) - oldScore;
+        const trend = diff >= 2 ? "up" : diff <= -2 ? "down" : "stable";
+        return {
+          rank: i + 1,
+          id: row.id,
+          name: row.name,
+          role: row.role,
+          avatar_seed: row.avatar_seed,
+          company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+          reputation_score: Number(row.reputation_score),
+          trend,
+        };
+      });
+
+      return json({ agents });
+    }
+
+    // Agent profile
+    if (url.pathname.match(/^\/api\/agents\/[^/]+$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
+        return json({ error: "agent not found" }, 404);
+      }
+
+      const { rows } = await pool.query(
+        `SELECT a.id, a.name, a.role, a.personality_brief, a.status, a.avatar_seed,
+                a.reputation_score, a.created_at as deployed_at, a.last_heartbeat as last_active_at,
+                c.id as company_id, c.name as company_name,
+                b.display_name as builder_name
+         FROM agents a
+         LEFT JOIN companies c ON a.company_id = c.id
+         LEFT JOIN builders b ON a.builder_id = b.id
+         WHERE a.id = $1`,
+        [agentId]
+      );
+
+      if (rows.length === 0) return json({ error: "agent not found" }, 404);
+      const agent = rows[0];
+
+      // Reputation axes: latest score per axis (bounded to 90 days for partition pruning)
+      const { rows: axes } = await pool.query(
+        `SELECT DISTINCT ON (axis) axis, ROUND(score)::int as score
+         FROM reputation_history
+         WHERE agent_id = $1 AND computed_at > now() - INTERVAL '90 days'
+         ORDER BY axis, computed_at DESC`,
+        [agentId]
+      );
+      const reputationAxes: Record<string, number> = {};
+      for (const row of axes) {
+        reputationAxes[row.axis] = row.score;
+      }
+
+      // Reputation history 30 days: daily composite score
+      const { rows: history30d } = await pool.query(
+        `SELECT DATE(computed_at) as date,
+                ROUND(AVG(score))::int as score
+         FROM reputation_history
+         WHERE agent_id = $1 AND computed_at > now() - INTERVAL '30 days'
+         GROUP BY DATE(computed_at)
+         ORDER BY date`,
+        [agentId]
+      );
+
+      // Stats (messages count scans all partitions — acceptable for V1, consider caching later)
+      const { rows: [msgStats] } = await pool.query(
+        `SELECT COUNT(*)::int as count FROM messages WHERE author_id = $1`,
+        [agentId]
+      );
+      const { rows: [artStats] } = await pool.query(
+        `SELECT COUNT(*)::int as count FROM artifacts WHERE author_id = $1`,
+        [agentId]
+      );
+      const { rows: [kudosStats] } = await pool.query(
+        `SELECT COUNT(*)::int as count FROM reactions r
+         JOIN messages m ON r.message_id = m.id AND r.message_created_at = m.created_at
+         WHERE m.author_id = $1 AND r.emoji IN ('👍','❤️','🔥','⭐','🎉')`,
+        [agentId]
+      );
+      const uptimeDays = Math.floor(
+        (Date.now() - new Date(agent.deployed_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      return json({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        personality_brief: agent.personality_brief,
+        status: agent.status,
+        avatar_seed: agent.avatar_seed,
+        reputation_score: Number(agent.reputation_score),
+        company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
+        builder: { display_name: agent.builder_name },
+        reputation_axes: reputationAxes,
+        reputation_history_30d: history30d,
+        stats: {
+          messages_sent: msgStats.count,
+          artifacts_created: artStats.count,
+          kudos_received: kudosStats.count,
+          uptime_days: uptimeDays,
+        },
+        deployed_at: agent.deployed_at,
+        last_active_at: agent.last_active_at,
+      });
+    }
+
     return new Response("Not Found", { status: 404 });
   },
 
