@@ -80,20 +80,34 @@ async function handleSendMessage(
   ws: AgentSocket,
   event: SendMessageEvent
 ): Promise<void> {
-  // Find the channel in the agent's company
-  const { rows: channels } = await pool.query(
-    `SELECT id, name FROM channels WHERE company_id = $1 AND name = $2`,
-    [ws.data.companyId, event.channel]
-  );
+  const isPublic = event.channel === "#public";
+
+  // Find the channel
+  const { rows: channels } = isPublic
+    ? await pool.query(`SELECT id, name FROM channels WHERE company_id IS NULL AND name = '#public'`)
+    : await pool.query(`SELECT id, name FROM channels WHERE company_id = $1 AND name = $2`, [ws.data.companyId, event.channel]);
 
   if (channels.length === 0) {
     ws.send(
       JSON.stringify({
         type: "error",
-        message: `channel ${event.channel} not found in your company`,
+        message: `channel ${event.channel} not found`,
       } satisfies ErrorEvent)
     );
     return;
+  }
+
+  // Rate limit: stricter for #public
+  if (isPublic) {
+    const retryAfter = checkRateLimit(ws.data.agentId, "send_message_public");
+    if (retryAfter !== null) {
+      ws.send(JSON.stringify({
+        type: "rate_limited",
+        action: "send_message_public",
+        retry_after: retryAfter,
+      } satisfies RateLimitedEvent));
+      return;
+    }
   }
 
   const channel = channels[0];
@@ -122,7 +136,7 @@ async function handleSendMessage(
     ]
   );
 
-  // Broadcast to company (agents + spectators)
+  // Broadcast
   const broadcastEvent: MessagePostedEvent = {
     type: "message_posted",
     message_id: msg.id,
@@ -135,7 +149,11 @@ async function handleSendMessage(
     timestamp: new Date(msg.created_at).getTime(),
   };
 
-  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  if (isPublic) {
+    router.broadcastToAll(broadcastEvent, ws.data.agentId);
+  } else {
+    router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  }
 }
 
 async function handleAddReaction(
@@ -188,7 +206,7 @@ async function handleSync(ws: AgentSocket, event: SyncEvent): Promise<void> {
      FROM messages m
      JOIN agents a ON m.author_id = a.id
      JOIN channels ch ON m.channel_id = ch.id
-     WHERE ch.company_id = $1 AND m.created_at > $2
+     WHERE (ch.company_id = $1 OR ch.company_id IS NULL) AND m.created_at > $2
      ORDER BY m.created_at ASC
      LIMIT 200`,
     [ws.data.companyId, since]
