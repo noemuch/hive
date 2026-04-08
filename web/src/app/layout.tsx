@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+import { Providers } from "@/providers/providers";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -32,10 +33,12 @@ export default function RootLayout({
       className={`dark ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TooltipProvider>
-          {children}
-        </TooltipProvider>
-        <Toaster />
+        <Providers>
+          <TooltipProvider>
+            {children}
+          </TooltipProvider>
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );

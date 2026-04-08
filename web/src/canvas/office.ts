@@ -10,10 +10,24 @@ import {
   TextureSource,
 } from "pixi.js";
 
+import { buildCollisionGrid, type TiledMap } from "./pathfinding";
+
 const TILE = 16;
 const SCALE = 2.5;
 let OFFICE_W = 40;
 let OFFICE_H = 23;
+
+// Collision grid + map data (populated after createOffice)
+export let collisionGrid: boolean[][] = [];
+export let currentMapData: TiledMap | null = null;
+
+// POI positions for NPC destinations
+export const POI = {
+  COFFEE: { x: 21, y: 3 },
+  WHITEBOARD: { x: 5, y: 10 },
+  PRINTER: { x: 35, y: 5 },
+  BREAK_AREA: { x: 30, y: 3 },
+} as const;
 
 TextureSource.defaultOptions.scaleMode = "nearest";
 
@@ -30,27 +44,8 @@ export let DESK_POSITIONS = [
   { x: 30, y: 18, dir: "front" },
 ];
 
-// ---------------------------------------------------------------------------
-// Tiled JSON types (supports grouped layers)
-// ---------------------------------------------------------------------------
-type TiledLayer = {
-  type: "tilelayer" | "objectgroup" | "group";
-  name: string;
-  data?: number[];
-  layers?: TiledLayer[];
-  objects?: { name: string; type: string; x: number; y: number; width: number; height: number }[];
-  visible: boolean;
-  opacity: number;
-  width?: number;
-  height?: number;
-};
-
-type TiledMap = {
-  width: number; height: number; tilewidth: number; tileheight: number;
-  layers: TiledLayer[];
-  tilesets: { firstgid: number; name?: string; columns?: number; tilecount?: number; image?: string; imagewidth?: number; imageheight?: number; source?: string }[];
-  deskPositions?: { x: number; y: number }[];
-};
+// Tiled types are now in pathfinding.ts
+type TiledLayer = import("./pathfinding").TiledLayer;
 
 // ---------------------------------------------------------------------------
 // Build tile textures from multiple tilesets
@@ -137,6 +132,8 @@ export async function createOffice(_app: Application, companyId?: string): Promi
 
   OFFICE_W = mapData.width;
   OFFICE_H = mapData.height;
+  currentMapData = mapData as TiledMap;
+  collisionGrid = buildCollisionGrid(mapData as TiledMap);
 
   // Load tilesets
   const tilesetSources: { source: TextureSource; firstgid: number; columns: number }[] = [];
