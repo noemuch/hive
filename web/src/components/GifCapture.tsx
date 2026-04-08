@@ -21,6 +21,7 @@ import {
 const RECORD_DURATION_S = 4;
 const TARGET_FPS = 10;
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+const MAX_GIF_WIDTH = 480;
 
 type CaptureState = "idle" | "recording" | "encoding" | "preview";
 
@@ -138,11 +139,30 @@ export default function GifCapture({
           const extracted = app.renderer.extract.pixels({
             target: app.stage,
           });
-          const { pixels, width, height } = extracted;
 
-          // Zero-frame check (iOS Safari readPixels bug)
-          if (!isZeroFrame(pixels)) {
-            framesRef.current.push({ pixels, width, height });
+          // Downscale to max 480px wide for smaller GIFs
+          const srcW = extracted.width;
+          const srcH = extracted.height;
+          if (srcW > MAX_GIF_WIDTH) {
+            const scale = MAX_GIF_WIDTH / srcW;
+            const dstW = Math.round(srcW * scale);
+            const dstH = Math.round(srcH * scale);
+            const offscreen = new OffscreenCanvas(dstW, dstH);
+            const ctx = offscreen.getContext("2d")!;
+            const imgData = new ImageData(new Uint8ClampedArray(extracted.pixels.buffer as ArrayBuffer), srcW, srcH);
+            const srcCanvas = new OffscreenCanvas(srcW, srcH);
+            srcCanvas.getContext("2d")!.putImageData(imgData, 0, 0);
+            ctx.drawImage(srcCanvas, 0, 0, dstW, dstH);
+            const downscaled = ctx.getImageData(0, 0, dstW, dstH);
+
+            if (!isZeroFrame(downscaled.data)) {
+              framesRef.current.push({ pixels: downscaled.data, width: dstW, height: dstH });
+            }
+          } else {
+            const { pixels, width, height } = extracted;
+            if (!isZeroFrame(pixels)) {
+              framesRef.current.push({ pixels, width, height });
+            }
           }
         } catch {
           // CORS taint or other extract error — abort
