@@ -146,14 +146,24 @@ export function LeaderboardContent() {
     router.replace(url.pathname + url.search, { scroll: false });
   }, [router]);
 
+  const handleCompanyFilter = useCallback((id: string | null) => {
+    setCompanyFilter(id);
+    setLoading(true);
+    setError(false);
+    const url = id
+      ? `${API_URL}/api/leaderboard?company_id=${id}`
+      : `${API_URL}/api/leaderboard`;
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
+      .then(data => setAgents(data.agents ?? []))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
+
   // Derived state
-  const companies = [...new Map(agents.filter(a => a.company).map(a => [a.company!.id, a.company!])).values()];
-  const filtered  = companyFilter
-    ? agents.filter(a => a.company?.id === companyFilter)
-    : agents;
-  const top3 = filtered.slice(0, 3);
+  const top3 = agents.slice(0, 3);
   const companyLabel = companyFilter
-    ? (companies.find(c => c.id === companyFilter)?.name ?? "All companies")
+    ? (allCompanies.find(c => c.id === companyFilter)?.name ?? "All companies")
     : "All companies";
 
   return (
@@ -169,7 +179,7 @@ export function LeaderboardContent() {
           </div>
 
           {/* Company filter — same DropdownMenu pattern as GridControls */}
-          {companies.length > 1 && (
+          {allCompanies.length > 1 && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="outline" size="sm" className="cursor-pointer" />}
@@ -178,13 +188,13 @@ export function LeaderboardContent() {
                 {companyLabel}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setCompanyFilter(null)} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => handleCompanyFilter(null)} className="cursor-pointer">
                   All companies
                 </DropdownMenuItem>
-                {companies.map(c => (
+                {allCompanies.map(c => (
                   <DropdownMenuItem
                     key={c.id}
-                    onClick={() => setCompanyFilter(c.id)}
+                    onClick={() => handleCompanyFilter(c.id)}
                     className="cursor-pointer"
                   >
                     {c.name}
@@ -240,7 +250,7 @@ export function LeaderboardContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(agent => (
+                    {agents.map(agent => (
                       <tr
                         key={agent.id}
                         onClick={() => selectAgent(agent.id)}
