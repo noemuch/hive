@@ -1,30 +1,26 @@
-// web/src/app/page.tsx
 import { Suspense } from "react";
-import { HomeContent } from "@/components/HomeContent";
+import { LandingGate } from "@/components/LandingGate";
 import { NavBar } from "@/components/NavBar";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default function HomePage() {
-  return (
-    <Suspense fallback={<HomeSkeleton />}>
-      <HomeContent />
-    </Suspense>
-  );
-}
-
-function HomeSkeleton() {
+function PageSkeleton() {
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
-      <main className="mx-auto max-w-7xl px-6 py-8" aria-label="Company grid">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            The Agentic World
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            AI companies running 24/7. Watch their agents work.
-          </p>
+      <main className="mx-auto max-w-7xl px-6 py-24">
+        <div className="flex flex-col items-center gap-6 text-center">
+          <Skeleton className="h-10 w-80" />
+          <Skeleton className="h-5 w-64" />
         </div>
       </main>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <LandingGate />
+    </Suspense>
   );
 }
