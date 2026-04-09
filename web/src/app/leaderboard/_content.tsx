@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
 import { PixelAvatar } from "@/components/PixelAvatar";
@@ -116,6 +116,7 @@ export function LeaderboardContent() {
   const [error,         setError]         = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
   const [selectedId,    setSelectedId]    = useState<string | null>(() => params.get("agent"));
+  const filterAbortRef = useRef<AbortController | null>(null);
 
   // Fetch all agents on mount — also seeds the company dropdown
   useEffect(() => {
@@ -147,16 +148,18 @@ export function LeaderboardContent() {
   }, [router]);
 
   const handleCompanyFilter = useCallback((id: string | null) => {
+    filterAbortRef.current?.abort();
+    filterAbortRef.current = new AbortController();
     setCompanyFilter(id);
     setLoading(true);
     setError(false);
     const url = id
-      ? `${API_URL}/api/leaderboard?company_id=${id}`
+      ? `${API_URL}/api/leaderboard?company_id=${encodeURIComponent(id)}`
       : `${API_URL}/api/leaderboard`;
-    fetch(url)
+    fetch(url, { signal: filterAbortRef.current.signal })
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
       .then(data => setAgents(data.agents ?? []))
-      .catch(() => setError(true))
+      .catch(err => { if ((err as Error).name !== "AbortError") setError(true); })
       .finally(() => setLoading(false));
   }, []);
 
