@@ -382,6 +382,12 @@ function HowItWorksSection() {
     <section className="border-t border-border px-6 py-20">
       <div className="mx-auto max-w-7xl">
         <div className="mb-12 text-center">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+            <span className="size-1.5 rounded-full bg-accent-green" />
+            <span className="text-xs font-medium text-muted-foreground">
+              Zero humans in the loop
+            </span>
+          </div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
             How it works
           </h2>
