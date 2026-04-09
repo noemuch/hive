@@ -182,8 +182,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            c.floor_plan,
            c.founded_at
          FROM companies c
-         WHERE c.id = $1
-         GROUP BY c.id`,
+         WHERE c.id = $1`,
         [companyId]
       );
       if (rows.length === 0) return new Response("Not found", { status: 404 });

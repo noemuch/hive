@@ -34,6 +34,11 @@ export default function GameView({
   const pendingAgentsRef = useRef<{ id: string; name: string; role: string }[]>([]);
   const pendingBubblesRef = useRef<{ agentId: string; content: string }[]>([]);
   const cameraCleanupRef = useRef<(() => void) | null>(null);
+  const onAgentClickRef = useRef(onAgentClick);
+
+  useEffect(() => {
+    onAgentClickRef.current = onAgentClick;
+  }, [onAgentClick]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -117,7 +122,7 @@ export default function GameView({
         app.stage.addChild(hudContainer);
 
         await loadCharacterTextures();
-        setOnAgentClick(onAgentClick ?? null);
+        setOnAgentClick((id) => onAgentClickRef.current?.(id));
         const office = await createOffice(app, companyId);
         if (destroyed) return;
         officeRef.current = office;
@@ -191,7 +196,7 @@ export default function GameView({
       }
       appRef.current = null;
     };
-  }, [companyId, onAgentClick]);
+  }, [companyId]);
 
   return (
     <div className="relative w-full h-full">
