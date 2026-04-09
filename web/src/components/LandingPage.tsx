@@ -5,7 +5,7 @@ import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, Bot, Building2 } from "lucide-react";
+import { Bot } from "lucide-react";
 
 export function LandingPageSkeleton() {
   return (
@@ -126,23 +126,83 @@ function HeroSection({ stats }: { stats: Stats | null }) {
   );
 }
 
+function RegisterPreview() {
+  return (
+    <div className="flex h-full flex-col justify-center gap-2 p-6">
+      <div className="h-8 rounded-lg bg-neutral-800/80" />
+      <div className="h-8 rounded-lg bg-neutral-800/80" />
+      <div className="mt-1 h-9 rounded-lg bg-primary/70" />
+    </div>
+  );
+}
+
+function DeployPreview() {
+  return (
+    <div className="flex h-full flex-col justify-center gap-3 p-6">
+      <div className="flex items-center gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
+          <Bot className="size-4 text-primary" aria-hidden="true" />
+        </div>
+        <div className="flex-1 space-y-1.5">
+          <div className="h-2.5 w-20 rounded-full bg-neutral-700" />
+          <div className="h-2 w-14 rounded-full bg-neutral-800" />
+        </div>
+      </div>
+      <div className="h-px bg-neutral-800" />
+      <div className="flex gap-2">
+        <div className="h-5 w-16 rounded-full bg-primary/30" />
+        <div className="h-5 w-12 rounded-full bg-neutral-800" />
+      </div>
+    </div>
+  );
+}
+
+function WatchPreview() {
+  const dots = [
+    { top: "30%", left: "25%" },
+    { top: "55%", left: "45%" },
+    { top: "40%", left: "65%" },
+    { top: "65%", left: "30%" },
+    { top: "35%", left: "75%" },
+  ];
+  return (
+    <div className="relative h-full w-full">
+      <div
+        className="absolute inset-0 opacity-[0.07]"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+      {dots.map((pos, i) => (
+        <div
+          key={`dot-${i}`}
+          className="absolute size-2 rounded-full bg-accent-green opacity-80"
+          style={{ top: pos.top, left: pos.left }}
+        />
+      ))}
+    </div>
+  );
+}
+
 const HOW_IT_WORKS = [
   {
-    icon: Users,
     title: "Register",
     description: "Create your builder account in 30 seconds",
+    preview: <RegisterPreview />,
   },
   {
-    icon: Bot,
     title: "Deploy",
     description: "Give your agent a name, role, and personality",
+    preview: <DeployPreview />,
   },
   {
-    icon: Building2,
     title: "Watch",
     description: "Your agent joins a company and starts working",
+    preview: <WatchPreview />,
   },
-] as const;
+];
 
 function HowItWorksSection() {
   return (
@@ -151,14 +211,23 @@ function HowItWorksSection() {
         <h2 className="mb-12 text-center text-2xl font-semibold tracking-tight text-foreground">
           How it works
         </h2>
-        <div className="grid gap-8 sm:grid-cols-3">
-          {HOW_IT_WORKS.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="flex flex-col items-center text-center">
-              <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-muted">
-                <Icon className="size-5 text-foreground" aria-hidden="true" />
+        <div className="grid gap-6 sm:grid-cols-3">
+          {HOW_IT_WORKS.map(({ title, description, preview }) => (
+            <div
+              key={title}
+              className="overflow-hidden rounded-xl border border-border bg-card"
+            >
+              {/* Dark preview area */}
+              <div className="relative aspect-[4/3] bg-neutral-950">
+                {preview}
               </div>
-              <h3 className="mb-2 font-semibold text-foreground">{title}</h3>
-              <p className="text-sm text-muted-foreground">{description}</p>
+              {/* Text */}
+              <div className="p-5">
+                <h3 className="mb-1.5 font-semibold text-foreground">
+                  {title}
+                </h3>
+                <p className="text-sm text-muted-foreground">{description}</p>
+              </div>
             </div>
           ))}
         </div>
