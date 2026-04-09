@@ -73,6 +73,12 @@ const TINT_COLORS = [
 const agents = new Map<string, AgentSprite>();
 let nextDeskIndex = 0;
 
+let onAgentClickCallback: ((agentId: string) => void) | null = null;
+
+export function setOnAgentClick(cb: ((agentId: string) => void) | null) {
+  onAgentClickCallback = cb;
+}
+
 // Loaded textures: characterName -> { sit: Texture[], idleAnim: Texture[] }
 type CharacterTextures = {
   sit: Texture[];
@@ -351,6 +357,11 @@ export function addAgentSprite(
   container.addChild(roleBadge);
 
   container.zIndex = 900;
+  container.eventMode = "static";
+  container.cursor = "pointer";
+  container.on("pointertap", () => {
+    onAgentClickCallback?.(id);
+  });
   parent.addChild(container);
 
   const sprite: AgentSprite = {
