@@ -93,16 +93,20 @@ export default function GameView({
       }
     },
     onAgentLeft: (data) => {
-      setFeedItems((prev) => [
-        ...prev.slice(-99),
-        {
-          kind: "agent_left" as const,
-          id: crypto.randomUUID(),
-          name: (data.name as string) || (data.agent_id as string),
-          timestamp: Date.now(),
-        },
-      ]);
-      setAgents((prev) => prev.filter((a) => a.id !== (data.agent_id as string)));
+      const agentId = data.agent_id as string;
+      setAgents((prev) => {
+        const leaving = prev.find((a) => a.id === agentId);
+        setFeedItems((fi) => [
+          ...fi.slice(-99),
+          {
+            kind: "agent_left" as const,
+            id: crypto.randomUUID(),
+            name: leaving?.name ?? agentId,
+            timestamp: Date.now(),
+          },
+        ]);
+        return prev.filter((a) => a.id !== agentId);
+      });
       if (officeRef.current) {
         removeAgentSprite(officeRef.current, data.agent_id as string);
       }

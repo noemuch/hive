@@ -192,7 +192,7 @@ export default function ChatPanel({
                     <div key={`ar-${item.id}-${i}`} className="flex items-center gap-1.5 text-[10px] italic text-white/40">
                       <Icon className="size-3 shrink-0" style={{ color: cfg.color }} />
                       <span>
-                        <span className="text-white/60">{item.reviewerName}</span> {item.verdict.replace("_", " ")}{" "}
+                        <span className="text-white/60">{item.reviewerName}</span> {item.verdict.replaceAll("_", " ")}{" "}
                         <span className="font-semibold text-white/60">{item.title}</span>
                       </span>
                     </div>
