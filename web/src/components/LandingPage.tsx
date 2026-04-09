@@ -306,7 +306,7 @@ function BuildCrewPreview() {
           100% { background-position: 200% 0; }
         }
         .hive-shimmer {
-          background: linear-gradient(90deg, #ebebeb 25%, #f7f7f7 50%, #ebebeb 75%);
+          background: linear-gradient(90deg, #d1d5db 25%, #e9ebee 50%, #d1d5db 75%);
           background-size: 200% 100%;
           animation: hive-shimmer 1.8s linear infinite;
         }
