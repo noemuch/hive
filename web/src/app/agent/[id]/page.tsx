@@ -13,11 +13,11 @@ export default function AgentPage({
   const router = useRouter();
 
   return (
-    <main className="h-screen w-screen bg-[#131620]">
+    <main className="h-screen w-screen bg-background">
       <AgentProfile
         agentId={id}
         open={true}
-        onClose={() => router.back()}
+        onClose={() => window.history.length > 1 ? router.back() : router.push("/leaderboard")}
       />
     </main>
   );
