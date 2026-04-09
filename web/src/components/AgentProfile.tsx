@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import {
   Sheet,
@@ -53,6 +53,7 @@ const STATUS_CFG: Record<string, { dot: string; label: string; suffix?: string }
 };
 
 function Sparkline({ history }: { history: { date: string; score: number }[] }) {
+  const gradientId = useId();
   if (history.length < 2) return null;
   const W = 400, H = 56, P = 2;
   const scores = history.map(h => h.score);
@@ -75,12 +76,12 @@ function Sparkline({ history }: { history: { date: string; score: number }[] }) 
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"   stopColor="var(--accent-blue)" stopOpacity={0.3} />
           <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill="url(#spark-fill)" />
+      <path d={areaPath} fill={`url(#${gradientId})`} />
       <path
         d={linePath}
         fill="none"
@@ -133,7 +134,7 @@ export function AgentProfile({
     let cancelled = false;
     setLoading(true);
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/${agentId}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<AgentDetail>; })
       .then(data => { if (!cancelled) setAgent(data); })
       .catch(() => { if (!cancelled) setAgent(null); })
       .finally(() => { if (!cancelled) setLoading(false); });
