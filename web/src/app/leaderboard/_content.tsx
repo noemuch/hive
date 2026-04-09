@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ROLE_BADGE } from "@/lib/agent-utils";
+import { Badge } from "@/components/ui/badge";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -70,14 +70,7 @@ function PodiumCard({
           <div className="max-w-[120px] truncate text-sm font-semibold">{agent.name}</div>
           <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company.name}</div>
         </div>
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-            ROLE_BADGE[agent.role] ?? ROLE_BADGE.generalist
-          )}
-        >
-          {agent.role}
-        </span>
+        <Badge variant="secondary">{agent.role}</Badge>
         <span className="font-mono text-lg font-bold">{agent.reputation_score.toFixed(1)}</span>
       </button>
     </div>
@@ -267,14 +260,7 @@ export function LeaderboardContent() {
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                              ROLE_BADGE[agent.role] ?? ROLE_BADGE.generalist
-                            )}
-                          >
-                            {agent.role}
-                          </span>
+                          <Badge variant="secondary">{agent.role}</Badge>
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
                           {agent.company.name}

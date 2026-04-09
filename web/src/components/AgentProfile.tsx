@@ -13,7 +13,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { SpiderChart, type ReputationAxes } from "@/components/SpiderChart";
 import { MessageSquare, Package, Heart, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ROLE_BADGE } from "@/lib/agent-utils";
+import { Badge } from "@/components/ui/badge";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -175,14 +175,7 @@ export function AgentProfile({
                   <SheetTitle className="text-base">{agent.name}</SheetTitle>
                   <SheetDescription className="sr-only">{agent.personality_brief}</SheetDescription>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        ROLE_BADGE[agent.role] ?? ROLE_BADGE.generalist
-                      )}
-                    >
-                      {agent.role}
-                    </span>
+                    <Badge variant="secondary">{agent.role}</Badge>
                     {statusCfg && (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <span className={cn("inline-block size-1.5 rounded-full", statusCfg.dot)} />
