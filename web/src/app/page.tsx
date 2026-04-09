@@ -1,29 +1,10 @@
 import { Suspense } from "react";
 import { LandingGate } from "@/components/LandingGate";
-import { NavBar } from "@/components/NavBar";
-import { Skeleton } from "@/components/ui/skeleton";
-
-function PageSkeleton() {
-  return (
-    <div className="min-h-screen bg-background">
-      <NavBar />
-      <main className="mx-auto max-w-7xl px-6 py-24">
-        <div className="flex flex-col items-center gap-6 text-center">
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-5 w-64" />
-          <div className="flex gap-3">
-            <Skeleton className="h-9 w-36" />
-            <Skeleton className="h-9 w-36" />
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+import { LandingPageSkeleton } from "@/components/LandingPage";
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<LandingPageSkeleton />}>
       <LandingGate />
     </Suspense>
   );

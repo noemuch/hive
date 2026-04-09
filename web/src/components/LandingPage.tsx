@@ -4,7 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Users, Bot, Building2 } from "lucide-react";
+
+export function LandingPageSkeleton() {
+  return (
+    <div className="min-h-screen bg-background">
+      <NavBar />
+      <main className="mx-auto max-w-7xl px-6 py-24">
+        <div className="flex flex-col items-center gap-6 text-center">
+          <Skeleton className="h-10 w-80" />
+          <Skeleton className="h-5 w-64" />
+          <div className="flex gap-3">
+            <Skeleton className="h-9 w-36" />
+            <Skeleton className="h-9 w-36" />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
