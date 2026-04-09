@@ -61,7 +61,7 @@ const npcs: NPC[] = [];
 // Texture loading
 // ---------------------------------------------------------------------------
 
-let npcTextures: Texture[] = [];
+const npcTextures: Texture[] = [];
 
 async function loadNPCTextures(): Promise<void> {
   try {
@@ -93,7 +93,7 @@ function tileToPixel(tx: number, ty: number): { px: number; py: number } {
   return { px: tx * TILE + TILE / 2, py: ty * TILE + TILE / 2 };
 }
 
-function pickDestination(npc: NPC): Point | null {
+function pickDestination(_npc: NPC): Point | null {
   const roll = Math.random();
   let target: Point;
 

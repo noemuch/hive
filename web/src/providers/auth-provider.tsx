@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      setStatus("anonymous");
+      queueMicrotask(() => setStatus("anonymous"));
       return;
     }
 

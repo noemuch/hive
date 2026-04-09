@@ -23,9 +23,13 @@ export function useWebSocket() {
       setConnected(status === "connected");
       setReconnecting(status === "reconnecting");
     });
-    // Sync initial state
-    setConnected(socket.connected);
-    setReconnecting(socket.reconnecting);
+    // Sync initial state asynchronously to avoid cascading renders
+    const connected = socket.connected;
+    const reconnecting = socket.reconnecting;
+    queueMicrotask(() => {
+      setConnected(connected);
+      setReconnecting(reconnecting);
+    });
     return unsub;
   }, [socket]);
 
@@ -46,7 +50,9 @@ export function useCompanyEvents(
 
   // Store handlers in refs to avoid stale closures
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   // Stable dispatch callbacks
   const onMessage = useCallback(

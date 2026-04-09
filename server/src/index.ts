@@ -1,7 +1,7 @@
 import pool from "./db/pool";
 import { authenticateAgent, hashPassword, verifyPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
-import { handleAgentEvent } from "./engine/handlers";
+import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
@@ -10,6 +10,10 @@ import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 
 /** Server port, configurable via PORT env var. */
 const PORT = Number(process.env.PORT) || 3000;
+
+/** Per-IP connection cap for /watch to limit fan-out abuse. */
+const MAX_SPECTATORS_PER_IP = 5;
+const spectatorIpCounts = new Map<string, number>();
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -44,8 +48,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
     // WebSocket: spectator
     if (url.pathname === "/watch") {
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? server.requestIP(req)?.address ?? "unknown";
+      const current = spectatorIpCounts.get(ip) ?? 0;
+      if (current >= MAX_SPECTATORS_PER_IP) return new Response("Too many connections", { status: 429 });
+      spectatorIpCounts.set(ip, current + 1);
       return server.upgrade(req, {
-        data: { type: "spectator" as const, watchingCompanyId: null as string | null },
+        data: { type: "spectator" as const, watchingCompanyId: null as string | null, watchingAll: false as boolean, ip },
       }) ? undefined : new Response("Upgrade failed", { status: 400 });
     }
 
@@ -408,11 +416,18 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         await pool.query(`UPDATE agents SET status = 'disconnected' WHERE id = $1`, [a.data.agentId]);
         if (a.data.companyId) {
           router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
+          broadcastStatsUpdate(a.data.companyId).catch((err) =>
+            console.error("[ws] stats broadcast error:", err)
+          );
           checkLifecycle(a.data.companyId);
         }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
       } else if (data.type === "spectator") {
-        router.removeSpectator(ws as unknown as SpectatorSocket);
+        const s = ws as unknown as SpectatorSocket;
+        router.removeSpectator(s);
+        const prev = spectatorIpCounts.get(s.data.ip) ?? 1;
+        if (prev <= 1) spectatorIpCounts.delete(s.data.ip);
+        else spectatorIpCounts.set(s.data.ip, prev - 1);
       }
     },
   },
@@ -447,6 +462,9 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
       teammates = (await pool.query(`SELECT id, name, role, status FROM agents WHERE company_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`, [agent.company_id, agent.agent_id])).rows;
       company = (await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [agent.company_id])).rows[0] || null;
       router.broadcast(agent.company_id, { type: "agent_joined", agent_id: agent.agent_id, name: agent.name, role: agent.role, company_id: agent.company_id }, agent.agent_id);
+      broadcastStatsUpdate(agent.company_id).catch((err) =>
+        console.error("[ws] stats broadcast error:", err)
+      );
     }
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));
@@ -502,6 +520,40 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
           timestamp: new Date(msg.created_at).getTime(),
         }));
       }
+    }
+
+    if (data.type === "watch_all") {
+      if (ws.data.watchingAll) return;
+      ws.data.watchingAll = true;
+
+      // Send initial stats snapshot for all companies (single batch query)
+      const { rows: companies } = await pool.query<{
+        id: string;
+        agent_count: string;
+        active_agent_count: string;
+        messages_today: string;
+      }>(`
+        SELECT
+          c.id,
+          COUNT(CASE WHEN a.status NOT IN ('retired','disconnected') THEN 1 END)::text AS agent_count,
+          COUNT(CASE WHEN a.status = 'active' THEN 1 END)::text AS active_agent_count,
+          (SELECT COUNT(*) FROM messages m
+            WHERE m.author_id IN (SELECT id FROM agents WHERE company_id = c.id)
+            AND m.created_at >= CURRENT_DATE AT TIME ZONE 'UTC')::text AS messages_today
+        FROM companies c
+        LEFT JOIN agents a ON a.company_id = c.id
+        GROUP BY c.id
+      `);
+      for (const company of companies) {
+        ws.send(JSON.stringify({
+          type: "company_stats_updated",
+          company_id: company.id,
+          agent_count: parseInt(company.agent_count, 10),
+          active_agent_count: parseInt(company.active_agent_count, 10),
+          messages_today: parseInt(company.messages_today, 10),
+        }));
+      }
+      router.addAllWatcher(ws); // register only after snapshot is successfully sent
     }
   } catch { /* ignore */ }
 }

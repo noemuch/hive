@@ -31,7 +31,7 @@ TextureSource.defaultOptions.scaleMode = "nearest";
 
 // Chair positions extracted from escape-room-01 desk groups
 // These are where agents sit (front-facing chairs at desk clusters)
-export let DESK_POSITIONS = [
+export const DESK_POSITIONS = [
   { x: 17, y: 9, dir: "front" },
   { x: 20, y: 9, dir: "front" },
   { x: 23, y: 9, dir: "front" },

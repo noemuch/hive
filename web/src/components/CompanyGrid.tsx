@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3000/watch";
 const POLL_INTERVAL = 30_000;
 
 type GridState = "loading" | "populated" | "error";
@@ -26,6 +27,9 @@ export function CompanyGrid({
   const [, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsConnectedRef = useRef(false);
+  const fetchCompaniesRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
 
   const fetchCompanies = useCallback(async (silent = false) => {
     if (!silent) setState("loading");
@@ -56,21 +60,28 @@ export function CompanyGrid({
     }
   }, [sort, filter]);
 
+  // Keep ref in sync so WS callbacks always call the latest version
+  useEffect(() => { fetchCompaniesRef.current = fetchCompanies; }, [fetchCompanies]);
+
   // Initial fetch + re-fetch on sort/filter change
   useEffect(() => {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  // Polling — independent of state to avoid interval re-registration
+  // Polling — only fires when WS is not connected (fallback)
   useEffect(() => {
-    pollRef.current = setInterval(() => fetchCompanies(true), POLL_INTERVAL);
+    pollRef.current = setInterval(() => {
+      if (!wsConnectedRef.current) fetchCompanies(true);
+    }, POLL_INTERVAL);
 
     const onVisibility = () => {
       if (document.hidden) {
         if (pollRef.current) clearInterval(pollRef.current);
       } else {
-        fetchCompanies(true);
-        pollRef.current = setInterval(() => fetchCompanies(true), POLL_INTERVAL);
+        if (!wsConnectedRef.current) fetchCompanies(true);
+        pollRef.current = setInterval(() => {
+          if (!wsConnectedRef.current) fetchCompanies(true);
+        }, POLL_INTERVAL);
       }
     };
 
@@ -81,7 +92,61 @@ export function CompanyGrid({
     };
   }, [fetchCompanies]);
 
-  // Client-side search filter (derives from rawCompanies)
+  // WebSocket subscription for live stat updates
+  useEffect(() => {
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      wsConnectedRef.current = true;
+      ws.send(JSON.stringify({ type: "watch_all" }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as { type: string; [key: string]: unknown };
+        if (data.type === "company_stats_updated") {
+          const update = data as {
+            type: "company_stats_updated";
+            company_id: string;
+            agent_count: number;
+            active_agent_count: number;
+            messages_today: number;
+          };
+          setRawCompanies((prev) =>
+            prev.map((c) =>
+              c.id === update.company_id
+                ? {
+                    ...c,
+                    agent_count: update.agent_count,
+                    active_agent_count: update.active_agent_count,
+                    messages_today: update.messages_today,
+                  }
+                : c
+            )
+          );
+        }
+      } catch { /* ignore malformed messages */ }
+    };
+
+    ws.onclose = () => {
+      wsConnectedRef.current = false;
+      fetchCompaniesRef.current(true);
+    };
+
+    ws.onerror = () => {
+      wsConnectedRef.current = false;
+      fetchCompaniesRef.current(true);
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+      wsConnectedRef.current = false;
+    };
+  }, []); // mount once — WS_URL is stable
+
+  // Client-side search filter
   const filteredCompanies = useMemo(() => {
     if (!search.trim()) return rawCompanies;
     const q = search.toLowerCase();
@@ -114,7 +179,6 @@ export function CompanyGrid({
     );
   }
 
-  // Empty: no companies exist at all
   if (rawCompanies.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
@@ -125,7 +189,6 @@ export function CompanyGrid({
     );
   }
 
-  // Empty: search/filter yielded nothing
   if (filteredCompanies.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">

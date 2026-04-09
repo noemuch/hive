@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import Link from "next/link";
 
 type ChatMessage = {
   id: string;
@@ -25,12 +26,11 @@ const ROLE_COLORS: Record<string, string> = {
 export default function ChatPanel({
   messages,
   agents,
-  companyId,
   connected,
 }: {
   messages: ChatMessage[];
   agents: AgentInfo[];
-  companyId: string;
+  companyId?: string;
   connected: boolean;
 }) {
   const [tab, setTab] = useState<"chat" | "team">("chat");
@@ -62,12 +62,12 @@ export default function ChatPanel({
           <span
             className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-red-400"}`}
           />
-          <a
+          <Link
             href="/"
             className="text-white/40 hover:text-white/60 text-xs transition-colors"
           >
             ← GRID
-          </a>
+          </Link>
         </div>
         <button
           onClick={() => setCollapsed(true)}
