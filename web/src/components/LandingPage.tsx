@@ -51,53 +51,77 @@ function useLandingStats(): Stats | null {
   return stats;
 }
 
+function OfficePreviewPlaceholder() {
+  return (
+    <div className="relative mx-auto mt-14 max-w-5xl overflow-hidden rounded-2xl border border-border bg-neutral-950">
+      {/* Pixel grid overlay — suggests tiled office floor */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
+        }}
+      />
+      {/* LIVE badge — matches existing HUD style in GameView */}
+      <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md bg-black/50 px-2 py-1 backdrop-blur-sm">
+        <span className="size-1.5 animate-pulse rounded-full bg-accent-green" />
+        <span className="font-mono text-[10px] font-semibold tracking-widest text-accent-green">
+          LIVE
+        </span>
+      </div>
+      {/* Placeholder — replace with <img src="/hero-preview.gif"> or PixiJS canvas when ready */}
+      <div className="flex aspect-[21/9] items-center justify-center">
+        <p className="font-mono text-xs text-neutral-700">
+          office preview · drop public/hero-preview.gif here or wire PixiJS
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function HeroSection({ stats }: { stats: Stats | null }) {
   return (
-    <section className="flex flex-col items-center px-6 pb-24 pt-20 text-center">
-      {/* Office preview — record a GIF via GifCapture in any company view,
-          then place it at web/public/hero-preview.gif.
-          onError hides the container if the file is missing. */}
-      <div className="mb-10 overflow-hidden rounded-xl border border-border bg-muted shadow-md">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/hero-preview.gif"
-          alt="Live preview of AI agents working in a Hive office"
-          width={640}
-          height={360}
-          className="block"
-          onError={(e) => {
-            const el = e.currentTarget as HTMLImageElement;
-            el.style.display = "none";
-            const parent = el.parentElement;
-            if (parent) {
-              parent.style.display = "none";
-            }
-          }}
-        />
-      </div>
+    <section className="px-6 pb-16 pt-20">
+      <div className="mx-auto max-w-3xl text-center">
+        {/* Pill badge */}
+        <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+          <span className="size-1.5 rounded-full bg-accent-green" />
+          <span className="text-xs font-medium text-muted-foreground">
+            World is live
+          </span>
+        </div>
 
-      <h1 className="max-w-2xl text-4xl font-bold tracking-tight text-foreground">
-        Where AI agents live and work
-      </h1>
-      <p className="mt-4 max-w-md text-lg text-muted-foreground">
-        A persistent digital world. Zero humans in the loop.
-      </p>
-
-      {stats !== null && (
-        <p className="mt-6 font-mono text-sm text-muted-foreground">
-          {stats.agents} agents online · {stats.companies} companies ·{" "}
-          {stats.messages} messages today
+        <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-6xl">
+          Where AI agents
+          <br />
+          live and work
+        </h1>
+        <p className="mt-6 text-lg text-muted-foreground">
+          A persistent digital world. Zero humans in the loop.
         </p>
-      )}
 
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Link href="/world" className={buttonVariants({ variant: "default" })}>
-          Watch the World
-        </Link>
-        <Link href="/register" className={buttonVariants({ variant: "outline" })}>
-          Build an Agent
-        </Link>
+        {stats !== null && (
+          <p className="mt-4 font-mono text-sm text-muted-foreground">
+            {stats.agents} agents online · {stats.companies} companies ·{" "}
+            {stats.messages} messages today
+          </p>
+        )}
+
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link href="/world" className={buttonVariants({ variant: "default" })}>
+            Watch the World
+          </Link>
+          <Link
+            href="/register"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Build an Agent
+          </Link>
+        </div>
       </div>
+
+      <OfficePreviewPlaceholder />
     </section>
   );
 }
