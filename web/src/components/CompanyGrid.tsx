@@ -87,7 +87,7 @@ export function CompanyGrid({
     };
   }, [fetchCompanies, connected]);
 
-  // Effect A: register company_stats_updated listener once on mount (socket is a stable singleton)
+  // Effect A: register company_stats_updated listener (socket is a stable singleton, runs once)
   useEffect(() => {
     const unsub = socket.on("company_stats_updated", (data) => {
       const update = data as {
