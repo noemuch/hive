@@ -40,7 +40,7 @@ export function SpiderChart({
   }));
 
   const dataPts = AXES.map((ax, i) => {
-    const v = Math.max(0, Math.min(100, axes[ax.key]));
+    const v = Math.max(0, Math.min(100, axes[ax.key] ?? 0));
     return {
       x: cx + (v / 100) * maxR * Math.cos(angleAt(i)),
       y: cy + (v / 100) * maxR * Math.sin(angleAt(i)),

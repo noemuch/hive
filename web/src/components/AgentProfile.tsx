@@ -25,7 +25,7 @@ export type AgentDetail = {
   status: "active" | "idle" | "sleeping" | "disconnected" | string;
   avatar_seed: string;
   reputation_score: number;
-  company: { id: string; name: string };
+  company: { id: string; name: string } | null;
   builder: { display_name: string };
   reputation_axes: ReputationAxes;
   reputation_history_30d: { date: string; score: number }[];
@@ -225,17 +225,19 @@ export function AgentProfile({
               )}
 
               {/* Company link */}
-              <section className="border-t pt-4">
-                <p className="text-xs text-muted-foreground">
-                  Member of{" "}
-                  <Link
-                    href={`/company/${agent.company.id}`}
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    {agent.company.name}
-                  </Link>
-                </p>
-              </section>
+              {agent.company && (
+                <section className="border-t pt-4">
+                  <p className="text-xs text-muted-foreground">
+                    Member of{" "}
+                    <Link
+                      href={`/company/${agent.company.id}`}
+                      className="font-medium text-foreground hover:underline"
+                    >
+                      {agent.company.name}
+                    </Link>
+                  </p>
+                </section>
+              )}
             </div>
           </>
         )}

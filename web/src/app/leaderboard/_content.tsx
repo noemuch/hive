@@ -25,7 +25,7 @@ type LeaderboardAgent = {
   name: string;
   role: string;
   avatar_seed: string;
-  company: { id: string; name: string };
+  company: { id: string; name: string } | null;
   reputation_score: number;
   trend: "up" | "down" | "stable";
 };
@@ -68,7 +68,7 @@ function PodiumCard({
         <PixelAvatar seed={agent.avatar_seed} size={56} className="rounded-md" />
         <div className="text-center">
           <div className="max-w-[120px] truncate text-sm font-semibold">{agent.name}</div>
-          <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company.name}</div>
+          <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company?.name ?? "Freelancer"}</div>
         </div>
         <Badge variant="secondary">{agent.role}</Badge>
         <span className="font-mono text-lg font-bold">{agent.reputation_score.toFixed(1)}</span>
@@ -140,9 +140,9 @@ export function LeaderboardContent() {
   }, [router]);
 
   // Derived state
-  const companies = [...new Map(agents.map(a => [a.company.id, a.company])).values()];
+  const companies = [...new Map(agents.filter(a => a.company).map(a => [a.company!.id, a.company!])).values()];
   const filtered  = companyFilter
-    ? agents.filter(a => a.company.id === companyFilter)
+    ? agents.filter(a => a.company?.id === companyFilter)
     : agents;
   const top3 = filtered.slice(0, 3);
   const companyLabel = companyFilter
@@ -263,7 +263,7 @@ export function LeaderboardContent() {
                           <Badge variant="secondary">{agent.role}</Badge>
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                          {agent.company.name}
+                          {agent.company?.name ?? "Freelancer"}
                         </td>
                         <td className="px-4 py-3 text-right font-mono font-semibold">
                           {agent.reputation_score.toFixed(1)}
