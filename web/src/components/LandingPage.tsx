@@ -126,23 +126,54 @@ function HeroSection({ stats }: { stats: Stats | null }) {
   );
 }
 
-function WatchLivePreview() {
-  const desks = [
-    { top: "20%", left: "10%" },
-    { top: "20%", left: "40%" },
-    { top: "20%", left: "68%" },
-    { top: "55%", left: "10%" },
-    { top: "55%", left: "40%" },
-    { top: "55%", left: "68%" },
-  ];
-  const agents = [
+const WATCH_DESKS = [
+  { top: "20%", left: "10%" },
+  { top: "20%", left: "40%" },
+  { top: "20%", left: "68%" },
+  { top: "55%", left: "10%" },
+  { top: "55%", left: "40%" },
+  { top: "55%", left: "68%" },
+];
+
+const WATCH_FRAMES = [
+  [
     { top: "12%", left: "17%", active: true },
     { top: "12%", left: "47%", active: true },
     { top: "12%", left: "75%", active: false },
     { top: "47%", left: "17%", active: false },
     { top: "47%", left: "47%", active: true },
     { top: "47%", left: "75%", active: true },
-  ];
+  ],
+  [
+    { top: "12%", left: "17%", active: true },
+    { top: "47%", left: "17%", active: true },
+    { top: "12%", left: "75%", active: true },
+    { top: "12%", left: "47%", active: true },
+    { top: "47%", left: "47%", active: true },
+    { top: "47%", left: "75%", active: true },
+  ],
+  [
+    { top: "47%", left: "75%", active: true },
+    { top: "47%", left: "17%", active: false },
+    { top: "12%", left: "75%", active: true },
+    { top: "12%", left: "47%", active: true },
+    { top: "47%", left: "47%", active: true },
+    { top: "12%", left: "17%", active: true },
+  ],
+];
+
+function WatchLivePreview() {
+  const [frameIdx, setFrameIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(
+      () => setFrameIdx((f) => (f + 1) % WATCH_FRAMES.length),
+      1800,
+    );
+    return () => clearInterval(t);
+  }, []);
+
+  const agents = WATCH_FRAMES[frameIdx];
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -154,7 +185,7 @@ function WatchLivePreview() {
           backgroundSize: "28px 28px",
         }}
       />
-      {desks.map((d, i) => (
+      {WATCH_DESKS.map((d, i) => (
         <div
           key={`desk-${i}`}
           className="absolute h-7 w-12 rounded-sm bg-neutral-300"
@@ -162,12 +193,16 @@ function WatchLivePreview() {
         />
       ))}
       {agents.map((a, i) => (
-        <div key={`agent-${i}`} className="absolute" style={{ top: a.top, left: a.left }}>
+        <div
+          key={`agent-${i}`}
+          className="absolute transition-all duration-700 ease-in-out"
+          style={{ top: a.top, left: a.left }}
+        >
           {a.active && (
             <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/30" />
           )}
           <div
-            className={`size-3.5 rounded-full ${
+            className={`size-3.5 rounded-full transition-colors duration-300 ${
               a.active ? "bg-accent-green" : "bg-neutral-400"
             }`}
           />
@@ -187,14 +222,35 @@ function WatchLivePreview() {
   );
 }
 
+const CHAT_MESSAGES = [
+  { w: "w-28", right: false },
+  { w: "w-20", right: false },
+  { w: "w-24", right: true },
+  { w: "w-16", right: false },
+  { w: "w-28", right: true },
+];
+
 function AgentTeamsPreview() {
-  const messages = [
-    { w: "w-28", right: false },
-    { w: "w-20", right: false },
-    { w: "w-24", right: true },
-    { w: "w-16", right: false },
-    { w: "w-28", right: true },
-  ];
+  const [visibleCount, setVisibleCount] = useState(CHAT_MESSAGES.length);
+
+  useEffect(() => {
+    let tid: ReturnType<typeof setTimeout>;
+    function next(count: number) {
+      tid = setTimeout(
+        () => {
+          setVisibleCount(count);
+          if (count < CHAT_MESSAGES.length) {
+            next(count + 1);
+          } else {
+            tid = setTimeout(() => next(0), 1500);
+          }
+        },
+        count === 0 ? 600 : 380,
+      );
+    }
+    tid = setTimeout(() => next(0), 400);
+    return () => clearTimeout(tid);
+  }, []);
 
   return (
     <div className="flex h-full flex-col justify-end gap-2 px-4 pb-4 pt-3">
@@ -206,10 +262,14 @@ function AgentTeamsPreview() {
           <div className="h-2 w-6 rounded-full bg-neutral-200" />
         </div>
       </div>
-      {messages.map((m, i) => (
+      {CHAT_MESSAGES.map((m, i) => (
         <div
           key={`msg-${i}`}
-          className={`flex items-end gap-2 ${m.right ? "flex-row-reverse" : ""}`}
+          className={`flex items-end gap-2 transition-all duration-300 ${m.right ? "flex-row-reverse" : ""} ${
+            i < visibleCount
+              ? "translate-y-0 opacity-100"
+              : "translate-y-1 opacity-0"
+          }`}
         >
           <div
             className={`size-5 shrink-0 rounded-full ${
@@ -235,35 +295,48 @@ function AgentTeamsPreview() {
 
 function BuildCrewPreview() {
   return (
-    <div className="flex h-full flex-col justify-center gap-3 p-5">
-      <div className="flex items-center gap-3">
-        <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-          <Bot className="size-5 text-primary" aria-hidden="true" />
-          <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-accent-green" />
+    <>
+      <style>{`
+        @keyframes hive-shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .hive-shimmer {
+          background: linear-gradient(90deg, #e2e8f0 25%, #f8fafc 50%, #e2e8f0 75%);
+          background-size: 200% 100%;
+          animation: hive-shimmer 1.8s linear infinite;
+        }
+      `}</style>
+      <div className="flex h-full flex-col justify-center gap-3 p-5">
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+            <Bot className="size-5 text-primary" aria-hidden="true" />
+            <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-accent-green" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="hive-shimmer h-2.5 w-24 rounded-full" />
+            <div className="hive-shimmer h-2 w-16 rounded-full" />
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <div className="h-2.5 w-24 rounded-full bg-neutral-300" />
-          <div className="h-2 w-16 rounded-full bg-neutral-200" />
+        <div className="h-px bg-border" />
+        <div className="flex flex-wrap gap-2">
+          <div className="flex h-5 items-center rounded-full bg-primary/15 px-2.5">
+            <div className="hive-shimmer h-1.5 w-10 rounded-full" />
+          </div>
+          <div className="flex h-5 items-center rounded-full bg-accent-green/10 px-2.5">
+            <div className="hive-shimmer h-1.5 w-8 rounded-full" />
+          </div>
+          <div className="flex h-5 items-center rounded-full bg-neutral-200 px-2.5">
+            <div className="hive-shimmer h-1.5 w-10 rounded-full" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card px-3 py-2">
+          <div className="hive-shimmer mb-1.5 h-1.5 w-full rounded-full" />
+          <div className="hive-shimmer mb-1.5 h-1.5 w-4/5 rounded-full" />
+          <div className="hive-shimmer h-1.5 w-1/2 rounded-full" />
         </div>
       </div>
-      <div className="h-px bg-border" />
-      <div className="flex flex-wrap gap-2">
-        <div className="flex h-5 items-center rounded-full bg-primary/15 px-2.5">
-          <div className="h-1.5 w-10 rounded-full bg-primary/50" />
-        </div>
-        <div className="flex h-5 items-center rounded-full bg-accent-green/10 px-2.5">
-          <div className="h-1.5 w-8 rounded-full bg-accent-green/40" />
-        </div>
-        <div className="flex h-5 items-center rounded-full bg-neutral-200 px-2.5">
-          <div className="h-1.5 w-10 rounded-full bg-neutral-300" />
-        </div>
-      </div>
-      <div className="rounded-lg border border-border bg-card px-3 py-2">
-        <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-200" />
-        <div className="mb-1.5 h-1.5 w-4/5 rounded-full bg-neutral-200" />
-        <div className="h-1.5 w-1/2 rounded-full bg-neutral-200" />
-      </div>
-    </div>
+    </>
   );
 }
 
