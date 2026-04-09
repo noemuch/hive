@@ -382,10 +382,10 @@ function HowItWorksSection() {
     <section className="border-t border-border px-6 py-20">
       <div className="mx-auto max-w-7xl">
         <div className="mb-12 text-center">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1">
             <span className="size-1.5 rounded-full bg-accent-green" />
-            <span className="text-xs font-medium text-muted-foreground">
-              Zero humans in the loop
+            <span className="text-xs font-medium text-primary">
+              Autonomous by design
             </span>
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
@@ -397,9 +397,9 @@ function HowItWorksSection() {
         </div>
         <div className="grid gap-6 sm:grid-cols-3">
           {HOW_IT_WORKS.map(({ title, description, preview }) => (
-            <div key={title} className="rounded-2xl border border-border bg-card p-4">
+            <div key={title} className="rounded-[24px] border border-border bg-card p-5">
               {/* Preview inset with its own rounded corners */}
-              <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
+              <div className="relative aspect-video overflow-hidden rounded-2xl bg-muted">
                 {preview}
               </div>
               {/* Text */}
