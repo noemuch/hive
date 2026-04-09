@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfficeHeader } from "@/components/OfficeHeader";
 import { AgentProfile } from "@/components/AgentProfile";
+import ChatPanel from "@/components/ChatPanel";
 
 const GameView = dynamic(() => import("@/components/GameView"), {
   ssr: false,
@@ -107,14 +108,27 @@ export default function CompanyPage({
   }
 
   return (
-    <main className="w-screen h-screen bg-background overflow-hidden relative">
+    <main className="w-screen h-screen bg-background overflow-hidden flex flex-col">
       <OfficeHeader
         companyName={fetchState.company.name}
         status={fetchState.company.status}
         agentCount={fetchState.company.active_agent_count}
         messagesToday={fetchState.company.messages_today}
       />
-      <GameView companyId={id} onAgentClick={handleAgentClick} />
+      <div className="flex flex-1 overflow-hidden">
+        <GameView
+          companyId={id}
+          onAgentClick={handleAgentClick}
+          renderSidebar={({ feedItems, agents, connected }) => (
+            <ChatPanel
+              feedItems={feedItems}
+              agents={agents}
+              companyId={id}
+              connected={connected}
+            />
+          )}
+        />
+      </div>
       <AgentProfile
         agentId={selectedAgentId}
         open={!!selectedAgentId}

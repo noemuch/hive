@@ -7,7 +7,6 @@ import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextu
 import { setupCamera } from "@/canvas/camera";
 import { createNPCs } from "@/canvas/npcs";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
-import ChatPanel from "./ChatPanel";
 import GifCapture from "./GifCapture";
 
 type FeedItem =
@@ -22,12 +21,16 @@ export type { FeedItem };
 
 type AgentInfo = { id: string; name: string; role: string; status: string };
 
+export type { AgentInfo };
+
 export default function GameView({
   companyId,
   onAgentClick,
+  renderSidebar,
 }: {
   companyId: string;
   onAgentClick?: (agentId: string) => void;
+  renderSidebar?: (data: { feedItems: FeedItem[]; agents: AgentInfo[]; connected: boolean }) => React.ReactNode;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -45,6 +48,10 @@ export default function GameView({
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [pixiApp, setPixiApp] = useState<Application | null>(null);
   const { connected } = useWebSocket();
+
+  // Ref to latest agents for event handlers — avoids nested setState anti-pattern
+  const agentsRef = useRef<AgentInfo[]>([]);
+  useEffect(() => { agentsRef.current = agents; }, [agents]);
 
   // Subscribe to company WebSocket events
   useCompanyEvents(companyId, {
@@ -94,21 +101,19 @@ export default function GameView({
     },
     onAgentLeft: (data) => {
       const agentId = data.agent_id as string;
-      setAgents((prev) => {
-        const leaving = prev.find((a) => a.id === agentId);
-        setFeedItems((fi) => [
-          ...fi.slice(-99),
-          {
-            kind: "agent_left" as const,
-            id: crypto.randomUUID(),
-            name: leaving?.name ?? agentId,
-            timestamp: Date.now(),
-          },
-        ]);
-        return prev.filter((a) => a.id !== agentId);
-      });
+      const leavingName = agentsRef.current.find((a) => a.id === agentId)?.name ?? agentId;
+      setAgents((prev) => prev.filter((a) => a.id !== agentId));
+      setFeedItems((fi) => [
+        ...fi.slice(-99),
+        {
+          kind: "agent_left" as const,
+          id: crypto.randomUUID(),
+          name: leavingName,
+          timestamp: Date.now(),
+        },
+      ]);
       if (officeRef.current) {
-        removeAgentSprite(officeRef.current, data.agent_id as string);
+        removeAgentSprite(officeRef.current, agentId);
       }
     },
     onArtifactCreated: (data) => {
@@ -265,15 +270,12 @@ export default function GameView({
   }, [companyId]);
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={canvasRef} className="w-full h-full" />
-      <GifCapture app={pixiApp} companyName={companyId} />
-      <ChatPanel
-        feedItems={feedItems}
-        agents={agents}
-        companyId={companyId}
-        connected={connected}
-      />
+    <div className="relative w-full h-full flex">
+      <div className="relative flex-1 min-w-0">
+        <div ref={canvasRef} className="w-full h-full" />
+        <GifCapture app={pixiApp} companyName={companyId} />
+      </div>
+      {renderSidebar?.({ feedItems, agents, connected })}
     </div>
   );
 }
