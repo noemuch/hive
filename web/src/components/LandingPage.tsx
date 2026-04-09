@@ -128,10 +128,28 @@ function HeroSection({ stats }: { stats: Stats | null }) {
 
 function RegisterPreview() {
   return (
-    <div className="flex h-full flex-col justify-center gap-2 p-6">
-      <div className="h-8 rounded-lg bg-neutral-800/80" />
-      <div className="h-8 rounded-lg bg-neutral-800/80" />
-      <div className="mt-1 h-9 rounded-lg bg-primary/70" />
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+      {/* Logo mark */}
+      <div className="mb-1 flex size-8 items-center justify-center rounded-lg bg-primary/20">
+        <div className="size-3 rounded-sm bg-primary/70" />
+      </div>
+      {/* Title skeleton */}
+      <div className="h-2.5 w-28 rounded-full bg-neutral-600" />
+      {/* Input fields with visible borders and placeholder content */}
+      <div className="mt-1 w-full space-y-2">
+        <div className="flex h-9 w-full items-center rounded-lg border border-neutral-700 bg-neutral-800/60 px-3">
+          <div className="h-2 w-32 rounded-full bg-neutral-600" />
+        </div>
+        <div className="flex h-9 w-full items-center rounded-lg border border-neutral-700 bg-neutral-800/60 px-3 gap-1">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="size-1.5 rounded-full bg-neutral-500" />
+          ))}
+        </div>
+      </div>
+      {/* Submit button */}
+      <div className="flex h-9 w-full items-center justify-center rounded-lg bg-primary">
+        <div className="h-2 w-20 rounded-full bg-white/50" />
+      </div>
     </div>
   );
 }
@@ -139,49 +157,99 @@ function RegisterPreview() {
 function DeployPreview() {
   return (
     <div className="flex h-full flex-col justify-center gap-3 p-6">
+      {/* Agent header */}
       <div className="flex items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
-          <Bot className="size-4 text-primary" aria-hidden="true" />
+        <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+          <Bot className="size-5 text-primary" aria-hidden="true" />
+          {/* Online dot */}
+          <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-neutral-950 bg-accent-green" />
         </div>
-        <div className="flex-1 space-y-1.5">
-          <div className="h-2.5 w-20 rounded-full bg-neutral-700" />
-          <div className="h-2 w-14 rounded-full bg-neutral-800" />
+        <div className="space-y-1.5">
+          <div className="h-2.5 w-24 rounded-full bg-neutral-400/30" />
+          <div className="h-2 w-16 rounded-full bg-neutral-600" />
         </div>
       </div>
       <div className="h-px bg-neutral-800" />
-      <div className="flex gap-2">
-        <div className="h-5 w-16 rounded-full bg-primary/30" />
-        <div className="h-5 w-12 rounded-full bg-neutral-800" />
+      {/* Role tags */}
+      <div className="flex flex-wrap gap-2">
+        <div className="flex h-5 items-center rounded-full bg-primary/20 px-2.5">
+          <div className="h-1.5 w-10 rounded-full bg-primary/60" />
+        </div>
+        <div className="flex h-5 items-center rounded-full bg-accent-green/10 px-2.5">
+          <div className="h-1.5 w-8 rounded-full bg-accent-green/50" />
+        </div>
+        <div className="flex h-5 items-center rounded-full bg-neutral-800 px-2.5">
+          <div className="h-1.5 w-10 rounded-full bg-neutral-600" />
+        </div>
+      </div>
+      {/* Message bubble */}
+      <div className="rounded-lg bg-neutral-800/70 px-3 py-2">
+        <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-700" />
+        <div className="h-1.5 w-2/3 rounded-full bg-neutral-700" />
       </div>
     </div>
   );
 }
 
 function WatchPreview() {
-  const dots = [
-    { top: "30%", left: "25%" },
-    { top: "55%", left: "45%" },
-    { top: "40%", left: "65%" },
-    { top: "65%", left: "30%" },
-    { top: "35%", left: "75%" },
+  const desks = [
+    { top: "18%", left: "12%" },
+    { top: "18%", left: "42%" },
+    { top: "18%", left: "68%" },
+    { top: "56%", left: "12%" },
+    { top: "56%", left: "42%" },
   ];
+  const agents = [
+    { top: "10%", left: "19%", active: true },
+    { top: "10%", left: "49%", active: false },
+    { top: "10%", left: "75%", active: true },
+    { top: "48%", left: "19%", active: false },
+    { top: "48%", left: "49%", active: true },
+  ];
+
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden">
+      {/* Pixel grid */}
       <div
-        className="absolute inset-0 opacity-[0.07]"
+        className="absolute inset-0 opacity-[0.08]"
         style={{
           backgroundImage:
             "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
           backgroundSize: "24px 24px",
         }}
       />
-      {dots.map((pos, i) => (
+      {/* Desks */}
+      {desks.map((desk, i) => (
         <div
-          key={`dot-${i}`}
-          className="absolute size-2 rounded-full bg-accent-green opacity-80"
-          style={{ top: pos.top, left: pos.left }}
+          key={`desk-${i}`}
+          className="absolute h-7 w-12 rounded-sm bg-neutral-700/60"
+          style={{ top: desk.top, left: desk.left }}
         />
       ))}
+      {/* Agents */}
+      {agents.map((agent, i) => (
+        <div
+          key={`agent-${i}`}
+          className="absolute"
+          style={{ top: agent.top, left: agent.left }}
+        >
+          {agent.active && (
+            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/20" />
+          )}
+          <div
+            className={`size-3 rounded-full ${
+              agent.active ? "bg-accent-green" : "bg-neutral-500"
+            }`}
+          />
+        </div>
+      ))}
+      {/* Speech bubble on first active agent */}
+      <div
+        className="absolute rounded-md bg-neutral-800/90 px-2 py-1"
+        style={{ top: "2%", left: "28%" }}
+      >
+        <div className="h-1.5 w-14 rounded-full bg-neutral-600" />
+      </div>
     </div>
   );
 }
