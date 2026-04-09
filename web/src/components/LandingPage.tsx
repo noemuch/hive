@@ -182,17 +182,25 @@ function WatchLivePreview() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.04] dark:hidden"
         style={{
           backgroundImage:
             "linear-gradient(to right, black 1px, transparent 1px), linear-gradient(to bottom, black 1px, transparent 1px)",
           backgroundSize: "28px 28px",
         }}
       />
+      <div
+        className="absolute inset-0 hidden opacity-[0.07] dark:block"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
       {WATCH_DESKS.map((d, i) => (
         <div
           key={`desk-${i}`}
-          className="absolute h-7 w-12 rounded-sm bg-neutral-100"
+          className="absolute h-7 w-12 rounded-sm bg-neutral-100 dark:bg-neutral-700"
           style={{ top: d.top, left: d.left }}
         />
       ))}
@@ -207,7 +215,7 @@ function WatchLivePreview() {
           )}
           <div
             className={`size-3.5 rounded-full transition-colors duration-500 ${
-              a.active ? "bg-accent-green" : "bg-neutral-200"
+              a.active ? "bg-accent-green" : "bg-neutral-200 dark:bg-neutral-600"
             }`}
           />
         </div>
@@ -216,11 +224,11 @@ function WatchLivePreview() {
         className="absolute rounded-lg border border-border bg-card px-2.5 py-1.5 shadow-sm"
         style={{ top: "3%", left: "25%" }}
       >
-        <div className="h-1.5 w-16 rounded-full bg-neutral-200" />
+        <div className="h-1.5 w-16 rounded-full bg-neutral-200 dark:bg-neutral-600" />
       </div>
       <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
         <div className="size-1.5 rounded-full bg-accent-green" />
-        <div className="h-1.5 w-20 rounded-full bg-neutral-200" />
+        <div className="h-1.5 w-20 rounded-full bg-neutral-200 dark:bg-neutral-600" />
       </div>
     </div>
   );
@@ -259,11 +267,11 @@ function AgentTeamsPreview() {
   return (
     <div className="flex h-full flex-col justify-end gap-2 px-4 pb-4 pt-3">
       <div className="mb-1 flex items-center gap-1.5 border-b border-border pb-2">
-        <div className="size-1.5 rounded-full bg-neutral-200" />
-        <div className="h-2 w-14 rounded-full bg-neutral-100" />
+        <div className="size-1.5 rounded-full bg-neutral-200 dark:bg-neutral-600" />
+        <div className="h-2 w-14 rounded-full bg-neutral-100 dark:bg-neutral-700" />
         <div className="ml-auto flex gap-1">
-          <div className="h-2 w-6 rounded-full bg-neutral-100" />
-          <div className="h-2 w-6 rounded-full bg-neutral-100" />
+          <div className="h-2 w-6 rounded-full bg-neutral-100 dark:bg-neutral-700" />
+          <div className="h-2 w-6 rounded-full bg-neutral-100 dark:bg-neutral-700" />
         </div>
       </div>
       {CHAT_MESSAGES.map((m, i) => (
@@ -277,17 +285,17 @@ function AgentTeamsPreview() {
         >
           <div
             className={`size-5 shrink-0 rounded-full ${
-              m.right ? "bg-primary/10" : "bg-neutral-100"
+              m.right ? "bg-primary/10 dark:bg-primary/20" : "bg-neutral-100 dark:bg-neutral-700"
             }`}
           />
           <div
             className={`rounded-xl px-3 py-1.5 ${
-              m.right ? "bg-primary/[0.05]" : "bg-neutral-100"
+              m.right ? "bg-primary/[0.05] dark:bg-primary/10" : "bg-neutral-100 dark:bg-neutral-800"
             }`}
           >
             <div
               className={`h-1.5 rounded-full ${
-                m.right ? "bg-primary/20" : "bg-neutral-200"
+                m.right ? "bg-primary/20 dark:bg-primary/30" : "bg-neutral-200 dark:bg-neutral-600"
               } ${m.w}`}
             />
           </div>
@@ -310,31 +318,35 @@ function BuildCrewPreview() {
           background-size: 200% 100%;
           animation: hive-shimmer 1.8s linear infinite;
         }
+        .dark .hive-shimmer {
+          background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+          background-size: 200% 100%;
+        }
       `}</style>
       <div className="flex h-full flex-col justify-center gap-3 p-5">
         <div className="flex items-center gap-3">
-          <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100">
-            <Bot className="size-5 text-neutral-300" aria-hidden="true" />
-            <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-neutral-300" />
+          <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+            <Bot className="size-5 text-neutral-300 dark:text-neutral-500" aria-hidden="true" />
+            <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-neutral-300 dark:bg-neutral-600" />
           </div>
           <div className="space-y-1.5">
             <div className="hive-shimmer h-2.5 w-24 rounded-full" />
             <div className="hive-shimmer h-2 w-16 rounded-full" />
           </div>
         </div>
-        <div className="h-px bg-neutral-100" />
+        <div className="h-px bg-neutral-100 dark:bg-neutral-800" />
         <div className="flex flex-wrap gap-2">
-          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5">
+          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5 dark:bg-neutral-800">
             <div className="hive-shimmer h-1.5 w-10 rounded-full" />
           </div>
-          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5">
+          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5 dark:bg-neutral-800">
             <div className="hive-shimmer h-1.5 w-8 rounded-full" />
           </div>
-          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5">
+          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5 dark:bg-neutral-800">
             <div className="hive-shimmer h-1.5 w-10 rounded-full" />
           </div>
         </div>
-        <div className="rounded-lg bg-neutral-50 px-3 py-2">
+        <div className="rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800">
           <div className="hive-shimmer mb-1.5 h-1.5 w-full rounded-full" />
           <div className="hive-shimmer mb-1.5 h-1.5 w-4/5 rounded-full" />
           <div className="hive-shimmer h-1.5 w-1/2 rounded-full" />
