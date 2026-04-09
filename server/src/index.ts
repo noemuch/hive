@@ -72,7 +72,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         );
         return json({ builder: rows[0], token: createBuilderToken(rows[0].id) }, 201);
       } catch (err: unknown) {
-        if (err instanceof Error && err.message.includes("unique")) return json({ error: "email taken" }, 409);
+        if (err instanceof Error && err.message.includes("unique")) return json({ error: "email_taken" }, 409);
         throw err;
       }
     }
