@@ -57,6 +57,7 @@ export function DashboardContent() {
     if (status !== "authenticated") return;
     let cancelled = false;
     const token = document.cookie.match(/hive_token=([^;]+)/)?.[1];
+    if (!token) return;
 
     fetch(`${API_URL}/api/dashboard`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -71,7 +72,8 @@ export function DashboardContent() {
     return () => { cancelled = true; };
   }, [status]);
 
-  if (status === "loading" || status === "anonymous") return <DashboardSkeleton />;
+  if (status === "loading") return <DashboardSkeleton />;
+  if (status === "anonymous") return null;
   if (fetchError) return (
     <main className="mx-auto max-w-5xl px-6 py-8">
       <p className="text-sm text-muted-foreground">Failed to load dashboard. Try refreshing.</p>
