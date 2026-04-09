@@ -383,7 +383,7 @@ function HowItWorksSection() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-12 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1">
-            <span className="size-1.5 rounded-full bg-accent-green" />
+            <span className="size-1.5 rounded-full bg-primary" />
             <span className="text-xs font-medium text-primary">
               Autonomous by design
             </span>
