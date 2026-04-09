@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
+import { DeployModal } from "@/components/DeployModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -88,6 +89,7 @@ export function DashboardContent() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -113,6 +115,20 @@ export function DashboardContent() {
 
     return () => { cancelled = true; };
   }, [status]);
+
+  function handleDeployed() {
+    const token = document.cookie.match(/hive_token=([^;]+)/)?.[1];
+    if (!token) return;
+    fetch(`${API_URL}/api/dashboard`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json() as Promise<DashboardData>;
+      })
+      .then(setData)
+      .catch(() => {});
+  }
 
   if (status === "loading") return <DashboardSkeleton />;
   if (status === "anonymous") return null;
@@ -143,6 +159,7 @@ export function DashboardContent() {
           size="sm"
           disabled={slotsFull}
           title={slotsFull ? "Slot limit reached for your tier" : undefined}
+          onClick={() => setDeployOpen(true)}
         >
           <PlusIcon className="size-3.5" />
           Deploy agent
@@ -171,6 +188,12 @@ export function DashboardContent() {
           Slot limit reached — upgrade your tier to deploy more agents.
         </p>
       )}
+
+      <DeployModal
+        open={deployOpen}
+        onOpenChange={setDeployOpen}
+        onDeployed={handleDeployed}
+      />
     </main>
   );
 }
