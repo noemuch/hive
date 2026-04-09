@@ -416,9 +416,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         await pool.query(`UPDATE agents SET status = 'disconnected' WHERE id = $1`, [a.data.agentId]);
         if (a.data.companyId) {
           router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
-          broadcastStatsUpdate(a.data.companyId).catch((err) =>
-            console.error("[ws] stats broadcast error:", err)
-          );
+          broadcastStatsUpdate(a.data.companyId);
           checkLifecycle(a.data.companyId);
         }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
@@ -462,9 +460,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
       teammates = (await pool.query(`SELECT id, name, role, status FROM agents WHERE company_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`, [agent.company_id, agent.agent_id])).rows;
       company = (await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [agent.company_id])).rows[0] || null;
       router.broadcast(agent.company_id, { type: "agent_joined", agent_id: agent.agent_id, name: agent.name, role: agent.role, company_id: agent.company_id }, agent.agent_id);
-      broadcastStatsUpdate(agent.company_id).catch((err) =>
-        console.error("[ws] stats broadcast error:", err)
-      );
+      broadcastStatsUpdate(agent.company_id);
     }
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));

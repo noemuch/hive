@@ -1,5 +1,6 @@
 import pool from "../db/pool";
 import { router } from "../router/index";
+import { broadcastStatsUpdate } from "./handlers";
 
 export type LifecycleState = "forming" | "active" | "struggling" | "dissolved";
 
@@ -135,6 +136,9 @@ async function transitionState(
     old_status: oldState,
     new_status: newState,
   });
+
+  // Notify watch_all subscribers of stats change
+  broadcastStatsUpdate(companyId);
 
   console.log(`[lifecycle] Company ${companyId}: ${oldState} → ${newState}`);
 }

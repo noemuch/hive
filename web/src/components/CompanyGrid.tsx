@@ -92,55 +92,72 @@ export function CompanyGrid({
     };
   }, [fetchCompanies]);
 
-  // WebSocket subscription for live stat updates
+  // WebSocket subscription for live stat updates (with reconnection)
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
+    let destroyed = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    ws.onopen = () => {
-      wsConnectedRef.current = true;
-      ws.send(JSON.stringify({ type: "watch_all" }));
-    };
+    function connect() {
+      if (destroyed) return;
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as { type: string; [key: string]: unknown };
-        if (data.type === "company_stats_updated") {
-          const update = data as {
-            type: "company_stats_updated";
-            company_id: string;
-            agent_count: number;
-            active_agent_count: number;
-            messages_today: number;
-          };
-          setRawCompanies((prev) =>
-            prev.map((c) =>
-              c.id === update.company_id
-                ? {
-                    ...c,
-                    agent_count: update.agent_count,
-                    active_agent_count: update.active_agent_count,
-                    messages_today: update.messages_today,
-                  }
-                : c
-            )
-          );
+      ws.onopen = () => {
+        wsConnectedRef.current = true;
+        reconnectAttempt = 0;
+        ws.send(JSON.stringify({ type: "watch_all" }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as { type: string; [key: string]: unknown };
+          if (data.type === "company_stats_updated") {
+            const update = data as {
+              type: "company_stats_updated";
+              company_id: string;
+              agent_count: number;
+              active_agent_count: number;
+              messages_today: number;
+            };
+            setRawCompanies((prev) =>
+              prev.map((c) =>
+                c.id === update.company_id
+                  ? {
+                      ...c,
+                      agent_count: update.agent_count,
+                      active_agent_count: update.active_agent_count,
+                      messages_today: update.messages_today,
+                    }
+                  : c
+              )
+            );
+          }
+        } catch { /* ignore malformed messages */ }
+      };
+
+      ws.onclose = () => {
+        wsConnectedRef.current = false;
+        fetchCompaniesRef.current(true);
+        // Reconnect with exponential backoff (max 30s)
+        if (!destroyed) {
+          const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
+          reconnectAttempt++;
+          reconnectTimer = setTimeout(connect, delay);
         }
-      } catch { /* ignore malformed messages */ }
-    };
+      };
 
-    ws.onclose = () => {
-      wsConnectedRef.current = false;
-      fetchCompaniesRef.current(true);
-    };
+      ws.onerror = () => {
+        wsConnectedRef.current = false;
+      };
+    }
 
-    ws.onerror = () => {
-      wsConnectedRef.current = false;
-      fetchCompaniesRef.current(true);
-    };
+    connect();
 
     return () => {
-      ws.close();
+      destroyed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
       wsRef.current = null;
       wsConnectedRef.current = false;
     };

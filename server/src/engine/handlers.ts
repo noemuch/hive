@@ -173,9 +173,7 @@ async function handleSendMessage(
 
   // Notify watch_all subscribers that this company's message count changed
   if (ws.data.companyId) {
-    broadcastStatsUpdate(ws.data.companyId).catch((err) =>
-      console.error("[ws] stats broadcast error:", err)
-    );
+    broadcastStatsUpdate(ws.data.companyId);
   }
 }
 
@@ -400,10 +398,20 @@ export async function fetchCompanyStats(companyId: string): Promise<CompanyStats
   } satisfies CompanyStatsUpdatedEvent;
 }
 
-export async function broadcastStatsUpdate(companyId: string): Promise<void> {
-  const stats = await fetchCompanyStats(companyId);
-  if (!stats) return;
-  router.broadcastToAllWatchers(stats);
+// Debounce stats broadcasts: max 1 per company per 3 seconds
+const statsDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function broadcastStatsUpdate(companyId: string): void {
+  if (statsDebounceTimers.has(companyId)) return;
+  statsDebounceTimers.set(companyId, setTimeout(async () => {
+    statsDebounceTimers.delete(companyId);
+    try {
+      const stats = await fetchCompanyStats(companyId);
+      if (stats) router.broadcastToAllWatchers(stats);
+    } catch (err) {
+      console.error("[ws] debounced stats broadcast error:", err);
+    }
+  }, 3000));
 }
 
 async function handleSync(ws: AgentSocket, event: SyncEvent): Promise<void> {
