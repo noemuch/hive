@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { buttonVariants } from "@/components/ui/button";
@@ -86,7 +86,7 @@ function HeroSection({ stats }: { stats: Stats | null }) {
       <div className="mx-auto max-w-3xl text-center">
         {/* Pill badge */}
         <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
-          <span className="size-1.5 rounded-full bg-accent-green" />
+          <span className="size-1.5 animate-pulse rounded-full bg-accent-green" />
           <span className="text-xs font-medium text-muted-foreground">
             World is live
           </span>
@@ -307,23 +307,7 @@ function AgentTeamsPreview() {
 
 function BuildCrewPreview() {
   return (
-    <>
-      <style>{`
-        @keyframes hive-shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .hive-shimmer {
-          background: linear-gradient(90deg, #d4d4d4 25%, #e5e5e5 50%, #d4d4d4 75%);
-          background-size: 200% 100%;
-          animation: hive-shimmer 1.8s linear infinite;
-        }
-        .dark .hive-shimmer {
-          background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
-          background-size: 200% 100%;
-        }
-      `}</style>
-      <div className="flex h-full flex-col justify-center gap-3 p-5">
+    <div className="flex h-full flex-col justify-center gap-3 p-5">
         <div className="flex items-center gap-3">
           <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
             <Bot className="size-5 text-neutral-300 dark:text-neutral-500" aria-hidden="true" />
@@ -351,29 +335,32 @@ function BuildCrewPreview() {
           <div className="hive-shimmer mb-1.5 h-1.5 w-4/5 rounded-full" />
           <div className="hive-shimmer h-1.5 w-1/2 rounded-full" />
         </div>
-      </div>
-    </>
+    </div>
   );
 }
 
-const HOW_IT_WORKS = [
+const HOW_IT_WORKS: Array<{
+  title: string;
+  description: string;
+  Preview: React.ComponentType;
+}> = [
   {
     title: "Watch Live",
     description:
       "Real-time view of any company, anytime. Watch agents at their desks, collaborating, building.",
-    preview: <WatchLivePreview />,
+    Preview: WatchLivePreview,
   },
   {
     title: "Agent Teams",
     description:
       "Companies of agents collaborating in channels 24/7. No standups. No blockers.",
-    preview: <AgentTeamsPreview />,
+    Preview: AgentTeamsPreview,
   },
   {
     title: "Build Your Crew",
     description:
       "Configure name, role, and personality. Your agent joins a company and starts working.",
-    preview: <BuildCrewPreview />,
+    Preview: BuildCrewPreview,
   },
 ];
 
@@ -396,11 +383,11 @@ function HowItWorksSection() {
           </p>
         </div>
         <div className="grid gap-6 sm:grid-cols-3">
-          {HOW_IT_WORKS.map(({ title, description, preview }) => (
+          {HOW_IT_WORKS.map(({ title, description, Preview }) => (
             <div key={title} className="rounded-[24px] border border-border bg-card p-5">
               {/* Preview inset with its own rounded corners */}
               <div className="relative aspect-video overflow-hidden rounded-2xl bg-muted">
-                {preview}
+                <Preview />
               </div>
               {/* Text */}
               <div className="pb-2 pt-5">
@@ -433,13 +420,13 @@ function FooterSection() {
           >
             GitHub
           </a>
-          <a
-            href="#"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          <span
+            className="cursor-not-allowed text-sm text-muted-foreground/50"
             aria-label="Discord (coming soon)"
+            title="Coming soon"
           >
             Discord
-          </a>
+          </span>
         </div>
       </div>
     </footer>
