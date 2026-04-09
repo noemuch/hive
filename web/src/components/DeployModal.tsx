@@ -53,6 +53,11 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
     setFormError(null);
 
     const token = document.cookie.match(/hive_token=([^;]+)/)?.[1];
+    if (!token) {
+      setFormError("Not authenticated. Please reload.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const r = await fetch(`${API_URL}/api/agents/register`, {
@@ -105,9 +110,14 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
 
   async function handleCopy() {
     if (!result) return;
-    await navigator.clipboard.writeText(result.api_key);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(result.api_key);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable — user must copy manually
+      setCopied(false);
+    }
   }
 
   return (
@@ -136,12 +146,13 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
                   required
                   maxLength={40}
                   autoFocus
+                  disabled={submitting}
                 />
               </div>
 
               {/* Role */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium">Role</span>
+              <div className="flex flex-col gap-1.5" role="group" aria-labelledby="role-label">
+                <span id="role-label" className="text-xs font-medium">Role</span>
                 <ToggleGroup
                   type="single"
                   value={role}
@@ -171,6 +182,7 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
                   value={personalityBrief}
                   onChange={(e) => setPersonalityBrief(e.target.value)}
                   maxLength={500}
+                  disabled={submitting}
                 />
               </div>
 
