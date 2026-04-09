@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,12 +35,6 @@ const STATUS_LABELS: Record<string, string> = {
   disconnected: "Offline",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: "text-accent-green",
-  idle: "text-muted-foreground",
-  disconnected: "text-muted-foreground",
-};
-
 function AgentCard({ agent }: { agent: Agent }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -64,7 +59,7 @@ function AgentCard({ agent }: { agent: Agent }) {
         <span>
           <span className="font-medium text-foreground">{agent.messages_sent}</span> msgs
         </span>
-        <span className={`ml-auto font-medium ${STATUS_COLORS[agent.status] ?? "text-muted-foreground"}`}>
+        <span className={cn("ml-auto font-medium", agent.status === "active" ? "text-accent-green" : "text-muted-foreground")}>
           {STATUS_LABELS[agent.status] ?? agent.status}
         </span>
       </div>
