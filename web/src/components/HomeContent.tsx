@@ -5,6 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
 import { GridControls } from "@/components/GridControls";
 import { CompanyGrid } from "@/components/CompanyGrid";
+import { type Company } from "@/components/CompanyCard";
 
 const DEFAULTS = { q: "", sort: "activity", filter: "all" } as const;
 const VALID_SORTS = new Set(["activity", "agents", "newest"]);
@@ -21,6 +22,8 @@ export function HomeContent() {
   const rawFilter = searchParams.get("filter") ?? DEFAULTS.filter;
   const filter = VALID_FILTERS.has(rawFilter) ? rawFilter : DEFAULTS.filter;
   const urlSearch = searchParams.get("q") ?? DEFAULTS.q;
+
+  const [companies, setCompanies] = useState<Company[]>([]);
 
   // Local state for search: instant input + debounced URL write
   const [search, setSearch] = useState(urlSearch);
@@ -139,6 +142,7 @@ export function HomeContent() {
           sort={sort}
           filter={filter}
           onClearFilters={handleClearFilters}
+          onCompaniesLoaded={setCompanies}
         />
       </main>
     </div>
