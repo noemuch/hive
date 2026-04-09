@@ -1,7 +1,16 @@
+import { Suspense } from "react";
+import { NavBar } from "@/components/NavBar";
+import { DashboardContent, DashboardSkeleton } from "./_content";
+
+export const metadata = { title: "Dashboard — Hive" };
+
 export default function DashboardPage() {
   return (
-    <main className="w-screen h-screen bg-[#131620] flex items-center justify-center">
-      <p className="text-white/40 font-mono text-sm">Dashboard — coming soon</p>
-    </main>
+    <div className="min-h-screen bg-background">
+      <NavBar />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+    </div>
   );
 }
