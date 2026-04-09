@@ -2,15 +2,8 @@
 
 import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
-
-type ChatMessage = {
-  id: string;
-  author: string;
-  authorId: string;
-  content: string;
-  channel: string;
-  timestamp: number;
-};
+import { type FeedItem } from "./GameView";
+import { FileText, CheckCircle, XCircle, AlertCircle, UserPlus, UserMinus } from "lucide-react";
 
 type AgentInfo = { id: string; name: string; role: string; status: string };
 
@@ -23,12 +16,18 @@ const ROLE_COLORS: Record<string, string> = {
   generalist: "#90a4ae",
 };
 
+const VERDICT_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
+  approve: { icon: CheckCircle, color: "#33CC66" },
+  reject: { icon: XCircle, color: "#D94040" },
+  request_changes: { icon: AlertCircle, color: "#E89B1C" },
+};
+
 export default function ChatPanel({
-  messages,
+  feedItems,
   agents,
   connected,
 }: {
-  messages: ChatMessage[];
+  feedItems: FeedItem[];
   agents: AgentInfo[];
   companyId?: string;
   connected: boolean;
@@ -41,7 +40,7 @@ export default function ChatPanel({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [feedItems]);
 
   if (collapsed) {
     return (
@@ -104,36 +103,98 @@ export default function ChatPanel({
       {/* Content */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2">
         {tab === "chat" ? (
-          messages.length === 0 ? (
+          feedItems.length === 0 ? (
             <p className="text-white/30 text-xs text-center mt-8">
-              Waiting for agents to speak...
+              Waiting for activity...
             </p>
           ) : (
             <div className="space-y-2">
-              {messages.map((msg, i) => (
-                <div key={`${msg.id}-${i}`} className="group">
-                  <div className="flex items-baseline gap-1.5">
-                    <span
-                      className="text-xs font-bold"
-                      style={{
-                        color:
-                          ROLE_COLORS[
-                            agents.find((a) => a.id === msg.authorId)?.role ||
-                              "generalist"
-                          ] || ROLE_COLORS.generalist,
-                      }}
-                    >
-                      {msg.author}
-                    </span>
-                    <span className="text-white/20 text-[10px]">
-                      {msg.channel}
-                    </span>
-                  </div>
-                  <p className="text-white/70 text-xs leading-relaxed">
-                    {msg.content}
-                  </p>
-                </div>
-              ))}
+              {feedItems.map((item, i) => {
+                if (item.kind === "message") {
+                  return (
+                    <div key={`${item.id}-${i}`} className="group">
+                      <div className="flex items-baseline gap-1.5">
+                        <span
+                          className="text-xs font-bold"
+                          style={{
+                            color:
+                              ROLE_COLORS[
+                                agents.find((a) => a.id === item.authorId)?.role ||
+                                  "generalist"
+                              ] || ROLE_COLORS.generalist,
+                          }}
+                        >
+                          {item.author}
+                        </span>
+                        <span className="text-white/20 text-[10px]">
+                          {item.channel}
+                        </span>
+                      </div>
+                      <p className="text-white/70 text-xs leading-relaxed">
+                        {item.content}
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (item.kind === "agent_joined") {
+                  return (
+                    <div key={`join-${item.id}-${i}`} className="flex items-center gap-1.5 text-[10px] italic text-white/40">
+                      <UserPlus className="size-3 shrink-0" style={{ color: "#33CC66" }} />
+                      <span><span className="text-white/60">{item.name}</span> joined the office</span>
+                    </div>
+                  );
+                }
+
+                if (item.kind === "agent_left") {
+                  return (
+                    <div key={`leave-${item.id}-${i}`} className="flex items-center gap-1.5 text-[10px] italic text-white/40">
+                      <UserMinus className="size-3 shrink-0" />
+                      <span><span className="text-white/60">{item.name}</span> left the office</span>
+                    </div>
+                  );
+                }
+
+                if (item.kind === "artifact_created") {
+                  return (
+                    <div key={`ac-${item.id}-${i}`} className="flex items-center gap-1.5 text-[10px] italic text-white/40">
+                      <FileText className="size-3 shrink-0" />
+                      <span>
+                        <span className="text-white/60">{item.authorName}</span> created {item.artifactType}{" "}
+                        <span className="font-semibold text-white/60">{item.title}</span>
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (item.kind === "artifact_updated") {
+                  return (
+                    <div key={`au-${item.id}-${i}`} className="flex items-center gap-1.5 text-[10px] italic text-white/40">
+                      <FileText className="size-3 shrink-0" />
+                      <span>
+                        <span className="text-white/60">{item.authorName}</span> updated{" "}
+                        <span className="font-semibold text-white/60">{item.title}</span> → {item.newStatus}
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (item.kind === "artifact_reviewed") {
+                  const cfg = VERDICT_CONFIG[item.verdict] ?? VERDICT_CONFIG.request_changes;
+                  const Icon = cfg.icon;
+                  return (
+                    <div key={`ar-${item.id}-${i}`} className="flex items-center gap-1.5 text-[10px] italic text-white/40">
+                      <Icon className="size-3 shrink-0" style={{ color: cfg.color }} />
+                      <span>
+                        <span className="text-white/60">{item.reviewerName}</span> {item.verdict.replace("_", " ")}{" "}
+                        <span className="font-semibold text-white/60">{item.title}</span>
+                      </span>
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
             </div>
           )
         ) : (
