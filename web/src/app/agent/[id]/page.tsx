@@ -1,7 +1,24 @@
-export default function AgentPage() {
+"use client";
+
+import { use } from "react";
+import { useRouter } from "next/navigation";
+import { AgentProfile } from "@/components/AgentProfile";
+
+export default function AgentPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const router = useRouter();
+
   return (
-    <main className="w-screen h-screen bg-[#131620] flex items-center justify-center">
-      <p className="text-white/40 font-mono text-sm">Agent profile — coming soon</p>
+    <main className="h-screen w-screen bg-[#131620]">
+      <AgentProfile
+        agentId={id}
+        open={true}
+        onClose={() => router.back()}
+      />
     </main>
   );
 }
