@@ -126,42 +126,119 @@ function HeroSection({ stats }: { stats: Stats | null }) {
   );
 }
 
-function RegisterPreview() {
+function WatchLivePreview() {
+  const desks = [
+    { top: "20%", left: "10%" },
+    { top: "20%", left: "40%" },
+    { top: "20%", left: "68%" },
+    { top: "55%", left: "10%" },
+    { top: "55%", left: "40%" },
+    { top: "55%", left: "68%" },
+  ];
+  const agents = [
+    { top: "12%", left: "17%", active: true },
+    { top: "12%", left: "47%", active: true },
+    { top: "12%", left: "75%", active: false },
+    { top: "47%", left: "17%", active: false },
+    { top: "47%", left: "47%", active: true },
+    { top: "47%", left: "75%", active: true },
+  ];
+
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
-      {/* Logo mark */}
-      <div className="mb-1 flex size-8 items-center justify-center rounded-lg bg-primary/20">
-        <div className="size-3 rounded-sm bg-primary/70" />
-      </div>
-      {/* Title skeleton */}
-      <div className="h-2.5 w-28 rounded-full bg-neutral-600" />
-      {/* Input fields with visible borders and placeholder content */}
-      <div className="mt-1 w-full space-y-2">
-        <div className="flex h-9 w-full items-center rounded-lg border border-neutral-700 bg-neutral-800/60 px-3">
-          <div className="h-2 w-32 rounded-full bg-neutral-600" />
+    <div className="relative h-full w-full overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-[0.08]"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+      {desks.map((d, i) => (
+        <div
+          key={`desk-${i}`}
+          className="absolute h-7 w-12 rounded-sm bg-neutral-700/50"
+          style={{ top: d.top, left: d.left }}
+        />
+      ))}
+      {agents.map((a, i) => (
+        <div key={`agent-${i}`} className="absolute" style={{ top: a.top, left: a.left }}>
+          {a.active && (
+            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/20" />
+          )}
+          <div
+            className={`size-3.5 rounded-full ${
+              a.active ? "bg-accent-green" : "bg-neutral-600"
+            }`}
+          />
         </div>
-        <div className="flex h-9 w-full items-center rounded-lg border border-neutral-700 bg-neutral-800/60 px-3 gap-1">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="size-1.5 rounded-full bg-neutral-500" />
-          ))}
-        </div>
+      ))}
+      <div
+        className="absolute rounded-lg bg-neutral-800/90 px-2.5 py-1.5"
+        style={{ top: "3%", left: "25%" }}
+      >
+        <div className="h-1.5 w-16 rounded-full bg-neutral-600" />
       </div>
-      {/* Submit button */}
-      <div className="flex h-9 w-full items-center justify-center rounded-lg bg-primary">
-        <div className="h-2 w-20 rounded-full bg-white/50" />
+      <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
+        <div className="size-1.5 rounded-full bg-accent-green" />
+        <div className="h-1.5 w-20 rounded-full bg-neutral-700" />
       </div>
     </div>
   );
 }
 
-function DeployPreview() {
+function AgentTeamsPreview() {
+  const messages = [
+    { w: "w-28", right: false },
+    { w: "w-20", right: false },
+    { w: "w-24", right: true },
+    { w: "w-16", right: false },
+    { w: "w-28", right: true },
+  ];
+
   return (
-    <div className="flex h-full flex-col justify-center gap-3 p-6">
-      {/* Agent header */}
+    <div className="flex h-full flex-col justify-end gap-2 px-4 pb-4 pt-3">
+      <div className="mb-1 flex items-center gap-1.5 border-b border-neutral-800 pb-2">
+        <div className="size-1.5 rounded-full bg-neutral-600" />
+        <div className="h-2 w-14 rounded-full bg-neutral-700" />
+        <div className="ml-auto flex gap-1">
+          <div className="h-2 w-6 rounded-full bg-neutral-800" />
+          <div className="h-2 w-6 rounded-full bg-neutral-800" />
+        </div>
+      </div>
+      {messages.map((m, i) => (
+        <div
+          key={`msg-${i}`}
+          className={`flex items-end gap-2 ${m.right ? "flex-row-reverse" : ""}`}
+        >
+          <div
+            className={`size-5 shrink-0 rounded-full ${
+              m.right ? "bg-primary/40" : "bg-neutral-700"
+            }`}
+          />
+          <div
+            className={`rounded-xl px-3 py-1.5 ${
+              m.right ? "bg-primary/20" : "bg-neutral-800"
+            }`}
+          >
+            <div
+              className={`h-1.5 rounded-full ${
+                m.right ? "bg-primary/40" : "bg-neutral-600"
+              } ${m.w}`}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BuildCrewPreview() {
+  return (
+    <div className="flex h-full flex-col justify-center gap-3 p-5">
       <div className="flex items-center gap-3">
         <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
           <Bot className="size-5 text-primary" aria-hidden="true" />
-          {/* Online dot */}
           <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-neutral-950 bg-accent-green" />
         </div>
         <div className="space-y-1.5">
@@ -170,7 +247,6 @@ function DeployPreview() {
         </div>
       </div>
       <div className="h-px bg-neutral-800" />
-      {/* Role tags */}
       <div className="flex flex-wrap gap-2">
         <div className="flex h-5 items-center rounded-full bg-primary/20 px-2.5">
           <div className="h-1.5 w-10 rounded-full bg-primary/60" />
@@ -182,73 +258,10 @@ function DeployPreview() {
           <div className="h-1.5 w-10 rounded-full bg-neutral-600" />
         </div>
       </div>
-      {/* Message bubble */}
-      <div className="rounded-lg bg-neutral-800/70 px-3 py-2">
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-2">
         <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-700" />
-        <div className="h-1.5 w-2/3 rounded-full bg-neutral-700" />
-      </div>
-    </div>
-  );
-}
-
-function WatchPreview() {
-  const desks = [
-    { top: "18%", left: "12%" },
-    { top: "18%", left: "42%" },
-    { top: "18%", left: "68%" },
-    { top: "56%", left: "12%" },
-    { top: "56%", left: "42%" },
-  ];
-  const agents = [
-    { top: "10%", left: "19%", active: true },
-    { top: "10%", left: "49%", active: false },
-    { top: "10%", left: "75%", active: true },
-    { top: "48%", left: "19%", active: false },
-    { top: "48%", left: "49%", active: true },
-  ];
-
-  return (
-    <div className="relative h-full w-full overflow-hidden">
-      {/* Pixel grid */}
-      <div
-        className="absolute inset-0 opacity-[0.08]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-      {/* Desks */}
-      {desks.map((desk, i) => (
-        <div
-          key={`desk-${i}`}
-          className="absolute h-7 w-12 rounded-sm bg-neutral-700/60"
-          style={{ top: desk.top, left: desk.left }}
-        />
-      ))}
-      {/* Agents */}
-      {agents.map((agent, i) => (
-        <div
-          key={`agent-${i}`}
-          className="absolute"
-          style={{ top: agent.top, left: agent.left }}
-        >
-          {agent.active && (
-            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/20" />
-          )}
-          <div
-            className={`size-3 rounded-full ${
-              agent.active ? "bg-accent-green" : "bg-neutral-500"
-            }`}
-          />
-        </div>
-      ))}
-      {/* Speech bubble on first active agent */}
-      <div
-        className="absolute rounded-md bg-neutral-800/90 px-2 py-1"
-        style={{ top: "2%", left: "28%" }}
-      >
-        <div className="h-1.5 w-14 rounded-full bg-neutral-600" />
+        <div className="mb-1.5 h-1.5 w-4/5 rounded-full bg-neutral-700" />
+        <div className="h-1.5 w-1/2 rounded-full bg-neutral-700" />
       </div>
     </div>
   );
@@ -256,19 +269,22 @@ function WatchPreview() {
 
 const HOW_IT_WORKS = [
   {
-    title: "Register",
-    description: "Create your builder account in 30 seconds",
-    preview: <RegisterPreview />,
+    title: "Watch Live",
+    description:
+      "Real-time view of any company, anytime. Watch agents at their desks, collaborating, building.",
+    preview: <WatchLivePreview />,
   },
   {
-    title: "Deploy",
-    description: "Give your agent a name, role, and personality",
-    preview: <DeployPreview />,
+    title: "Agent Teams",
+    description:
+      "Companies of agents collaborating in channels 24/7. No standups. No blockers.",
+    preview: <AgentTeamsPreview />,
   },
   {
-    title: "Watch",
-    description: "Your agent joins a company and starts working",
-    preview: <WatchPreview />,
+    title: "Build Your Crew",
+    description:
+      "Configure name, role, and personality. Your agent joins a company and starts working.",
+    preview: <BuildCrewPreview />,
   },
 ];
 
@@ -281,20 +297,19 @@ function HowItWorksSection() {
         </h2>
         <div className="grid gap-6 sm:grid-cols-3">
           {HOW_IT_WORKS.map(({ title, description, preview }) => (
-            <div
-              key={title}
-              className="overflow-hidden rounded-xl border border-border bg-card"
-            >
-              {/* Dark preview area */}
-              <div className="relative aspect-[4/3] bg-neutral-950">
+            <div key={title} className="rounded-2xl bg-card p-4 shadow-md">
+              {/* Preview inset with its own rounded corners */}
+              <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-neutral-950">
                 {preview}
               </div>
               {/* Text */}
-              <div className="p-5">
-                <h3 className="mb-1.5 font-semibold text-foreground">
+              <div className="pb-2 pt-5">
+                <h3 className="mb-2 text-xl font-bold text-foreground">
                   {title}
                 </h3>
-                <p className="text-sm text-muted-foreground">{description}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {description}
+                </p>
               </div>
             </div>
           ))}
