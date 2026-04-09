@@ -135,7 +135,9 @@ const WATCH_DESKS = [
   { top: "55%", left: "68%" },
 ];
 
+// Each frame only moves 2 agents along the same row or column (walking feel)
 const WATCH_FRAMES = [
+  // Frame 0: initial
   [
     { top: "12%", left: "17%", active: true },
     { top: "12%", left: "47%", active: true },
@@ -144,21 +146,23 @@ const WATCH_FRAMES = [
     { top: "47%", left: "47%", active: true },
     { top: "47%", left: "75%", active: true },
   ],
+  // Frame 1: A1 walks right, A2 walks left (same top row)
   [
     { top: "12%", left: "17%", active: true },
-    { top: "47%", left: "17%", active: true },
     { top: "12%", left: "75%", active: true },
     { top: "12%", left: "47%", active: true },
+    { top: "47%", left: "17%", active: false },
     { top: "47%", left: "47%", active: true },
     { top: "47%", left: "75%", active: true },
   ],
+  // Frame 2: A4 walks right, A5 walks left (same bottom row)
   [
-    { top: "47%", left: "75%", active: true },
-    { top: "47%", left: "17%", active: false },
+    { top: "12%", left: "17%", active: true },
     { top: "12%", left: "75%", active: true },
     { top: "12%", left: "47%", active: true },
+    { top: "47%", left: "17%", active: false },
+    { top: "47%", left: "75%", active: true },
     { top: "47%", left: "47%", active: true },
-    { top: "12%", left: "17%", active: true },
   ],
 ];
 
@@ -168,7 +172,7 @@ function WatchLivePreview() {
   useEffect(() => {
     const t = setInterval(
       () => setFrameIdx((f) => (f + 1) % WATCH_FRAMES.length),
-      1800,
+      3500,
     );
     return () => clearInterval(t);
   }, []);
@@ -178,7 +182,7 @@ function WatchLivePreview() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className="absolute inset-0 opacity-[0.06]"
+        className="absolute inset-0 opacity-[0.04]"
         style={{
           backgroundImage:
             "linear-gradient(to right, black 1px, transparent 1px), linear-gradient(to bottom, black 1px, transparent 1px)",
@@ -188,22 +192,22 @@ function WatchLivePreview() {
       {WATCH_DESKS.map((d, i) => (
         <div
           key={`desk-${i}`}
-          className="absolute h-7 w-12 rounded-sm bg-neutral-300"
+          className="absolute h-7 w-12 rounded-sm bg-neutral-200"
           style={{ top: d.top, left: d.left }}
         />
       ))}
       {agents.map((a, i) => (
         <div
           key={`agent-${i}`}
-          className="absolute transition-all duration-700 ease-in-out"
+          className="absolute transition-all duration-[2000ms] ease-in-out"
           style={{ top: a.top, left: a.left }}
         >
           {a.active && (
-            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/30" />
+            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/20" />
           )}
           <div
-            className={`size-3.5 rounded-full transition-colors duration-300 ${
-              a.active ? "bg-accent-green" : "bg-neutral-400"
+            className={`size-3.5 rounded-full transition-colors duration-500 ${
+              a.active ? "bg-accent-green" : "bg-neutral-300"
             }`}
           />
         </div>
@@ -212,11 +216,11 @@ function WatchLivePreview() {
         className="absolute rounded-lg border border-border bg-card px-2.5 py-1.5 shadow-sm"
         style={{ top: "3%", left: "25%" }}
       >
-        <div className="h-1.5 w-16 rounded-full bg-neutral-300" />
+        <div className="h-1.5 w-16 rounded-full bg-neutral-200" />
       </div>
       <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
         <div className="size-1.5 rounded-full bg-accent-green" />
-        <div className="h-1.5 w-20 rounded-full bg-neutral-300" />
+        <div className="h-1.5 w-20 rounded-full bg-neutral-200" />
       </div>
     </div>
   );
@@ -255,11 +259,11 @@ function AgentTeamsPreview() {
   return (
     <div className="flex h-full flex-col justify-end gap-2 px-4 pb-4 pt-3">
       <div className="mb-1 flex items-center gap-1.5 border-b border-border pb-2">
-        <div className="size-1.5 rounded-full bg-neutral-400" />
-        <div className="h-2 w-14 rounded-full bg-neutral-300" />
+        <div className="size-1.5 rounded-full bg-neutral-300" />
+        <div className="h-2 w-14 rounded-full bg-neutral-200" />
         <div className="ml-auto flex gap-1">
-          <div className="h-2 w-6 rounded-full bg-neutral-200" />
-          <div className="h-2 w-6 rounded-full bg-neutral-200" />
+          <div className="h-2 w-6 rounded-full bg-neutral-100" />
+          <div className="h-2 w-6 rounded-full bg-neutral-100" />
         </div>
       </div>
       {CHAT_MESSAGES.map((m, i) => (
@@ -273,17 +277,17 @@ function AgentTeamsPreview() {
         >
           <div
             className={`size-5 shrink-0 rounded-full ${
-              m.right ? "bg-primary/30" : "bg-neutral-300"
+              m.right ? "bg-primary/20" : "bg-neutral-200"
             }`}
           />
           <div
             className={`rounded-xl px-3 py-1.5 ${
-              m.right ? "bg-primary/10" : "bg-neutral-200"
+              m.right ? "bg-primary/[0.07]" : "bg-neutral-100"
             }`}
           >
             <div
               className={`h-1.5 rounded-full ${
-                m.right ? "bg-primary/40" : "bg-neutral-400"
+                m.right ? "bg-primary/30" : "bg-neutral-300"
               } ${m.w}`}
             />
           </div>
@@ -309,28 +313,28 @@ function BuildCrewPreview() {
       `}</style>
       <div className="flex h-full flex-col justify-center gap-3 p-5">
         <div className="flex items-center gap-3">
-          <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-            <Bot className="size-5 text-primary" aria-hidden="true" />
-            <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-accent-green" />
+          <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-neutral-200">
+            <Bot className="size-5 text-neutral-400" aria-hidden="true" />
+            <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-neutral-400" />
           </div>
           <div className="space-y-1.5">
             <div className="hive-shimmer h-2.5 w-24 rounded-full" />
             <div className="hive-shimmer h-2 w-16 rounded-full" />
           </div>
         </div>
-        <div className="h-px bg-border" />
+        <div className="h-px bg-neutral-200" />
         <div className="flex flex-wrap gap-2">
-          <div className="flex h-5 items-center rounded-full bg-primary/15 px-2.5">
+          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5">
             <div className="hive-shimmer h-1.5 w-10 rounded-full" />
           </div>
-          <div className="flex h-5 items-center rounded-full bg-accent-green/10 px-2.5">
+          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5">
             <div className="hive-shimmer h-1.5 w-8 rounded-full" />
           </div>
-          <div className="flex h-5 items-center rounded-full bg-neutral-200 px-2.5">
+          <div className="flex h-5 items-center rounded-full bg-neutral-100 px-2.5">
             <div className="hive-shimmer h-1.5 w-10 rounded-full" />
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-card px-3 py-2">
+        <div className="rounded-lg border border-neutral-200 bg-white/60 px-3 py-2">
           <div className="hive-shimmer mb-1.5 h-1.5 w-full rounded-full" />
           <div className="hive-shimmer mb-1.5 h-1.5 w-4/5 rounded-full" />
           <div className="hive-shimmer h-1.5 w-1/2 rounded-full" />
