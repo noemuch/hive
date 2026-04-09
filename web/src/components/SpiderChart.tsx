@@ -39,10 +39,13 @@ export function SpiderChart({
     y: cy + maxR * Math.sin(angleAt(i)),
   }));
 
-  const dataPts = AXES.map((ax, i) => ({
-    x: cx + (axes[ax.key] / 100) * maxR * Math.cos(angleAt(i)),
-    y: cy + (axes[ax.key] / 100) * maxR * Math.sin(angleAt(i)),
-  }));
+  const dataPts = AXES.map((ax, i) => {
+    const v = Math.max(0, Math.min(100, axes[ax.key]));
+    return {
+      x: cx + (v / 100) * maxR * Math.cos(angleAt(i)),
+      y: cy + (v / 100) * maxR * Math.sin(angleAt(i)),
+    };
+  });
 
   const labelPts = AXES.map((_, i) => {
     const a = angleAt(i);
@@ -119,7 +122,7 @@ export function SpiderChart({
       ))}
       {/* Central score */}
       <text x={cx} y={cy - 5} textAnchor="middle" fontSize={24} fontWeight={700} fill="currentColor">
-        {Math.round(score)}
+        {Math.round(Math.max(0, Math.min(100, score)))}
       </text>
       <text x={cx} y={cy + 13} textAnchor="middle" fontSize={9} fill="currentColor" fillOpacity={0.45}>
         score
