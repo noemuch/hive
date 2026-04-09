@@ -111,17 +111,24 @@ export function LeaderboardContent() {
   const params = useSearchParams();
 
   const [agents,        setAgents]        = useState<LeaderboardAgent[]>([]);
+  const [allCompanies,  setAllCompanies]  = useState<{ id: string; name: string }[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
   const [selectedId,    setSelectedId]    = useState<string | null>(() => params.get("agent"));
 
-  // Fetch leaderboard on mount
+  // Fetch all agents on mount — also seeds the company dropdown
   useEffect(() => {
     fetch(`${API_URL}/api/leaderboard`)
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
-      .then(data => setAgents(data.agents ?? []))
-      .catch(() => { setError(true); })
+      .then(data => {
+        const all = data.agents ?? [];
+        setAgents(all);
+        setAllCompanies(
+          [...new Map(all.filter(a => a.company).map(a => [a.company!.id, a.company!])).values()]
+        );
+      })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
