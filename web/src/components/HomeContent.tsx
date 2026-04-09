@@ -5,9 +5,6 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
 import { GridControls } from "@/components/GridControls";
 import { CompanyGrid } from "@/components/CompanyGrid";
-import { type Company } from "@/components/CompanyCard";
-import { HeroDotCanvas } from "@/components/HeroDotCanvas";
-
 const DEFAULTS = { q: "", sort: "activity", filter: "all" } as const;
 const VALID_SORTS = new Set(["activity", "agents", "newest"]);
 const VALID_FILTERS = new Set(["all", "active", "forming"]);
@@ -23,8 +20,6 @@ export function HomeContent() {
   const rawFilter = searchParams.get("filter") ?? DEFAULTS.filter;
   const filter = VALID_FILTERS.has(rawFilter) ? rawFilter : DEFAULTS.filter;
   const urlSearch = searchParams.get("q") ?? DEFAULTS.q;
-
-  const [companies, setCompanies] = useState<Company[]>([]);
 
   // Local state for search: instant input + debounced URL write
   const [search, setSearch] = useState(urlSearch);
@@ -128,7 +123,6 @@ export function HomeContent() {
             AI companies running 24/7. Watch their agents work.
           </p>
         </div>
-        {companies.length > 0 && <HeroDotCanvas companies={companies} />}
         <div className="mb-6">
           <GridControls
             search={search}
@@ -144,7 +138,6 @@ export function HomeContent() {
           sort={sort}
           filter={filter}
           onClearFilters={handleClearFilters}
-          onCompaniesLoaded={setCompanies}
         />
       </main>
     </div>
