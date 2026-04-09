@@ -71,7 +71,7 @@ function OfficePreviewPlaceholder() {
         </span>
       </div>
       {/* Placeholder — replace with <img src="/hero-preview.gif"> or PixiJS canvas when ready */}
-      <div className="flex aspect-[21/9] items-center justify-center">
+      <div className="flex aspect-[21/8] items-center justify-center">
         <p className="font-mono text-xs text-neutral-700">
           office preview · drop public/hero-preview.gif here or wire PixiJS
         </p>
@@ -147,17 +147,17 @@ function WatchLivePreview() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className="absolute inset-0 opacity-[0.12]"
+        className="absolute inset-0 opacity-[0.06]"
         style={{
           backgroundImage:
-            "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+            "linear-gradient(to right, black 1px, transparent 1px), linear-gradient(to bottom, black 1px, transparent 1px)",
           backgroundSize: "28px 28px",
         }}
       />
       {desks.map((d, i) => (
         <div
           key={`desk-${i}`}
-          className="absolute h-7 w-12 rounded-sm bg-neutral-500/40"
+          className="absolute h-7 w-12 rounded-sm bg-neutral-300"
           style={{ top: d.top, left: d.left }}
         />
       ))}
@@ -174,14 +174,14 @@ function WatchLivePreview() {
         </div>
       ))}
       <div
-        className="absolute rounded-lg bg-neutral-700/90 px-2.5 py-1.5"
+        className="absolute rounded-lg border border-border bg-card px-2.5 py-1.5 shadow-sm"
         style={{ top: "3%", left: "25%" }}
       >
-        <div className="h-1.5 w-16 rounded-full bg-neutral-600" />
+        <div className="h-1.5 w-16 rounded-full bg-neutral-300" />
       </div>
       <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
         <div className="size-1.5 rounded-full bg-accent-green" />
-        <div className="h-1.5 w-20 rounded-full bg-neutral-500" />
+        <div className="h-1.5 w-20 rounded-full bg-neutral-300" />
       </div>
     </div>
   );
@@ -198,12 +198,12 @@ function AgentTeamsPreview() {
 
   return (
     <div className="flex h-full flex-col justify-end gap-2 px-4 pb-4 pt-3">
-      <div className="mb-1 flex items-center gap-1.5 border-b border-neutral-700 pb-2">
-        <div className="size-1.5 rounded-full bg-neutral-500" />
-        <div className="h-2 w-14 rounded-full bg-neutral-500" />
+      <div className="mb-1 flex items-center gap-1.5 border-b border-border pb-2">
+        <div className="size-1.5 rounded-full bg-neutral-400" />
+        <div className="h-2 w-14 rounded-full bg-neutral-300" />
         <div className="ml-auto flex gap-1">
-          <div className="h-2 w-6 rounded-full bg-neutral-600/80" />
-          <div className="h-2 w-6 rounded-full bg-neutral-600/80" />
+          <div className="h-2 w-6 rounded-full bg-neutral-200" />
+          <div className="h-2 w-6 rounded-full bg-neutral-200" />
         </div>
       </div>
       {messages.map((m, i) => (
@@ -213,17 +213,17 @@ function AgentTeamsPreview() {
         >
           <div
             className={`size-5 shrink-0 rounded-full ${
-              m.right ? "bg-primary/40" : "bg-neutral-500"
+              m.right ? "bg-primary/30" : "bg-neutral-300"
             }`}
           />
           <div
             className={`rounded-xl px-3 py-1.5 ${
-              m.right ? "bg-primary/20" : "bg-neutral-700"
+              m.right ? "bg-primary/10" : "bg-neutral-200"
             }`}
           >
             <div
               className={`h-1.5 rounded-full ${
-                m.right ? "bg-primary/40" : "bg-neutral-500"
+                m.right ? "bg-primary/40" : "bg-neutral-400"
               } ${m.w}`}
             />
           </div>
@@ -239,29 +239,29 @@ function BuildCrewPreview() {
       <div className="flex items-center gap-3">
         <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
           <Bot className="size-5 text-primary" aria-hidden="true" />
-          <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-[#131620] bg-accent-green" />
+          <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-muted bg-accent-green" />
         </div>
         <div className="space-y-1.5">
-          <div className="h-2.5 w-24 rounded-full bg-neutral-300/40" />
-          <div className="h-2 w-16 rounded-full bg-neutral-500" />
+          <div className="h-2.5 w-24 rounded-full bg-neutral-300" />
+          <div className="h-2 w-16 rounded-full bg-neutral-200" />
         </div>
       </div>
-      <div className="h-px bg-neutral-700" />
+      <div className="h-px bg-border" />
       <div className="flex flex-wrap gap-2">
-        <div className="flex h-5 items-center rounded-full bg-primary/20 px-2.5">
-          <div className="h-1.5 w-10 rounded-full bg-primary/60" />
+        <div className="flex h-5 items-center rounded-full bg-primary/15 px-2.5">
+          <div className="h-1.5 w-10 rounded-full bg-primary/50" />
         </div>
         <div className="flex h-5 items-center rounded-full bg-accent-green/10 px-2.5">
-          <div className="h-1.5 w-8 rounded-full bg-accent-green/50" />
+          <div className="h-1.5 w-8 rounded-full bg-accent-green/40" />
         </div>
-        <div className="flex h-5 items-center rounded-full bg-neutral-700 px-2.5">
-          <div className="h-1.5 w-10 rounded-full bg-neutral-500" />
+        <div className="flex h-5 items-center rounded-full bg-neutral-200 px-2.5">
+          <div className="h-1.5 w-10 rounded-full bg-neutral-300" />
         </div>
       </div>
-      <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 px-3 py-2">
-        <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-600" />
-        <div className="mb-1.5 h-1.5 w-4/5 rounded-full bg-neutral-600" />
-        <div className="h-1.5 w-1/2 rounded-full bg-neutral-600" />
+      <div className="rounded-lg border border-border bg-card px-3 py-2">
+        <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-200" />
+        <div className="mb-1.5 h-1.5 w-4/5 rounded-full bg-neutral-200" />
+        <div className="h-1.5 w-1/2 rounded-full bg-neutral-200" />
       </div>
     </div>
   );
@@ -292,19 +292,24 @@ function HowItWorksSection() {
   return (
     <section className="border-t border-border px-6 py-20">
       <div className="mx-auto max-w-7xl">
-        <h2 className="mb-12 text-center text-2xl font-semibold tracking-tight text-foreground">
-          How it works
-        </h2>
+        <div className="mb-12 text-center">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">
+            How it works
+          </h2>
+          <p className="mt-3 text-base text-muted-foreground">
+            Deploy agents, watch them collaborate, track their impact.
+          </p>
+        </div>
         <div className="grid gap-6 sm:grid-cols-3">
           {HOW_IT_WORKS.map(({ title, description, preview }) => (
-            <div key={title} className="rounded-2xl bg-card p-4 shadow-md">
+            <div key={title} className="rounded-2xl border border-border bg-card p-4">
               {/* Preview inset with its own rounded corners */}
-              <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#131620]">
+              <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
                 {preview}
               </div>
               {/* Text */}
               <div className="pb-2 pt-5">
-                <h3 className="mb-2 text-xl font-bold text-foreground">
+                <h3 className="mb-2 text-base font-semibold text-foreground">
                   {title}
                 </h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">
