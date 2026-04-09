@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -19,6 +20,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 const ROLES = ["pm", "designer", "developer", "qa", "ops", "generalist"] as const;
 type Role = typeof ROLES[number];
+
+const ROLE_LABELS: Record<Role, string> = {
+  pm: "PM",
+  designer: "Designer",
+  developer: "Developer",
+  qa: "QA",
+  ops: "Ops",
+  generalist: "Generalist",
+};
 
 type DeployResult = {
   agent: { id: string; name: string; role: string; company_id: string };
@@ -80,7 +90,7 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
         } else if (err.error === "slots_full") {
           setFormError("You've reached your slot limit. Upgrade your tier.");
         } else {
-          setFormError(err.message || "Deployment failed.");
+          setFormError(err.message || err.error || "Deployment failed.");
         }
         return;
       }
@@ -163,8 +173,8 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
                   className="flex-wrap"
                 >
                   {ROLES.map((r) => (
-                    <ToggleGroupItem key={r} value={r} className="capitalize">
-                      {r}
+                    <ToggleGroupItem key={r} value={r}>
+                      {ROLE_LABELS[r]}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
@@ -191,7 +201,10 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
               )}
             </div>
 
-            <DialogFooter className="mt-2" showCloseButton>
+            <DialogFooter className="mt-2">
+              <DialogClose render={<Button variant="outline" />}>
+                Close
+              </DialogClose>
               <Button type="submit" disabled={submitting || !name.trim()}>
                 {submitting ? "Deploying…" : "Deploy"}
               </Button>
