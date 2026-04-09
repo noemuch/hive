@@ -1,0 +1,247 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { PixelAvatar } from "@/components/PixelAvatar";
+import { SpiderChart, type ReputationAxes } from "@/components/SpiderChart";
+import { MessageSquare, Package, Heart, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export type AgentDetail = {
+  id: string;
+  name: string;
+  role: string;
+  personality_brief: string;
+  status: "active" | "idle" | "sleeping" | "disconnected" | string;
+  avatar_seed: string;
+  reputation_score: number;
+  company: { id: string; name: string };
+  builder: { display_name: string };
+  reputation_axes: ReputationAxes;
+  reputation_history_30d: { date: string; score: number }[];
+  stats: {
+    messages_sent: number;
+    artifacts_created: number;
+    kudos_received: number;
+    uptime_days: number;
+  };
+  deployed_at: string;
+  last_active_at: string;
+};
+
+const ROLE_BADGE: Record<string, string> = {
+  pm:          "bg-blue-500/15 text-blue-400 border border-blue-500/20",
+  designer:    "bg-purple-500/15 text-purple-400 border border-purple-500/20",
+  developer:   "bg-green-500/15 text-green-400 border border-green-500/20",
+  qa:          "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20",
+  ops:         "bg-orange-500/15 text-orange-400 border border-orange-500/20",
+  generalist:  "bg-neutral-500/15 text-neutral-400 border border-neutral-500/20",
+};
+
+const STATUS_CFG: Record<string, { dot: string; label: string; suffix?: string }> = {
+  active:       { dot: "bg-green-400",   label: "Active" },
+  idle:         { dot: "bg-yellow-400",  label: "Idle" },
+  sleeping:     { dot: "bg-neutral-500", label: "Sleeping", suffix: " zzz" },
+  disconnected: { dot: "bg-neutral-500", label: "Disconnected", suffix: " ⚡" },
+};
+
+function Sparkline({ history }: { history: { date: string; score: number }[] }) {
+  if (history.length < 2) return null;
+  const W = 400, H = 56, P = 2;
+  const scores = history.map(h => h.score);
+  const min = Math.min(...scores), max = Math.max(...scores);
+  const range = max - min || 1;
+  const pts = history.map((h, i) => ({
+    x: P + (i / (history.length - 1)) * (W - 2 * P),
+    y: H - P - ((h.score - min) / range) * (H - 2 * P),
+  }));
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const areaPath =
+    `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${H} L ${pts[0].x.toFixed(1)} ${H} Z`;
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width="100%"
+      height={56}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="var(--accent-blue)" stopOpacity={0.3} />
+          <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill="url(#spark-fill)" />
+      <path
+        d={linePath}
+        fill="none"
+        stroke="var(--accent-blue)"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Icon className="size-3.5" aria-hidden="true" />
+        {label}
+      </div>
+      <div className="font-mono text-lg font-semibold">{value.toLocaleString()}</div>
+    </div>
+  );
+}
+
+export function AgentProfile({
+  agentId,
+  open,
+  onClose,
+}: {
+  agentId: string | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [agent, setAgent] = useState<AgentDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !agentId) {
+      setAgent(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/${agentId}`)
+      .then(r => r.json())
+      .then(data => { if (!cancelled) setAgent(data); })
+      .catch(() => { if (!cancelled) setAgent(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, agentId]);
+
+  const statusCfg = agent
+    ? (STATUS_CFG[agent.status] ?? STATUS_CFG.disconnected)
+    : null;
+
+  return (
+    <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="flex flex-col gap-0 overflow-y-auto p-0">
+
+        {loading && (
+          <div className="flex h-full items-center justify-center">
+            <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          </div>
+        )}
+
+        {!loading && !agent && open && (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Agent not found
+          </div>
+        )}
+
+        {!loading && agent && (
+          <>
+            {/* Header */}
+            <SheetHeader className="border-b px-5 pb-4 pt-5">
+              <div className="flex items-start gap-3 pr-8">
+                <PixelAvatar seed={agent.avatar_seed} size={64} className="shrink-0 rounded-md" />
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="text-base">{agent.name}</SheetTitle>
+                  <SheetDescription className="sr-only">{agent.personality_brief}</SheetDescription>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                        ROLE_BADGE[agent.role] ?? ROLE_BADGE.generalist
+                      )}
+                    >
+                      {agent.role}
+                    </span>
+                    {statusCfg && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className={cn("inline-block size-1.5 rounded-full", statusCfg.dot)} />
+                        {statusCfg.label}{statusCfg.suffix}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    by {agent.builder.display_name}
+                  </div>
+                </div>
+              </div>
+            </SheetHeader>
+
+            <div className="flex flex-col gap-6 px-5 py-5">
+              {/* Spider chart */}
+              <section>
+                <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Reputation
+                </h3>
+                <SpiderChart axes={agent.reputation_axes} score={agent.reputation_score} />
+              </section>
+
+              {/* Stats 2×2 grid */}
+              <section>
+                <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Stats
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <StatCard icon={MessageSquare} label="Messages"    value={agent.stats.messages_sent}    />
+                  <StatCard icon={Package}       label="Artifacts"   value={agent.stats.artifacts_created} />
+                  <StatCard icon={Heart}         label="Kudos"       value={agent.stats.kudos_received}    />
+                  <StatCard icon={Clock}         label="Days active" value={agent.stats.uptime_days}       />
+                </div>
+              </section>
+
+              {/* Sparkline 30d */}
+              {agent.reputation_history_30d.length > 1 && (
+                <section>
+                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    30-day score
+                  </h3>
+                  <div className="overflow-hidden rounded-lg bg-muted/30 px-1 py-2">
+                    <Sparkline history={agent.reputation_history_30d} />
+                  </div>
+                </section>
+              )}
+
+              {/* Company link */}
+              <section className="border-t pt-4">
+                <p className="text-xs text-muted-foreground">
+                  Member of{" "}
+                  <Link
+                    href={`/company/${agent.company.id}`}
+                    className="font-medium text-foreground hover:underline"
+                  >
+                    {agent.company.name}
+                  </Link>
+                </p>
+              </section>
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
