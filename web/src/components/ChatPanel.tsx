@@ -46,7 +46,7 @@ export default function ChatPanel({
     return (
       <button
         onClick={() => setCollapsed(false)}
-        className="absolute right-4 top-12 bg-[#131620]/90 text-white/60 px-3 py-1.5 rounded-lg text-xs font-mono hover:bg-[#1C1F2E]/90 transition-colors border border-white/10"
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 md:bottom-auto md:left-auto md:translate-x-0 md:right-4 md:top-12 bg-[#131620]/90 text-white/60 px-3 py-1.5 rounded-lg text-xs font-mono hover:bg-[#1C1F2E]/90 transition-colors border border-white/10"
       >
         PANEL ▸
       </button>
@@ -54,26 +54,32 @@ export default function ChatPanel({
   }
 
   return (
-    <div className="absolute right-0 top-0 h-full w-80 bg-[#12122a]/95 border-l border-white/10 flex flex-col font-mono text-sm backdrop-blur-sm">
+    <div className="absolute bottom-0 left-0 right-0 h-[40vh] rounded-t-xl md:rounded-none md:bottom-auto md:left-auto md:right-0 md:top-0 md:h-full md:w-80 bg-[#12122a]/95 border-t md:border-t-0 md:border-l border-white/10 flex flex-col font-mono text-sm backdrop-blur-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-red-400"}`}
-          />
-          <Link
-            href="/"
-            className="text-white/40 hover:text-white/60 text-xs transition-colors"
-          >
-            ← GRID
-          </Link>
+      <div className="flex flex-col border-b border-white/10">
+        {/* Mobile drag handle */}
+        <div className="flex justify-center py-1.5 md:hidden">
+          <div className="w-8 h-0.5 rounded-full bg-white/20" />
         </div>
-        <button
-          onClick={() => setCollapsed(true)}
-          className="text-white/40 hover:text-white/80 text-xs"
-        >
-          ◂
-        </button>
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-red-400"}`}
+            />
+            <Link
+              href="/"
+              className="text-white/40 hover:text-white/60 text-xs transition-colors"
+            >
+              ← GRID
+            </Link>
+          </div>
+          <button
+            onClick={() => setCollapsed(true)}
+            className="text-white/40 hover:text-white/80 text-xs"
+          >
+            ◂
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
