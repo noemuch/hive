@@ -53,7 +53,7 @@ function useLandingStats(): Stats | null {
 
 function OfficePreviewPlaceholder() {
   return (
-    <div className="relative mx-auto mt-14 max-w-5xl overflow-hidden rounded-2xl border border-border bg-neutral-950">
+    <div className="relative mx-auto mt-14 max-w-5xl overflow-hidden rounded-2xl border border-border bg-[#131620]">
       {/* Pixel grid overlay — suggests tiled office floor */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -147,7 +147,7 @@ function WatchLivePreview() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className="absolute inset-0 opacity-[0.08]"
+        className="absolute inset-0 opacity-[0.12]"
         style={{
           backgroundImage:
             "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
@@ -157,31 +157,31 @@ function WatchLivePreview() {
       {desks.map((d, i) => (
         <div
           key={`desk-${i}`}
-          className="absolute h-7 w-12 rounded-sm bg-neutral-700/50"
+          className="absolute h-7 w-12 rounded-sm bg-neutral-500/40"
           style={{ top: d.top, left: d.left }}
         />
       ))}
       {agents.map((a, i) => (
         <div key={`agent-${i}`} className="absolute" style={{ top: a.top, left: a.left }}>
           {a.active && (
-            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/20" />
+            <div className="absolute -inset-1.5 animate-pulse rounded-full bg-accent-green/30" />
           )}
           <div
             className={`size-3.5 rounded-full ${
-              a.active ? "bg-accent-green" : "bg-neutral-600"
+              a.active ? "bg-accent-green" : "bg-neutral-400"
             }`}
           />
         </div>
       ))}
       <div
-        className="absolute rounded-lg bg-neutral-800/90 px-2.5 py-1.5"
+        className="absolute rounded-lg bg-neutral-700/90 px-2.5 py-1.5"
         style={{ top: "3%", left: "25%" }}
       >
         <div className="h-1.5 w-16 rounded-full bg-neutral-600" />
       </div>
       <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
         <div className="size-1.5 rounded-full bg-accent-green" />
-        <div className="h-1.5 w-20 rounded-full bg-neutral-700" />
+        <div className="h-1.5 w-20 rounded-full bg-neutral-500" />
       </div>
     </div>
   );
@@ -198,12 +198,12 @@ function AgentTeamsPreview() {
 
   return (
     <div className="flex h-full flex-col justify-end gap-2 px-4 pb-4 pt-3">
-      <div className="mb-1 flex items-center gap-1.5 border-b border-neutral-800 pb-2">
-        <div className="size-1.5 rounded-full bg-neutral-600" />
-        <div className="h-2 w-14 rounded-full bg-neutral-700" />
+      <div className="mb-1 flex items-center gap-1.5 border-b border-neutral-700 pb-2">
+        <div className="size-1.5 rounded-full bg-neutral-500" />
+        <div className="h-2 w-14 rounded-full bg-neutral-500" />
         <div className="ml-auto flex gap-1">
-          <div className="h-2 w-6 rounded-full bg-neutral-800" />
-          <div className="h-2 w-6 rounded-full bg-neutral-800" />
+          <div className="h-2 w-6 rounded-full bg-neutral-600/80" />
+          <div className="h-2 w-6 rounded-full bg-neutral-600/80" />
         </div>
       </div>
       {messages.map((m, i) => (
@@ -213,17 +213,17 @@ function AgentTeamsPreview() {
         >
           <div
             className={`size-5 shrink-0 rounded-full ${
-              m.right ? "bg-primary/40" : "bg-neutral-700"
+              m.right ? "bg-primary/40" : "bg-neutral-500"
             }`}
           />
           <div
             className={`rounded-xl px-3 py-1.5 ${
-              m.right ? "bg-primary/20" : "bg-neutral-800"
+              m.right ? "bg-primary/20" : "bg-neutral-700"
             }`}
           >
             <div
               className={`h-1.5 rounded-full ${
-                m.right ? "bg-primary/40" : "bg-neutral-600"
+                m.right ? "bg-primary/40" : "bg-neutral-500"
               } ${m.w}`}
             />
           </div>
@@ -239,14 +239,14 @@ function BuildCrewPreview() {
       <div className="flex items-center gap-3">
         <div className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
           <Bot className="size-5 text-primary" aria-hidden="true" />
-          <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-neutral-950 bg-accent-green" />
+          <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-[#131620] bg-accent-green" />
         </div>
         <div className="space-y-1.5">
-          <div className="h-2.5 w-24 rounded-full bg-neutral-400/30" />
-          <div className="h-2 w-16 rounded-full bg-neutral-600" />
+          <div className="h-2.5 w-24 rounded-full bg-neutral-300/40" />
+          <div className="h-2 w-16 rounded-full bg-neutral-500" />
         </div>
       </div>
-      <div className="h-px bg-neutral-800" />
+      <div className="h-px bg-neutral-700" />
       <div className="flex flex-wrap gap-2">
         <div className="flex h-5 items-center rounded-full bg-primary/20 px-2.5">
           <div className="h-1.5 w-10 rounded-full bg-primary/60" />
@@ -254,14 +254,14 @@ function BuildCrewPreview() {
         <div className="flex h-5 items-center rounded-full bg-accent-green/10 px-2.5">
           <div className="h-1.5 w-8 rounded-full bg-accent-green/50" />
         </div>
-        <div className="flex h-5 items-center rounded-full bg-neutral-800 px-2.5">
-          <div className="h-1.5 w-10 rounded-full bg-neutral-600" />
+        <div className="flex h-5 items-center rounded-full bg-neutral-700 px-2.5">
+          <div className="h-1.5 w-10 rounded-full bg-neutral-500" />
         </div>
       </div>
-      <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-2">
-        <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-700" />
-        <div className="mb-1.5 h-1.5 w-4/5 rounded-full bg-neutral-700" />
-        <div className="h-1.5 w-1/2 rounded-full bg-neutral-700" />
+      <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 px-3 py-2">
+        <div className="mb-1.5 h-1.5 w-full rounded-full bg-neutral-600" />
+        <div className="mb-1.5 h-1.5 w-4/5 rounded-full bg-neutral-600" />
+        <div className="h-1.5 w-1/2 rounded-full bg-neutral-600" />
       </div>
     </div>
   );
@@ -299,7 +299,7 @@ function HowItWorksSection() {
           {HOW_IT_WORKS.map(({ title, description, preview }) => (
             <div key={title} className="rounded-2xl bg-card p-4 shadow-md">
               {/* Preview inset with its own rounded corners */}
-              <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-neutral-950">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#131620]">
                 {preview}
               </div>
               {/* Text */}
