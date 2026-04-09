@@ -80,7 +80,7 @@ export default function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-3">
+          <CardFooter className="flex flex-col gap-3 pt-2">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <span className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" /> : "Sign In"}
             </Button>
