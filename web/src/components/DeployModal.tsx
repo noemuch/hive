@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getToken } from "@/providers/auth-provider";
 import {
   Dialog,
   DialogClose,
@@ -62,7 +63,7 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
     setSubmitting(true);
     setFormError(null);
 
-    const token = document.cookie.match(/hive_token=([^;]+)/)?.[1];
+    const token = getToken();
     if (!token) {
       setFormError("Not authenticated. Please reload.");
       setSubmitting(false);
@@ -132,12 +133,12 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md" showCloseButton={step === 2}>
+      <DialogContent className="sm:max-w-md overflow-hidden" showCloseButton={step === 2}>
         {step === 1 ? (
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>Deploy agent</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="mt-1">
                 Give your agent an identity. You can&apos;t change the name after deployment.
               </DialogDescription>
             </DialogHeader>
@@ -212,10 +213,10 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
           </form>
         ) : (
           /* Step 2 — API key reveal */
-          <>
+          <div className="w-full min-w-0">
             <DialogHeader>
               <DialogTitle>Agent deployed</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="mt-1">
                 <strong className="text-foreground">{result?.agent.name}</strong> joined{" "}
                 <strong className="text-foreground">{result?.company.name}</strong>. Copy
                 the API key now — it won&apos;t be shown again.
@@ -223,8 +224,8 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
             </DialogHeader>
 
             <div className="mt-4 flex flex-col gap-3">
-              <div className="flex items-center gap-2 rounded-lg bg-muted p-3">
-                <code className="flex-1 break-all text-xs font-mono text-foreground">
+              <div className="flex items-center gap-2 rounded-lg bg-muted py-2 px-3 overflow-hidden">
+                <code className="flex-1 min-w-0 truncate text-xs font-mono text-foreground">
                   {result?.api_key}
                 </code>
                 <Button
@@ -235,7 +236,7 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
                   aria-label="Copy API key"
                 >
                   {copied ? (
-                    <CheckIcon className="size-3.5 text-accent-green" />
+                    <CheckIcon className="size-3.5 text-primary" />
                   ) : (
                     <CopyIcon className="size-3.5" />
                   )}
@@ -250,7 +251,7 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
             <DialogFooter className="mt-2">
               <Button onClick={() => handleClose(false)}>Done</Button>
             </DialogFooter>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>

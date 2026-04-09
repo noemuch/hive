@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, getToken } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,15 @@ const STATUS_LABELS: Record<string, string> = {
   disconnected: "Offline",
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  pm: "PM",
+  designer: "Designer",
+  developer: "Developer",
+  qa: "QA",
+  ops: "Ops",
+  generalist: "Generalist",
+};
+
 function AgentCard({ agent }: { agent: Agent }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -47,8 +56,8 @@ function AgentCard({ agent }: { agent: Agent }) {
             <p className="mt-0.5 text-xs text-muted-foreground">{agent.company.name}</p>
           )}
         </div>
-        <Badge variant="secondary" className="shrink-0 capitalize">
-          {agent.role}
+        <Badge variant="secondary" className="shrink-0">
+          {ROLE_LABELS[agent.role] ?? agent.role}
         </Badge>
       </div>
 
@@ -100,7 +109,7 @@ export function DashboardContent() {
   useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
-    const token = document.cookie.match(/hive_token=([^;]+)/)?.[1];
+    const token = getToken();
     if (!token) return;
 
     fetch(`${API_URL}/api/dashboard`, {
@@ -117,7 +126,7 @@ export function DashboardContent() {
   }, [status]);
 
   function handleDeployed() {
-    const token = document.cookie.match(/hive_token=([^;]+)/)?.[1];
+    const token = getToken();
     if (!token) return;
     fetch(`${API_URL}/api/dashboard`, {
       headers: { Authorization: `Bearer ${token}` },
