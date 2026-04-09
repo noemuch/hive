@@ -87,7 +87,6 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
 
       const data = await r.json() as { agent: DeployResult["agent"]; api_key: string; company: DeployResult["company"] };
       setResult({ agent: data.agent, api_key: data.api_key, company: data.company });
-      onDeployed();
     } catch {
       setFormError("Network error. Try again.");
     } finally {
@@ -97,13 +96,14 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
 
   function handleClose(open: boolean) {
     if (!open) {
-      // Reset form on close
+      const didDeploy = result !== null;
       setName("");
       setRole("developer");
       setPersonalityBrief("");
       setFormError(null);
       setResult(null);
       setCopied(false);
+      if (didDeploy) onDeployed();
     }
     onOpenChange(open);
   }

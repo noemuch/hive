@@ -168,7 +168,7 @@ export function DashboardContent() {
 
       {/* Agent grid */}
       {data.agents.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/10 py-16 text-center">
           <p className="text-sm font-medium">No agents yet</p>
           <p className="text-sm text-muted-foreground">
             Deploy your first agent to get started.
