@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ROLE_BADGE } from "@/lib/agent-utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -29,24 +30,11 @@ type LeaderboardAgent = {
   trend: "up" | "down" | "stable";
 };
 
-const ROLE_BADGE: Record<string, string> = {
-  pm:         "bg-blue-500/15 text-blue-400",
-  designer:   "bg-purple-500/15 text-purple-400",
-  developer:  "bg-green-500/15 text-green-400",
-  qa:         "bg-yellow-500/15 text-yellow-400",
-  ops:        "bg-orange-500/15 text-orange-400",
-  generalist: "bg-neutral-500/15 text-neutral-400",
-};
 
 // Podium layout: visual order left→right is [#2, #1, #3]
 // PODIUM_AGENT_IDX[podiumPos] = index into top3 array
 const PODIUM_AGENT_IDX = [1, 0, 2] as const;
-const PODIUM_HEIGHT     = ["h-52", "h-64", "h-44"] as const;
-const PODIUM_GLOW       = [
-  "[box-shadow:var(--shadow-glow-blue)]",
-  "[box-shadow:var(--shadow-glow-green)]",
-  "[box-shadow:var(--shadow-glow-blue)]",
-] as const;
+const PODIUM_HEIGHT     = ["h-72", "h-80", "h-64"] as const;
 // Rank color per podium position [#2-left, #1-center, #3-right]
 const PODIUM_RANK_COLOR = ["text-neutral-300", "text-yellow-400", "text-orange-400"] as const;
 // Rank color per rank number index (rank-1): [#1, #2, #3]
@@ -68,33 +56,31 @@ function PodiumCard({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex flex-1 cursor-pointer flex-col items-center justify-end gap-2 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 transition-all hover:scale-[1.02] hover:ring-foreground/20",
-        PODIUM_HEIGHT[podiumIdx],
-        PODIUM_GLOW[podiumIdx],
-      )}
-    >
-      <span className={cn("font-mono text-2xl font-bold", PODIUM_RANK_COLOR[podiumIdx])}>
+    <div className={cn("flex flex-1 flex-col gap-2", PODIUM_HEIGHT[podiumIdx])}>
+      <span className={cn("shrink-0 text-center font-mono text-2xl font-bold", PODIUM_RANK_COLOR[podiumIdx])}>
         #{agent.rank}
       </span>
-      <PixelAvatar seed={agent.avatar_seed} size={56} className="rounded-md" />
-      <div className="text-center">
-        <div className="max-w-[120px] truncate text-sm font-semibold">{agent.name}</div>
-        <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company.name}</div>
-      </div>
-      <span
-        className={cn(
-          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-          ROLE_BADGE[agent.role] ?? ROLE_BADGE.generalist
-        )}
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 transition-all hover:scale-[1.02] hover:ring-foreground/20"
       >
-        {agent.role}
-      </span>
-      <span className="font-mono text-lg font-bold">{agent.reputation_score.toFixed(1)}</span>
-    </button>
+        <PixelAvatar seed={agent.avatar_seed} size={56} className="rounded-md" />
+        <div className="text-center">
+          <div className="max-w-[120px] truncate text-sm font-semibold">{agent.name}</div>
+          <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company.name}</div>
+        </div>
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+            ROLE_BADGE[agent.role] ?? ROLE_BADGE.generalist
+          )}
+        >
+          {agent.role}
+        </span>
+        <span className="font-mono text-lg font-bold">{agent.reputation_score.toFixed(1)}</span>
+      </button>
+    </div>
   );
 }
 
@@ -258,7 +244,9 @@ export function LeaderboardContent() {
                       <tr
                         key={agent.id}
                         onClick={() => selectAgent(agent.id)}
-                        className="cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 last:border-0"
+                        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAgent(agent.id); } }}
+                        tabIndex={0}
+                        className="cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring last:border-0"
                       >
                         <td className="px-4 py-3">
                           <span

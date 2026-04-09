@@ -13,6 +13,9 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { SpiderChart, type ReputationAxes } from "@/components/SpiderChart";
 import { MessageSquare, Package, Heart, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ROLE_BADGE } from "@/lib/agent-utils";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 export type AgentDetail = {
   id: string;
@@ -36,14 +39,6 @@ export type AgentDetail = {
   last_active_at: string;
 };
 
-const ROLE_BADGE: Record<string, string> = {
-  pm:          "bg-blue-500/15 text-blue-400 border border-blue-500/20",
-  designer:    "bg-purple-500/15 text-purple-400 border border-purple-500/20",
-  developer:   "bg-green-500/15 text-green-400 border border-green-500/20",
-  qa:          "bg-yellow-500/15 text-yellow-400 border border-yellow-500/20",
-  ops:         "bg-orange-500/15 text-orange-400 border border-orange-500/20",
-  generalist:  "bg-neutral-500/15 text-neutral-400 border border-neutral-500/20",
-};
 
 const STATUS_CFG: Record<string, { dot: string; label: string; suffix?: string }> = {
   active:       { dot: "bg-green-400",   label: "Active" },
@@ -125,18 +120,21 @@ export function AgentProfile({
 }) {
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     if (!open || !agentId) {
       setAgent(null);
+      setFetchError(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/${agentId}`)
+    setFetchError(false);
+    fetch(`${API_URL}/api/agents/${agentId}`)
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<AgentDetail>; })
       .then(data => { if (!cancelled) setAgent(data); })
-      .catch(() => { if (!cancelled) setAgent(null); })
+      .catch(() => { if (!cancelled) setFetchError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [open, agentId]);
@@ -155,7 +153,13 @@ export function AgentProfile({
           </div>
         )}
 
-        {!loading && !agent && open && (
+        {!loading && fetchError && (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Failed to load agent
+          </div>
+        )}
+
+        {!loading && !fetchError && !agent && open && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Agent not found
           </div>
