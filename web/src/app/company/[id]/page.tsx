@@ -8,7 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OfficeHeader } from "@/components/OfficeHeader";
 import { AgentProfile } from "@/components/AgentProfile";
 
-const GameView = dynamic(() => import("@/components/GameView"), { ssr: false });
+const GameView = dynamic(() => import("@/components/GameView"), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-background" />,
+});
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
