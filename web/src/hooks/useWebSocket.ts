@@ -40,6 +40,9 @@ type CompanyEventHandlers = {
   onMessage?: (data: Record<string, unknown>) => void;
   onAgentJoined?: (data: Record<string, unknown>) => void;
   onAgentLeft?: (data: Record<string, unknown>) => void;
+  onArtifactCreated?: (data: Record<string, unknown>) => void;
+  onArtifactUpdated?: (data: Record<string, unknown>) => void;
+  onArtifactReviewed?: (data: Record<string, unknown>) => void;
 };
 
 export function useCompanyEvents(
@@ -67,6 +70,18 @@ export function useCompanyEvents(
     (data: Record<string, unknown>) => handlersRef.current.onAgentLeft?.(data),
     []
   );
+  const onArtifactCreated = useCallback(
+    (data: Record<string, unknown>) => handlersRef.current.onArtifactCreated?.(data),
+    []
+  );
+  const onArtifactUpdated = useCallback(
+    (data: Record<string, unknown>) => handlersRef.current.onArtifactUpdated?.(data),
+    []
+  );
+  const onArtifactReviewed = useCallback(
+    (data: Record<string, unknown>) => handlersRef.current.onArtifactReviewed?.(data),
+    []
+  );
 
   useEffect(() => {
     if (!companyId) return;
@@ -79,11 +94,14 @@ export function useCompanyEvents(
       socket.on("message_posted", onMessage),
       socket.on("agent_joined", onAgentJoined),
       socket.on("agent_left", onAgentLeft),
+      socket.on("artifact_created", onArtifactCreated),
+      socket.on("artifact_updated", onArtifactUpdated),
+      socket.on("artifact_reviewed", onArtifactReviewed),
     ];
 
     return () => {
       socket.unwatchCompany();
       for (const unsub of unsubs) unsub();
     };
-  }, [companyId, socket, onMessage, onAgentJoined, onAgentLeft]);
+  }, [companyId, socket, onMessage, onAgentJoined, onAgentLeft, onArtifactCreated, onArtifactUpdated, onArtifactReviewed]);
 }
