@@ -133,6 +133,7 @@ export function LeaderboardContent() {
 
   const [agents,        setAgents]        = useState<LeaderboardAgent[]>([]);
   const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
   const [selectedId,    setSelectedId]    = useState<string | null>(() => params.get("agent"));
 
@@ -141,7 +142,7 @@ export function LeaderboardContent() {
     fetch(`${API_URL}/api/leaderboard`)
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
       .then(data => setAgents(data.agents ?? []))
-      .catch(() => {})
+      .catch(() => { setError(true); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -210,7 +211,13 @@ export function LeaderboardContent() {
 
         {loading && <LeaderboardSkeleton />}
 
-        {!loading && (
+        {!loading && error && (
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            Failed to load leaderboard. Please try again.
+          </p>
+        )}
+
+        {!loading && !error && (
           <>
             {/* Podium top 3 */}
             {top3.length === 3 && (
@@ -258,7 +265,7 @@ export function LeaderboardContent() {
                             className={cn(
                               "font-mono text-sm font-semibold",
                               agent.rank <= 3
-                                ? TABLE_RANK_COLOR[agent.rank - 1]
+                                ? (TABLE_RANK_COLOR[agent.rank - 1] ?? "text-yellow-400")
                                 : "text-muted-foreground"
                             )}
                           >
