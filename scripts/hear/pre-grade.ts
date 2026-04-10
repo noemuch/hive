@@ -1,20 +1,29 @@
 #!/usr/bin/env bun
 /**
- * HEAR V1 — Opus pre-grading script
+ * HEAR V1 — Opus pre-grading via Claude Code CLI
  *
- * Runs Claude Opus 4.6 against every calibration item to produce initial grades.
- * Output: docs/research/calibration/grades/opus.json
+ * Uses the `claude` CLI (shipped with Claude Code) instead of the raw
+ * Anthropic API. This means it uses your Claude Max subscription, not
+ * a separate API key.
+ *
+ * Prerequisites:
+ *   - Claude Code installed and authenticated (the `claude` command is in PATH)
+ *   - Verify once interactively by running: `claude --version`
+ *   - Verify print mode + model selection by running:
+ *       echo "Say the word 'calibration' and nothing else." | claude -p --model claude-opus-4-6
  *
  * Usage:
  *   bun run scripts/hear/pre-grade.ts
  *   bun run scripts/hear/pre-grade.ts --only 001-decision-excellent-wisdom
- *   bun run scripts/hear/pre-grade.ts --resume
+ *   bun run scripts/hear/pre-grade.ts --resume           # skip already-graded items
+ *   bun run scripts/hear/pre-grade.ts --model opus       # override model
+ *   bun run scripts/hear/pre-grade.ts --delay 2          # seconds between calls
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import {
-  AXES,
   listItemIds,
   loadGraderPrompt,
   loadItem,
@@ -28,8 +37,6 @@ import {
   validateItemGrade,
 } from "./lib/schema";
 
-const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = "claude-opus-4-6";
 const PROJECT_ROOT = join(import.meta.dir, "..", "..");
 const GRADES_PATH = join(
   PROJECT_ROOT,
@@ -40,17 +47,22 @@ const GRADES_PATH = join(
   "opus.json",
 );
 const PROMPT_VERSION = "grader-opus-1.0";
+const DEFAULT_MODEL = "claude-opus-4-6";
 
-if (!API_KEY) {
-  console.error("ERROR: ANTHROPIC_API_KEY environment variable is required.");
-  process.exit(1);
-}
+// ---------- CLI args ----------
 
 const args = process.argv.slice(2);
-const onlyItem = args.includes("--only")
-  ? args[args.indexOf("--only") + 1]
-  : null;
-const resume = args.includes("--resume");
+function getArg(name: string, defaultVal: string | null = null): string | null {
+  const idx = args.indexOf(`--${name}`);
+  if (idx === -1) return defaultVal;
+  return args[idx + 1] ?? defaultVal;
+}
+const onlyItem = getArg("only");
+const resume = args.includes("--resume") || existsSync(GRADES_PATH);
+const model = getArg("model", DEFAULT_MODEL)!;
+const delaySeconds = Number.parseFloat(getArg("delay", "1") ?? "1");
+
+// ---------- File helpers ----------
 
 function loadOrCreateGradesFile(): GradesFile {
   if (existsSync(GRADES_PATH) && resume) {
@@ -59,7 +71,7 @@ function loadOrCreateGradesFile(): GradesFile {
   }
   return emptyGradesFile(
     "claude-opus-4-6",
-    "Claude Opus 4.6 with HEAR grader prompt v1.0",
+    "Claude Opus 4.6 via Claude Code CLI, HEAR grader prompt v1.0",
   );
 }
 
@@ -68,11 +80,14 @@ function saveGradesFile(grades: GradesFile): void {
   writeFileSync(GRADES_PATH, JSON.stringify(grades, null, 2));
 }
 
+// ---------- Prompt assembly ----------
+
 function buildPrompt(itemId: string, artifactContent: string, artifactType: string): string {
   const rubric = loadRubric();
   const graderPromptDoc = loadGraderPrompt();
 
-  // Extract the prompt template from the doc (between ``` fences inside ## The prompt section)
+  // Extract the prompt template from grader-prompt-opus.md
+  // (between ``` fences inside the "## The prompt" section)
   const match = graderPromptDoc.match(/## The prompt\s*\n\s*```\s*\n([\s\S]*?)\n```/);
   if (!match) {
     throw new Error("could not extract prompt template from grader-prompt-opus.md");
@@ -88,77 +103,153 @@ function buildPrompt(itemId: string, artifactContent: string, artifactType: stri
   return template;
 }
 
-async function callAnthropic(prompt: string): Promise<string> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 8000,
-      temperature: 0,
-      messages: [{ role: "user", content: prompt }],
-    }),
+// ---------- Claude CLI subprocess ----------
+
+/**
+ * Call the `claude` CLI in print mode with the prompt piped via stdin.
+ * Returns the raw text response from Claude (which should itself be JSON
+ * matching the HEAR grader output schema).
+ *
+ * We pass the prompt via stdin rather than as a positional argument to
+ * avoid shell-escaping issues with multi-kilobyte prompts containing
+ * quotes, backticks, and special characters.
+ */
+async function callClaudeCli(prompt: string): Promise<{ text: string; cost?: number; usage?: unknown }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(
+      "claude",
+      ["-p", "--output-format", "json", "--model", model],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        reject(
+          new Error(
+            `claude CLI exited with code ${code}\nstderr: ${stderr.slice(0, 500)}`,
+          ),
+        );
+        return;
+      }
+
+      // claude --output-format json returns a JSON envelope like:
+      //   { "type": "result", "subtype": "success", "result": "...", "total_cost_usd": 0.01, "usage": {...} }
+      // We extract the `result` field (which is the assistant's text output).
+      try {
+        const envelope = JSON.parse(stdout);
+        const text = envelope.result ?? envelope.message ?? envelope.text;
+        if (typeof text !== "string") {
+          throw new Error(
+            `unexpected CLI envelope shape: ${JSON.stringify(envelope).slice(0, 500)}`,
+          );
+        }
+        resolve({
+          text,
+          cost: envelope.total_cost_usd,
+          usage: envelope.usage,
+        });
+      } catch (err) {
+        reject(
+          new Error(
+            `failed to parse claude CLI JSON output: ${(err as Error).message}\nfirst 500 chars of output: ${stdout.slice(0, 500)}`,
+          ),
+        );
+      }
+    });
+
+    proc.on("error", (err) => {
+      reject(
+        new Error(
+          `failed to spawn 'claude' — is Claude Code installed and in your PATH? (${err.message})`,
+        ),
+      );
+    });
+
+    // Send the prompt via stdin
+    proc.stdin.write(prompt);
+    proc.stdin.end();
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${errorText}`);
-  }
-
-  const data = await response.json();
-  const content = data.content?.[0]?.text;
-  if (typeof content !== "string") {
-    throw new Error("unexpected API response structure");
-  }
-  return content;
 }
 
+// ---------- JSON extraction from Claude's response ----------
+
+/**
+ * The grader prompt asks Claude to return "only the JSON object, no markdown".
+ * Despite that, Claude sometimes wraps the JSON in a code block or adds
+ * explanatory prose. We try several extraction strategies.
+ */
 function extractJson(text: string): unknown {
-  // Try direct parse first
+  // Strategy 1: direct parse
   try {
     return JSON.parse(text);
   } catch {
-    // Try to extract JSON from markdown code block
-    const match = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-    if (match) {
-      return JSON.parse(match[1]);
-    }
-    // Try to find the first { ... } block
-    const braceMatch = text.match(/\{[\s\S]*\}/);
-    if (braceMatch) {
-      return JSON.parse(braceMatch[0]);
-    }
-    throw new Error("could not extract JSON from response");
+    // fall through
   }
+
+  // Strategy 2: markdown code block
+  const codeBlockMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1]);
+    } catch {
+      // fall through
+    }
+  }
+
+  // Strategy 3: first { ... } block at top level
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    const candidate = text.slice(firstBrace, lastBrace + 1);
+    return JSON.parse(candidate); // throws if still invalid
+  }
+
+  throw new Error("no JSON object found in response");
 }
+
+// ---------- Grading one item ----------
 
 async function gradeItem(itemId: string): Promise<ItemGrade> {
   const { content, type } = loadItem(itemId);
   const prompt = buildPrompt(itemId, content, type);
 
-  console.log(`  → calling Opus for ${itemId}...`);
   const startTime = Date.now();
-  const responseText = await callAnthropic(prompt);
+  const { text, cost, usage } = await callClaudeCli(prompt);
   const durationMs = Date.now() - startTime;
-  console.log(`  ✓ received response in ${durationMs}ms`);
 
-  const parsed = extractJson(responseText);
+  const costStr = cost != null ? ` $${cost.toFixed(4)}` : "";
+  console.log(`  ✓ received response in ${(durationMs / 1000).toFixed(1)}s${costStr}`);
+
+  const parsed = extractJson(text) as { scores?: ItemGrade["scores"] };
+  if (!parsed.scores) {
+    throw new Error("parsed response has no 'scores' field");
+  }
+
   const grade: ItemGrade = {
     item_id: itemId,
     grader: "claude-opus-4-6",
     rubric_version: RUBRIC_VERSION,
     prompt_version: PROMPT_VERSION,
     graded_at: new Date().toISOString(),
-    scores: (parsed as { scores: ItemGrade["scores"] }).scores,
+    scores: parsed.scores,
   };
 
   validateItemGrade(grade);
   return grade;
 }
+
+// ---------- Main ----------
 
 async function main() {
   const grades = loadOrCreateGradesFile();
@@ -174,36 +265,50 @@ async function main() {
   }
 
   const toGrade = itemIds.filter((id) => !alreadyGraded.has(id));
-  console.log(`HEAR Opus pre-grading`);
-  console.log(`Model: ${MODEL}`);
-  console.log(`Rubric version: ${RUBRIC_VERSION}`);
-  console.log(`Prompt version: ${PROMPT_VERSION}`);
-  console.log(`Total items: ${itemIds.length}`);
-  console.log(`Already graded: ${alreadyGraded.size}`);
-  console.log(`To grade: ${toGrade.length}`);
+
+  console.log(`HEAR Opus pre-grading (via Claude Code CLI)`);
+  console.log(`  Model: ${model}`);
+  console.log(`  Rubric version: ${RUBRIC_VERSION}`);
+  console.log(`  Prompt version: ${PROMPT_VERSION}`);
+  console.log(`  Total items in set: ${listItemIds().length}`);
+  console.log(`  Already graded: ${alreadyGraded.size}`);
+  console.log(`  To grade: ${toGrade.length}`);
+  console.log(`  Delay between calls: ${delaySeconds}s`);
   console.log("");
+
+  if (toGrade.length === 0) {
+    console.log("Nothing to do.");
+    return;
+  }
 
   let successCount = 0;
   let failureCount = 0;
+  let totalCost = 0;
 
-  for (const itemId of toGrade) {
-    console.log(`[${successCount + failureCount + 1}/${toGrade.length}] ${itemId}`);
+  for (let i = 0; i < toGrade.length; i++) {
+    const itemId = toGrade[i];
+    console.log(`[${i + 1}/${toGrade.length}] ${itemId}`);
     try {
       const grade = await gradeItem(itemId);
       grades.items.push(grade);
       saveGradesFile(grades);
       successCount++;
-      console.log(`  ✓ saved`);
     } catch (err) {
       failureCount++;
       console.error(`  ✗ FAILED: ${(err as Error).message}`);
-      // Continue with next item
     }
     console.log("");
+
+    if (i < toGrade.length - 1 && delaySeconds > 0) {
+      await new Promise((r) => setTimeout(r, delaySeconds * 1000));
+    }
   }
 
   console.log(`Done. Success: ${successCount}, Failures: ${failureCount}`);
   console.log(`Grades written to: ${GRADES_PATH}`);
+  if (totalCost > 0) {
+    console.log(`Total cost: $${totalCost.toFixed(2)}`);
+  }
 }
 
 main().catch((err) => {
