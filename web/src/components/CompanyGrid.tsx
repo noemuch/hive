@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { CompanyCard, type Company } from "@/components/CompanyCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3000/watch";
 const POLL_INTERVAL = 30_000;
 
 type GridState = "loading" | "populated" | "error";
@@ -27,9 +27,7 @@ export function CompanyGrid({
   const [, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const wsConnectedRef = useRef(false);
-  const fetchCompaniesRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
+  const { socket, connected } = useWebSocket();
 
   const fetchCompanies = useCallback(async (silent = false) => {
     if (!silent) setState("loading");
@@ -60,9 +58,6 @@ export function CompanyGrid({
     }
   }, [sort, filter]);
 
-  // Keep ref in sync so WS callbacks always call the latest version
-  useEffect(() => { fetchCompaniesRef.current = fetchCompanies; }, [fetchCompanies]);
-
   // Initial fetch + re-fetch on sort/filter change
   useEffect(() => {
     fetchCompanies();
@@ -71,16 +66,16 @@ export function CompanyGrid({
   // Polling — only fires when WS is not connected (fallback)
   useEffect(() => {
     pollRef.current = setInterval(() => {
-      if (!wsConnectedRef.current) fetchCompanies(true);
+      if (!connected) fetchCompanies(true);
     }, POLL_INTERVAL);
 
     const onVisibility = () => {
       if (document.hidden) {
         if (pollRef.current) clearInterval(pollRef.current);
       } else {
-        if (!wsConnectedRef.current) fetchCompanies(true);
+        if (!connected) fetchCompanies(true);
         pollRef.current = setInterval(() => {
-          if (!wsConnectedRef.current) fetchCompanies(true);
+          if (!connected) fetchCompanies(true);
         }, POLL_INTERVAL);
       }
     };
@@ -90,78 +85,42 @@ export function CompanyGrid({
       if (pollRef.current) clearInterval(pollRef.current);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [fetchCompanies]);
+  }, [fetchCompanies, connected]);
 
-  // WebSocket subscription for live stat updates (with reconnection)
+  // Effect A: register company_stats_updated listener (socket is a stable singleton, runs once)
   useEffect(() => {
-    let destroyed = false;
-    let reconnectAttempt = 0;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-    function connect() {
-      if (destroyed) return;
-      const ws = new WebSocket(WS_URL);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        wsConnectedRef.current = true;
-        reconnectAttempt = 0;
-        ws.send(JSON.stringify({ type: "watch_all" }));
+    const unsub = socket.on("company_stats_updated", (data) => {
+      const update = data as {
+        type: "company_stats_updated";
+        company_id: string;
+        agent_count: number;
+        active_agent_count: number;
+        messages_today: number;
       };
+      setRawCompanies((prev) =>
+        prev.map((c) =>
+          c.id === update.company_id
+            ? {
+                ...c,
+                agent_count: update.agent_count,
+                active_agent_count: update.active_agent_count,
+                messages_today: update.messages_today,
+              }
+            : c
+        )
+      );
+    });
+    return unsub;
+  }, [socket]);
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as { type: string; [key: string]: unknown };
-          if (data.type === "company_stats_updated") {
-            const update = data as {
-              type: "company_stats_updated";
-              company_id: string;
-              agent_count: number;
-              active_agent_count: number;
-              messages_today: number;
-            };
-            setRawCompanies((prev) =>
-              prev.map((c) =>
-                c.id === update.company_id
-                  ? {
-                      ...c,
-                      agent_count: update.agent_count,
-                      active_agent_count: update.active_agent_count,
-                      messages_today: update.messages_today,
-                    }
-                  : c
-              )
-            );
-          }
-        } catch { /* ignore malformed messages */ }
-      };
-
-      ws.onclose = () => {
-        wsConnectedRef.current = false;
-        fetchCompaniesRef.current(true);
-        // Reconnect with exponential backoff (max 30s)
-        if (!destroyed) {
-          const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
-          reconnectAttempt++;
-          reconnectTimer = setTimeout(connect, delay);
-        }
-      };
-
-      ws.onerror = () => {
-        wsConnectedRef.current = false;
-      };
+  // Effect B: send watch_all on connect, fetch immediately on disconnect
+  useEffect(() => {
+    if (connected) {
+      socket.send({ type: "watch_all" });
+    } else {
+      fetchCompanies(true);
     }
-
-    connect();
-
-    return () => {
-      destroyed = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      wsRef.current?.close();
-      wsRef.current = null;
-      wsConnectedRef.current = false;
-    };
-  }, []); // mount once — WS_URL is stable
+  }, [connected, socket, fetchCompanies]);
 
   // Client-side search filter
   const filteredCompanies = useMemo(() => {
