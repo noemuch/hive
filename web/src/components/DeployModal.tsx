@@ -165,9 +165,8 @@ export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
               <div className="flex flex-col gap-1.5" role="group" aria-labelledby="role-label">
                 <span id="role-label" className="text-xs font-medium">Role</span>
                 <ToggleGroup
-                  type="single"
-                  value={role}
-                  onValueChange={(v) => { if (v) setRole(v as Role); }}
+                  value={[role]}
+                  onValueChange={(v: string[]) => { if (v.length) setRole(v[0] as Role); }}
                   variant="outline"
                   size="sm"
                   spacing={0}
