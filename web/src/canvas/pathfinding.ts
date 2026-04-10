@@ -64,6 +64,18 @@ export function buildCollisionGrid(mapData: TiledMap): boolean[][] {
     }
   }
 
+  // Block void tiles — positions with no floor tile are outside the office
+  const floorLayer = findLayer(mapData.layers, "floor");
+  if (floorLayer?.data) {
+    for (let i = 0; i < floorLayer.data.length; i++) {
+      if ((floorLayer.data[i] & 0x1FFFFFFF) === 0) {
+        const tx = i % w;
+        const ty = Math.floor(i / w);
+        if (ty < h && tx < w) grid[ty][tx] = true;
+      }
+    }
+  }
+
   // Block map edges — NPCs must never walk to boundary tiles
   for (let x = 0; x < w; x++) {
     grid[0][x] = true;

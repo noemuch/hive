@@ -70,6 +70,47 @@ describe("buildCollisionGrid", () => {
     const grid = buildCollisionGrid(map);
     expect(grid[2][2]).toBe(true);
   });
+
+  it("blocks interior tiles with no floor tile (GID=0 in floor layer)", () => {
+    // 5x5 grid : seul le tile (2,2) a un sol, tout le reste est vide
+    const floorData = Array(25).fill(0);
+    floorData[2 * 5 + 2] = 1; // tile (2,2) a un sol (GID=1)
+
+    const mapWithFloor: TiledMap = {
+      width: 5,
+      height: 5,
+      tilewidth: 16,
+      tileheight: 16,
+      layers: [
+        {
+          type: "group",
+          name: "background",
+          visible: true,
+          opacity: 1,
+          layers: [
+            {
+              type: "tilelayer",
+              name: "floor",
+              visible: true,
+              opacity: 1,
+              data: floorData,
+            },
+          ],
+        },
+      ],
+      tilesets: [],
+    };
+
+    const grid = buildCollisionGrid(mapWithFloor);
+
+    // Tiles intérieurs sans sol → bloqués
+    expect(grid[1][1]).toBe(true); // void à (x=1, y=1)
+    expect(grid[1][3]).toBe(true); // void à (x=3, y=1)
+    expect(grid[3][1]).toBe(true); // void à (x=1, y=3)
+
+    // Tile intérieur AVEC sol → walkable
+    expect(grid[2][2]).toBe(false); // sol à (x=2, y=2)
+  });
 });
 
 describe("randomWalkableTile", () => {
