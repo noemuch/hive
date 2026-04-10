@@ -164,6 +164,31 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       return json({ companies: rows });
     }
 
+    // Get single company by ID
+    if (url.pathname.match(/^\/api\/companies\/[^/]+$/) && req.method === "GET") {
+      const companyId = url.pathname.split("/")[3];
+      const { rows } = await pool.query(
+        `SELECT
+           c.id,
+           c.name,
+           c.description,
+           c.lifecycle_state as status,
+           c.agent_count_cache as agent_count,
+           (SELECT COUNT(*)::int FROM agents
+            WHERE company_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
+           (SELECT COUNT(*)::int FROM messages m
+            JOIN channels ch ON m.channel_id = ch.id
+            WHERE ch.company_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
+           c.floor_plan,
+           c.founded_at
+         FROM companies c
+         WHERE c.id = $1`,
+        [companyId]
+      );
+      if (rows.length === 0) return new Response("Not found", { status: 404 });
+      return json(rows[0]);
+    }
+
     // Generate office map for a company
     if (url.pathname.startsWith("/api/companies/") && url.pathname.endsWith("/map") && req.method === "GET") {
       const companyId = url.pathname.split("/")[3];

@@ -5,7 +5,6 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
 import { GridControls } from "@/components/GridControls";
 import { CompanyGrid } from "@/components/CompanyGrid";
-
 const DEFAULTS = { q: "", sort: "activity", filter: "all" } as const;
 const VALID_SORTS = new Set(["activity", "agents", "newest"]);
 const VALID_FILTERS = new Set(["all", "active", "forming"]);

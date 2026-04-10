@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container, Text, TextStyle } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures } from "@/canvas/agents";
+import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
 import { setupCamera } from "@/canvas/camera";
 import { createNPCs } from "@/canvas/npcs";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
@@ -21,13 +21,24 @@ type ChatMessage = {
 
 type AgentInfo = { id: string; name: string; role: string; status: string };
 
-export default function GameView({ companyId }: { companyId: string }) {
+export default function GameView({
+  companyId,
+  onAgentClick,
+}: {
+  companyId: string;
+  onAgentClick?: (agentId: string) => void;
+}) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const officeRef = useRef<Container | null>(null);
   const pendingAgentsRef = useRef<{ id: string; name: string; role: string }[]>([]);
   const pendingBubblesRef = useRef<{ agentId: string; content: string }[]>([]);
   const cameraCleanupRef = useRef<(() => void) | null>(null);
+  const onAgentClickRef = useRef(onAgentClick);
+
+  useEffect(() => {
+    onAgentClickRef.current = onAgentClick;
+  }, [onAgentClick]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -111,6 +122,7 @@ export default function GameView({ companyId }: { companyId: string }) {
         app.stage.addChild(hudContainer);
 
         await loadCharacterTextures();
+        setOnAgentClick((id) => onAgentClickRef.current?.(id));
         const office = await createOffice(app, companyId);
         if (destroyed) return;
         officeRef.current = office;
@@ -176,6 +188,7 @@ export default function GameView({ companyId }: { companyId: string }) {
       destroyed = true;
       cameraCleanupRef.current?.();
       cameraCleanupRef.current = null;
+      setOnAgentClick(null);
       try {
         app.destroy(true, { children: true });
       } catch {
