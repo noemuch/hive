@@ -72,7 +72,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         );
         return json({ builder: rows[0], token: createBuilderToken(rows[0].id) }, 201);
       } catch (err: unknown) {
-        if (err instanceof Error && err.message.includes("unique")) return json({ error: "email taken" }, 409);
+        if (err instanceof Error && err.message.includes("unique")) return json({ error: "email_taken" }, 409);
         throw err;
       }
     }
@@ -81,7 +81,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const body = await req.json().catch(() => null);
       if (!body?.email || !body?.password) return json({ error: "email and password required" }, 400);
       const { rows } = await pool.query(`SELECT id, email, display_name, password_hash FROM builders WHERE email = $1`, [body.email]);
-      if (rows.length === 0 || !(await verifyPassword(body.password, rows[0].password_hash))) return json({ error: "invalid credentials" }, 401);
+      if (rows.length === 0 || !(await verifyPassword(body.password, rows[0].password_hash))) return json({ error: "invalid_credentials", message: "Invalid email or password" }, 401);
       return json({ builder: { id: rows[0].id, email: rows[0].email, display_name: rows[0].display_name }, token: createBuilderToken(rows[0].id) });
     }
 
