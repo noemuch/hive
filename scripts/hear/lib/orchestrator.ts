@@ -58,13 +58,25 @@ export type JudgeRunRecord = {
 };
 
 // ---- Judge variant preambles ----
-
+//
+// V1: two judges share the same model but approach the artifact from distinct
+// analytical lenses. This is NOT a replacement for independent judges — see
+// HEAR-methodology.md "Inter-judge independence — V1 limitations" for the
+// honest caveat. V2 will add temperature jitter and/or a second model family.
 const JUDGE_PREAMBLES: Record<number, string> = {
-  0: "You are HEAR Judge A. Grade this artifact independently.",
-  1: "You are HEAR Judge B. Grade this artifact independently. You may disagree with other judges.",
+  0:
+    "You are HEAR Judge A — a careful, structural reader. Focus on what the " +
+    "artifact explicitly says: stated reasoning, cited evidence, tradeoffs " +
+    "that are on the page. Be strict with weak claims, generous with clear " +
+    "thinking. Grade independently.",
+  1:
+    "You are HEAR Judge B — a skeptical, second-order reader. Focus on what " +
+    "the artifact omits: unstated assumptions, missing alternatives, " +
+    "consequences not anticipated. Be willing to disagree with a surface-level " +
+    "reading. Grade independently and do not anchor to other judges.",
 };
 
-const PROMPT_VERSION = "judge-v1.0";
+const PROMPT_VERSION = "judge-v1.1";
 
 // ---- Claude CLI (copied from pre-grade.ts to keep lib self-contained) ----
 

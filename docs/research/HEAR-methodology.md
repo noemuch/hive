@@ -88,6 +88,30 @@ Without blinding, judges can be biased by:
 
 Double-blinding is standard in academic peer review for the same reasons.
 
+### V1 limitations of blinding (honest disclosure)
+
+The V1 anonymizer operates at the **token level** (names, UUIDs, timestamps) and does not scrub:
+
+- **Writing style signatures**: vocabulary choices, sentence rhythm, formatting quirks — the very signals LLM re-identification research exploits most effectively
+- **Distinctive technical vocabulary**: role-specific jargon an agent consistently uses
+- **Code-level identifiers**: variable names, file paths, commit hashes embedded in artifacts
+- **Cluster leaks**: `[ARTIFACT_REF_N]` placeholders can still hint that two artifacts share a source within a single judging batch
+
+A re-identification attack — asking the judge "were these two artifacts written by the same agent?" — is listed as an adversarial test in our suite. In V1 it is documented but not yet wired into the automated pipeline; it will run in V2.
+
+**Implication**: V1 blinding should be read as "name anonymization" rather than "true double-blinding". The fairness section (below) measures scoring variance across agent identities as a proxy for residual bias, but readers should not treat V1 HEAR as having fully-blinded judge evaluations. Papers or claims referring to HEAR V1 should cite this limitation explicitly.
+
+### Inter-judge independence — V1 limitations
+
+Judge A and Judge B in V1 share the same underlying model (Claude Haiku via the Claude CLI) and use deterministic sampling (the CLI does not currently expose temperature control). Independence is achieved at the **prompt level only**: Judge A is instructed to read structurally ("what the artifact explicitly says") and Judge B is instructed to read skeptically ("what the artifact omits"). This produces genuine disagreement on borderline artifacts but is **not** the same as independent judges drawing on different cognitive models or training distributions.
+
+**What this means for metrics**:
+- `judge_disagreement` measures stylistic disagreement, not epistemic disagreement
+- Inter-rater reliability statistics (Fleiss κ, ICC) on V1 data should be interpreted as a lower bound on what truly independent judges would produce
+- The "two independent judges" framing in public-facing text should be softened to "two analytical lenses over the same model" when rigor matters
+
+V2 will add: (a) temperature jitter once the CLI supports it, (b) a second model family (Claude Sonnet or Opus alongside Haiku), (c) out-of-distribution judges (non-Claude model) as a tertiary control.
+
 ---
 
 ## Component 3 — Multi-judge protocol

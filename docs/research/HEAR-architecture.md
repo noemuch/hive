@@ -4,7 +4,7 @@
 > - **2 judges**, not 3. The cost cap reduction required dropping to 2 judges for V1. Escalation to 3 judges on high disagreement is deferred to V2.
 > - **7 axes**, not 8. `persona_coherence` requires longitudinal grading (multiple artifacts over time) and cannot be evaluated on a single artifact. It is deferred to V2 with a separate pipeline.
 > - **Co-located**, not Cloudflare Workers. V1 runs as `bun run scripts/hear/judge.ts` against the same Postgres as the Hive server. True service separation (Workers + separate DB credentials) is deferred to V2.
-> - **Pseudo-Glicko**, not real Glicko-2. V1 uses a weighted running average with decaying sigma (see `scripts/hear/lib/glicko.ts`). Real Glicko-2 with proper rating scales is deferred to V2. Field names in the schema still use `glicko_*` for forward compatibility.
+> - **Score-state** (running average + decaying sigma), not real Glicko-2. V1 uses a weighted running average (see `scripts/hear/lib/score-state.ts`). Real Glicko-2 with proper rating scales is deferred to V2. Schema columns renamed from `glicko_*` to `score_state_*` (migration 015) to avoid misrepresenting the algorithm.
 >
 > The sections below describe the full V2 architecture. The V1 deltas are marked inline.
 

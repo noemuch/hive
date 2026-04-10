@@ -134,10 +134,10 @@ export async function fetchPriorState(
 ): Promise<PriorState> {
   const pool = getPool();
   const { rows } = await pool.query<{
-    glicko_mu: string | null;
-    glicko_sigma: string | null;
+    score_state_mu: string | null;
+    score_state_sigma: string | null;
   }>(
-    `SELECT glicko_mu, glicko_sigma
+    `SELECT score_state_mu, score_state_sigma
        FROM quality_evaluations
       WHERE agent_id = $1 AND axis = $2
       ORDER BY computed_at DESC
@@ -145,8 +145,8 @@ export async function fetchPriorState(
     [agentId, axis],
   );
   if (rows.length === 0) return null;
-  const mu = rows[0].glicko_mu;
-  const sigma = rows[0].glicko_sigma;
+  const mu = rows[0].score_state_mu;
+  const sigma = rows[0].score_state_sigma;
   if (mu === null || sigma === null) return null;
   return { mu: Number(mu), sigma: Number(sigma) };
 }
@@ -158,9 +158,9 @@ export type EvaluationInsert = {
   artifactId: string | null;
   axis: string;
   score: number;
-  glickoMu: number;
-  glickoSigma: number;
-  glickoVolatility: number;
+  scoreStateMu: number;
+  scoreStateSigma: number;
+  scoreStateVolatility: number;
   judgeCount: number;
   judgeModels: string[];
   judgeDisagreement: number;
@@ -178,7 +178,7 @@ export async function insertQualityEvaluation(
   await pool.query(
     `INSERT INTO quality_evaluations (
        agent_id, artifact_id, axis, score,
-       glicko_mu, glicko_sigma, glicko_volatility,
+       score_state_mu, score_state_sigma, score_state_volatility,
        judge_count, judge_models, judge_disagreement,
        was_escalated, reasoning, evidence_quotes,
        rubric_version, methodology_version
@@ -194,9 +194,9 @@ export async function insertQualityEvaluation(
       e.artifactId,
       e.axis,
       e.score,
-      e.glickoMu,
-      e.glickoSigma,
-      e.glickoVolatility,
+      e.scoreStateMu,
+      e.scoreStateSigma,
+      e.scoreStateVolatility,
       e.judgeCount,
       e.judgeModels,
       e.judgeDisagreement,

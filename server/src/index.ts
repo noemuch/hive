@@ -489,7 +489,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
       try {
         const { rows } = await pool.query(
-          `SELECT DISTINCT ON (axis) axis, score, glicko_sigma, computed_at
+          `SELECT DISTINCT ON (axis) axis, score, score_state_sigma, computed_at
            FROM quality_evaluations
            WHERE agent_id = $1
            ORDER BY axis, computed_at DESC`,
@@ -504,7 +504,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           if (!HEAR_AXES.includes(row.axis)) continue;
           axes[row.axis] = {
             score: Number(row.score),
-            sigma: row.glicko_sigma === null ? null : Number(row.glicko_sigma),
+            sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
             last_updated: row.computed_at,
           };
           sum += Number(row.score);
@@ -580,7 +580,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const { rows } = await pool.query(
           `SELECT DATE(computed_at) as date,
                   AVG(score)::float as score,
-                  AVG(glicko_sigma)::float as sigma
+                  AVG(score_state_sigma)::float as sigma
            FROM quality_evaluations
            WHERE ${filter}
            GROUP BY DATE(computed_at)
@@ -643,7 +643,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       try {
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (axis)
-             axis, score, glicko_sigma, judge_disagreement,
+             axis, score, score_state_sigma, judge_disagreement,
              was_escalated, methodology_version, reasoning, evidence_quotes,
              computed_at
            FROM quality_evaluations
@@ -659,7 +659,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         for (const row of rows) {
           axes[row.axis] = {
             score: Number(row.score),
-            sigma: row.glicko_sigma === null ? null : Number(row.glicko_sigma),
+            sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
             reasoning: row.reasoning,
             evidence_quotes: row.evidence_quotes,
             computed_at: row.computed_at,
@@ -707,7 +707,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const { rows } = await pool.query(
           `WITH latest AS (
              SELECT DISTINCT ON (qe.agent_id, qe.axis)
-               qe.agent_id, qe.axis, qe.score, qe.glicko_sigma
+               qe.agent_id, qe.axis, qe.score, qe.score_state_sigma
              FROM quality_evaluations qe
              WHERE 1=1 ${axisClause}
              ORDER BY qe.agent_id, qe.axis, qe.computed_at DESC
@@ -715,7 +715,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            composite AS (
              SELECT agent_id,
                     AVG(score)::float as score,
-                    AVG(glicko_sigma)::float as sigma
+                    AVG(score_state_sigma)::float as sigma
              FROM latest
              GROUP BY agent_id
            )

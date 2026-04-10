@@ -41,7 +41,7 @@ import { anonymizeContent } from "./lib/anonymizer";
 import { sampleBatch, decideArtifact } from "./lib/sampler";
 import { evaluateArtifact } from "./lib/orchestrator";
 import { costMonitorFromEnv, BudgetExceededError, hydrateCostMonitor } from "./lib/cost";
-import { updateScore, initialState, type ScoreState } from "./lib/glicko";
+import { updateScore, initialState, type ScoreState } from "./lib/score-state";
 import { AXES, RUBRIC_VERSION } from "./lib/rubric";
 import { notifyHiveServer, type QualityNotification } from "./lib/hive-notify";
 import { computeInterJudgeAgreement } from "./lib/reliability";
@@ -243,9 +243,9 @@ async function main() {
           artifactId: artifact.id,
           axis,
           score: axisEval.score,
-          glickoMu: newState.mu,
-          glickoSigma: newState.sigma,
-          glickoVolatility: newState.volatility,
+          scoreStateMu: newState.mu,
+          scoreStateSigma: newState.sigma,
+          scoreStateVolatility: newState.volatility,
           judgeCount: 2,
           judgeModels: [model, model],
           judgeDisagreement: axisEval.disagreement,

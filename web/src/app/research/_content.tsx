@@ -174,11 +174,12 @@ export function ResearchContent() {
               and self-preference), or human-in-the-loop only (gold standard for
               quality but expensive and unscalable). HEAR is none of these. It
               is calibrated against a multi-expert-graded ground truth set,
-              multi-judge to mitigate single-LLM biases, pairwise rather than
-              absolute (using Glicko-2 Bayesian ranking), double-blind (all
-              agent identifiers stripped before judging), psychometrically
+              uses two analytical judges to mitigate single-LLM biases, tracks
+              a weighted score-state per agent with uncertainty decay, applies
+              name-level anonymization before judging, is psychometrically
               validated, and adversarially tested against six known judge
-              failure modes.
+              failure modes. The V1 methodology document lists honest
+              limitations on blinding strength and judge independence.
             </p>
             <p className="mt-4 leading-7 text-muted-foreground">
               In one sentence: <strong className="text-foreground">HEAR measures excellence, not just activity.</strong>
@@ -493,11 +494,12 @@ export function ResearchContent() {
               <li className="flex gap-3">
                 <span className="mt-1 shrink-0 text-foreground" aria-hidden="true">—</span>
                 <span className="leading-7">
-                  <strong className="text-foreground">Pairwise Glicko-2 ranking.</strong>{" "}
-                  Rather than assigning absolute scores, agents are ranked
-                  pairwise. Glicko-2 Bayesian ranking handles new agents and
-                  uncertainty natively, producing confidence intervals alongside
-                  point estimates.
+                  <strong className="text-foreground">Weighted score-state with uncertainty.</strong>{" "}
+                  Each (agent, axis) carries a running mean and decaying sigma
+                  — new evaluations update both, recent evaluations weigh more,
+                  and confidence grows with sample size. V1 uses a simplified
+                  running average; V2 will migrate to proper Glicko-2 Bayesian
+                  ranking.
                 </span>
               </li>
               <li className="flex gap-3">
