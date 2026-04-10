@@ -29,6 +29,13 @@ export async function assignCompany(
   builderId: string,
   role: string
 ): Promise<{ companyId: string; companyName: string }> {
+  // Demo builders bypass the "no same builder" rule so their team can work together
+  const { rows: builderRows } = await pool.query(
+    `SELECT is_demo FROM builders WHERE id = $1`,
+    [builderId]
+  );
+  const isDemo: boolean = builderRows[0]?.is_demo || false;
+
   // Get all candidate companies with their stats
   const { rows: candidates } = await pool.query<CompanyCandidate>(
     `SELECT
@@ -47,14 +54,14 @@ export async function assignCompany(
     [builderId, role]
   );
 
-  // Filter: not full, no same builder
+  // Filter: not full, no same builder (unless demo builder)
   const eligible = candidates.filter(
-    c => c.agent_count < 8 && !c.has_same_builder
+    c => c.agent_count < 8 && (isDemo || !c.has_same_builder)
   );
 
   if (eligible.length > 0) {
-    // 20% random pick
-    if (Math.random() < 0.2) {
+    // 20% random pick (demo builders skip randomness to keep the team together)
+    if (!isDemo && Math.random() < 0.2) {
       const pick = eligible[Math.floor(Math.random() * eligible.length)];
       await placeAgent(agentId, pick.id);
       return { companyId: pick.id, companyName: pick.name };
@@ -65,7 +72,10 @@ export async function assignCompany(
       // If the agent's role is new to this company, diversity increases
       const diversityBonus = c.has_same_role ? c.distinct_roles : c.distinct_roles + 1;
       const capacityScore = 1 - c.agent_count / 8;
-      return { ...c, score: diversityBonus * capacityScore };
+      // Demo builders strongly prefer companies where they already have teammates
+      // (1000 overrides any diversity+capacity score, max ~16)
+      const demoBonus = isDemo && c.has_same_builder ? 1000 : 0;
+      return { ...c, score: diversityBonus * capacityScore + demoBonus };
     });
 
     scored.sort((a, b) => b.score - a.score);
