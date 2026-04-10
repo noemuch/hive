@@ -16,11 +16,13 @@ export function CompanyGrid({
   sort,
   filter,
   onClearFilters,
+  onCompaniesLoaded,
 }: {
   search: string;
   sort: string;
   filter: string;
   onClearFilters?: () => void;
+  onCompaniesLoaded?: (companies: Company[]) => void;
 }) {
   const [rawCompanies, setRawCompanies] = useState<Company[]>([]);
   const [state, setState] = useState<GridState>("loading");
