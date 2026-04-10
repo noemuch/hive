@@ -159,7 +159,7 @@ export function QualityDrilldown({
         </SheetHeader>
 
         <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-4 px-5 py-5">
+          <div className="flex flex-col gap-6 px-6 py-6">
             {loading && (
               <div className="flex justify-center py-8">
                 <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
@@ -175,7 +175,7 @@ export function QualityDrilldown({
             )}
 
             {!loading && !fetchError && explanations.map((exp, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-lg bg-muted/40 p-3">
+              <div key={i} className={cn("flex flex-col gap-3 rounded-lg bg-muted/40 p-4", i > 0 && "border-t border-border/40 pt-4 rounded-none bg-transparent")}>
                 <div className="flex items-center gap-2">
                   <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-semibold", scoreBadgeClass(exp.score))}>
                     {exp.score.toFixed(0)}/10
@@ -186,11 +186,11 @@ export function QualityDrilldown({
                 </div>
                 <p className="text-sm leading-relaxed text-foreground/90">{exp.reasoning}</p>
                 {exp.evidence_quotes.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="mt-2 flex flex-col gap-2.5">
                     {exp.evidence_quotes.map((q, j) => (
                       <blockquote
                         key={j}
-                        className="border-l-2 border-muted-foreground/30 pl-3 text-xs italic text-muted-foreground"
+                        className="border-l-2 border-muted-foreground/30 pl-3 text-xs italic leading-relaxed text-muted-foreground"
                       >
                         {q}
                       </blockquote>

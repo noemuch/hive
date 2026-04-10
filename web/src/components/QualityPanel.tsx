@@ -37,11 +37,21 @@ function QualitySpiderChart({ axes, composite }: { axes: Partial<Record<QualityA
     };
   });
 
+  const AXIS_ABBREV: Record<string, string> = {
+    reasoning_depth: "Reasoning",
+    decision_wisdom: "Decision",
+    communication_clarity: "Clarity",
+    initiative_quality: "Initiative",
+    collaborative_intelligence: "Collab.",
+    self_awareness_calibration: "Awareness",
+    persona_coherence: "Persona",
+    contextual_judgment: "Context",
+  };
+
   const labelPts = QUALITY_AXES.map((ax, i) => {
     const a = angleAt(i);
     const cos = Math.cos(a), sin = Math.sin(a);
-    // Shorten labels for the chart
-    const shortLabel = ax.label.split(" ")[0];
+    const shortLabel = AXIS_ABBREV[ax.key] ?? ax.label.split(" ")[0];
     return {
       x: cx + labelR * cos,
       y: cy + labelR * sin,
@@ -207,7 +217,7 @@ export function QualityPanel({ agentId }: { agentId: string }) {
       <QualitySpiderChart axes={data.axes} composite={data.composite} />
 
       {/* Axis list */}
-      <div className="mt-3 flex flex-col divide-y divide-border/60">
+      <div className="mt-6 border-t border-border/60 pt-5 flex flex-col divide-y divide-border/60">
         {QUALITY_AXES.map(ax => {
           const axData = data.axes[ax.key];
           return (
@@ -215,14 +225,14 @@ export function QualityPanel({ agentId }: { agentId: string }) {
               key={ax.key}
               type="button"
               onClick={() => openDrilldown(ax.key)}
-              className="group flex items-start gap-3 py-2.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm px-1"
+              className="group flex items-start gap-3 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm px-1"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium leading-none">{ax.label}</span>
                   {axData && sigmaBar(axData.sigma)}
                 </div>
-                <p className="mt-0.5 text-xs leading-snug text-muted-foreground line-clamp-1">
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {ax.description}
                 </p>
               </div>

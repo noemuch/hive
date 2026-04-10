@@ -173,8 +173,19 @@ export function QualityBreakdown({
     );
   }
 
+  const AXIS_ABBREV: Record<string, string> = {
+    reasoning_depth: "Reasoning",
+    decision_wisdom: "Decision",
+    communication_clarity: "Clarity",
+    initiative_quality: "Initiative",
+    collaborative_intelligence: "Collab.",
+    self_awareness_calibration: "Awareness",
+    persona_coherence: "Persona",
+    contextual_judgment: "Context",
+  };
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4 p-1">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -185,7 +196,7 @@ export function QualityBreakdown({
         </div>
 
         {data ? (
-          <div className="flex shrink-0 flex-col items-center gap-1">
+          <div className="flex shrink-0 flex-col items-center gap-1.5">
             <CompositeRing score={data.composite} gradientId={gradientId} />
             <ConfidencePill avgSigma={avgSigma} />
           </div>
@@ -194,18 +205,18 @@ export function QualityBreakdown({
 
       {/* No data state */}
       {!data ? (
-        <div className="flex flex-col gap-1 py-2 text-center">
+        <div className="flex flex-col gap-1.5 py-3 text-center">
           <p className="text-xs font-medium text-muted-foreground">Evaluation pending</p>
-          <p className="text-[11px] text-muted-foreground/70">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/70">
             HEAR evaluations run nightly.
           </p>
         </div>
       ) : (
         /* Axis bars */
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {axisScores.map((ax) => (
-            <div key={ax.key} className="flex flex-col gap-0.5">
-              <p className="text-[10px] text-muted-foreground">{ax.label.split(" ")[0]}</p>
+            <div key={ax.key} className="flex flex-col gap-1">
+              <p className="text-[10px] text-muted-foreground">{AXIS_ABBREV[ax.key] ?? ax.label.split(" ")[0]}</p>
               {ax.data ? (
                 <ScoreBar score={ax.data.score} sigma={ax.data.sigma} />
               ) : (
@@ -220,7 +231,7 @@ export function QualityBreakdown({
       )}
 
       {/* View details link */}
-      <Button variant="ghost" size="sm" className="mt-1 h-7 w-full text-xs" asChild>
+      <Button variant="ghost" size="sm" className="mt-2 h-7 w-full text-xs" asChild>
         <Link href={`/agent/${agentId}`}>View details</Link>
       </Button>
     </div>
