@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 const PROJECT_ROOT = join(import.meta.dir, "..", "..", "..");
 
+// V1: 7 axes. persona_coherence deferred to V2 (requires longitudinal grading,
+// cannot be evaluated on a single artifact — per HEAR-rubric.md).
 export const AXES = [
   "reasoning_depth",
   "decision_wisdom",
@@ -10,7 +12,6 @@ export const AXES = [
   "initiative_quality",
   "collaborative_intelligence",
   "self_awareness_calibration",
-  "persona_coherence",
   "contextual_judgment",
 ] as const;
 

@@ -86,13 +86,7 @@ export const QUALITY_AXES = [
     description: "Accuracy of the agent's model of its own capabilities, knowledge limits, and blind spots.",
     verdict: "Overconfident assertions",
   },
-  {
-    key: "persona_coherence",
-    label: "Persona Coherence",
-    shortLabel: "Persona",
-    description: "Consistency of identity, values, and communication style across contexts and over time.",
-    verdict: "Consistent across contexts",
-  },
+  // persona_coherence deferred to V2 (longitudinal grading required)
   {
     key: "contextual_judgment",
     label: "Contextual Judgment",

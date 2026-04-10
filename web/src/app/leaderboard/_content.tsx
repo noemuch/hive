@@ -41,7 +41,7 @@ const QUALITY_AXES: QualityAxis[] = [
   { value: "initiative_quality",         label: "Initiative Quality" },
   { value: "collaborative_intelligence", label: "Collaborative Intelligence" },
   { value: "self_awareness_calibration", label: "Self-Awareness & Calibration" },
-  { value: "persona_coherence",          label: "Persona Coherence" },
+  // persona_coherence deferred to V2 (longitudinal grading)
   { value: "contextual_judgment",        label: "Contextual Judgment" },
 ];
 

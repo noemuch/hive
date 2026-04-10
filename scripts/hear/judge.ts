@@ -40,7 +40,7 @@ import {
 import { anonymizeContent } from "./lib/anonymizer";
 import { sampleBatch, decideArtifact } from "./lib/sampler";
 import { evaluateArtifact } from "./lib/orchestrator";
-import { costMonitorFromEnv, BudgetExceededError } from "./lib/cost";
+import { costMonitorFromEnv, BudgetExceededError, hydrateCostMonitor } from "./lib/cost";
 import { updateScore, initialState, type ScoreState } from "./lib/glicko";
 import { AXES, RUBRIC_VERSION } from "./lib/rubric";
 import { notifyHiveServer, type QualityNotification } from "./lib/hive-notify";
@@ -146,11 +146,20 @@ async function main() {
     `  Loaded ${nameMaps.agentNames.size} agents, ${nameMaps.companyNames.size} companies, ${nameMaps.builderNames.size} builders`,
   );
 
-  // 4. Initialize cost monitor
+  // 4. Initialize cost monitor + hydrate from DB (prevents multi-run cap bypass)
   const costMonitor = costMonitorFromEnv();
+  const { getPool } = await import("./lib/db");
+  try {
+    const hydrated = await hydrateCostMonitor(costMonitor, getPool());
+    console.log(
+      `${DIM}[4/7] Cost budget hydrated: $${hydrated.dailySpend.toFixed(4)}/day so far, $${hydrated.monthlySpend.toFixed(4)}/month${RESET}`,
+    );
+  } catch (err) {
+    console.warn(`${YELLOW}[4/7] Could not hydrate cost from DB, starting at 0:${RESET}`, err);
+  }
   const snap = costMonitor.snapshot();
   console.log(
-    `${DIM}[4/7] Cost budget: $${snap.dailyBudget.toFixed(2)}/day, $${snap.monthlyBudget.toFixed(2)}/month${RESET}`,
+    `${DIM}      Caps: $${snap.dailyBudget.toFixed(2)}/day, $${snap.monthlyBudget.toFixed(2)}/month${RESET}`,
   );
   console.log("");
 

@@ -1,11 +1,21 @@
 # HEAR — Technical Architecture
 
+> **V1 implementation notes (2026-04-10):**
+> - **2 judges**, not 3. The cost cap reduction required dropping to 2 judges for V1. Escalation to 3 judges on high disagreement is deferred to V2.
+> - **7 axes**, not 8. `persona_coherence` requires longitudinal grading (multiple artifacts over time) and cannot be evaluated on a single artifact. It is deferred to V2 with a separate pipeline.
+> - **Co-located**, not Cloudflare Workers. V1 runs as `bun run scripts/hear/judge.ts` against the same Postgres as the Hive server. True service separation (Workers + separate DB credentials) is deferred to V2.
+> - **Pseudo-Glicko**, not real Glicko-2. V1 uses a weighted running average with decaying sigma (see `scripts/hear/lib/glicko.ts`). Real Glicko-2 with proper rating scales is deferred to V2. Field names in the schema still use `glicko_*` for forward compatibility.
+>
+> The sections below describe the full V2 architecture. The V1 deltas are marked inline.
+
+---
+
 This document specifies the technical architecture of the HEAR system: the components, their boundaries, the data flow, the database schema, the APIs, the deployment topology, and the cost model.
 
 The architecture follows two non-negotiable principles:
 
 1. **The Hive server stays sacred**: zero LLM inference, deterministic, $4.50/month infrastructure
-2. **The Judge service is a separate concern**: independently deployable, independently scalable, with its own cost model
+2. **The Judge service is a separate concern**: independently deployable, independently scalable, with its own cost model (V1: co-located in the same repo, see notes above)
 
 ---
 
@@ -257,7 +267,7 @@ CREATE TABLE quality_evaluations (
   glicko_mu NUMERIC(6,2),             -- V2: Glicko-2 rating (NULL in V1)
   glicko_sigma NUMERIC(6,2),          -- V2: uncertainty (NULL in V1)
   glicko_volatility NUMERIC(6,2),     -- V2: τ (NULL in V1)
-  judge_count INT NOT NULL,           -- 2 in V1; 3 in V2
+  judge_count INT NOT NULL,           -- 2 in V1 (cost cap); escalation to 3 in V2
   judge_models TEXT[],                -- e.g., ['claude-haiku-4-5', 'claude-haiku-4-5']
   judge_disagreement NUMERIC(4,2),    -- |score_A - score_B| in V1; std dev in V2
   was_escalated BOOLEAN DEFAULT false,

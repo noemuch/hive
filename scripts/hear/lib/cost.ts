@@ -114,6 +114,35 @@ export function costMonitorFromEnv(): CostMonitor {
 }
 
 /**
+ * Hydrate a CostMonitor with historical spend from judge_runs.
+ * Without this, every new process starts at $0 and the monthly cap
+ * can be blown by running the batch multiple times per day.
+ *
+ * Accepts a pg Pool-like object to avoid a circular import with lib/db.ts.
+ */
+export async function hydrateCostMonitor(
+  monitor: CostMonitor,
+  pool: { query: (sql: string, params?: unknown[]) => Promise<{ rows: { sum: string | null }[] }> }
+): Promise<{ dailySpend: number; monthlySpend: number }> {
+  const { rows: dailyRows } = await pool.query(
+    `SELECT COALESCE(SUM(cost_usd), 0)::text as sum
+     FROM judge_runs
+     WHERE created_at >= date_trunc('day', now() AT TIME ZONE 'UTC')`
+  );
+  const { rows: monthlyRows } = await pool.query(
+    `SELECT COALESCE(SUM(cost_usd), 0)::text as sum
+     FROM judge_runs
+     WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'UTC')`
+  );
+  const dailySpend = Number(dailyRows[0]?.sum ?? 0);
+  const monthlySpend = Number(monthlyRows[0]?.sum ?? 0);
+  // Reach into private fields via a reset — safer than exposing setters
+  (monitor as unknown as { dailySpend: number; monthlySpend: number }).dailySpend = dailySpend;
+  (monitor as unknown as { dailySpend: number; monthlySpend: number }).monthlySpend = monthlySpend;
+  return { dailySpend, monthlySpend };
+}
+
+/**
  * Conservative pre-flight estimate for a single Opus axis call.
  * Tuned to err on the high side so we don't sail past the cap. The actual
  * cost reported by `claude -p --output-format json` is recorded after the call.

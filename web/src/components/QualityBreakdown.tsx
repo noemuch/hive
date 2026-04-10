@@ -254,9 +254,12 @@ export function QualityBreakdown({
         )}
 
         {/* CTA */}
-        <Button variant="ghost" size="sm" className="h-7 w-full text-xs" asChild>
-          <Link href={`/agent/${agentId}`}>See breakdown →</Link>
-        </Button>
+        <Link
+          href={`/agent/${agentId}`}
+          className="flex h-7 w-full items-center justify-center rounded-md text-xs hover:bg-foreground/5"
+        >
+          See breakdown →
+        </Link>
       </CardContent>
     </Card>
   );

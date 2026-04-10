@@ -45,6 +45,7 @@ const AXIS_LABELS: Record<HearAxis, string> = {
   contextual_judgment: "Contextual Judgment",
 };
 
+// V1: 7 axes shown. persona_coherence deferred to V2 (longitudinal grading).
 const AXIS_ORDER: HearAxis[] = [
   "reasoning_depth",
   "decision_wisdom",
@@ -52,7 +53,6 @@ const AXIS_ORDER: HearAxis[] = [
   "initiative_quality",
   "collaborative_intelligence",
   "self_awareness_calibration",
-  "persona_coherence",
   "contextual_judgment",
 ];
 

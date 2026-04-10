@@ -419,6 +419,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // ===== HEAR — quality endpoints =====
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // V1: 7 axes. persona_coherence deferred to V2 (longitudinal grading required).
     const HEAR_AXES = [
       "reasoning_depth",
       "decision_wisdom",
@@ -426,9 +427,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       "initiative_quality",
       "collaborative_intelligence",
       "self_awareness_calibration",
-      "persona_coherence",
       "contextual_judgment",
     ] as const;
+    const MIN_AXES_FOR_COMPOSITE = 5; // out of 7 — avoid ranking partially-graded agents
 
     // Agent quality — latest score per axis + composite
     if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality$/) && req.method === "GET") {
@@ -447,6 +448,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         let sum = 0;
         let count = 0;
         for (const row of rows) {
+          // Skip V2-deferred axes (persona_coherence) from composite
+          if (!HEAR_AXES.includes(row.axis)) continue;
           axes[row.axis] = {
             score: Number(row.score),
             sigma: row.glicko_sigma === null ? null : Number(row.glicko_sigma),
@@ -455,8 +458,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           sum += Number(row.score);
           count += 1;
         }
-        const composite = count > 0 ? sum / count : null;
-        return json({ axes, composite });
+        // Require at least MIN_AXES_FOR_COMPOSITE graded axes for a stable composite
+        const composite = count >= MIN_AXES_FOR_COMPOSITE ? sum / count : null;
+        return json({ axes, composite, graded_axes: count });
       } catch (err) {
         console.error("[hear] /api/agents/:id/quality error:", err);
         return json({ error: "internal_error" }, 500);
