@@ -263,8 +263,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       });
     }
 
-    // Leaderboard — top 50 agents by reputation
-    if (url.pathname === "/api/leaderboard" && req.method === "GET") {
+    // Leaderboard — top 50 agents by reputation (performance dimension).
+    // When dimension=quality, fall through to the HEAR quality leaderboard
+    // handler further down in this file.
+    if (url.pathname === "/api/leaderboard" && req.method === "GET" && url.searchParams.get("dimension") !== "quality") {
       const companyFilter = url.searchParams.get("company_id");
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (companyFilter && !uuidRegex.test(companyFilter)) return json({ agents: [] });
@@ -412,6 +414,449 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         deployed_at: agent.deployed_at,
         last_active_at: agent.last_active_at,
       });
+    }
+
+    // ===== HEAR — quality endpoints =====
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const HEAR_AXES = [
+      "reasoning_depth",
+      "decision_wisdom",
+      "communication_clarity",
+      "initiative_quality",
+      "collaborative_intelligence",
+      "self_awareness_calibration",
+      "persona_coherence",
+      "contextual_judgment",
+    ] as const;
+
+    // Agent quality — latest score per axis + composite
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
+      try {
+        const { rows } = await pool.query(
+          `SELECT DISTINCT ON (axis) axis, score, glicko_sigma, computed_at
+           FROM quality_evaluations
+           WHERE agent_id = $1
+           ORDER BY axis, computed_at DESC`,
+          [agentId]
+        );
+        const axes: Record<string, { score: number; sigma: number | null; last_updated: string } | null> = {};
+        for (const a of HEAR_AXES) axes[a] = null;
+        let sum = 0;
+        let count = 0;
+        for (const row of rows) {
+          axes[row.axis] = {
+            score: Number(row.score),
+            sigma: row.glicko_sigma === null ? null : Number(row.glicko_sigma),
+            last_updated: row.computed_at,
+          };
+          sum += Number(row.score);
+          count += 1;
+        }
+        const composite = count > 0 ? sum / count : null;
+        return json({ axes, composite });
+      } catch (err) {
+        console.error("[hear] /api/agents/:id/quality error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Agent quality explanations — latest judgments with reasoning
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality\/explanations$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
+      const axisParam = url.searchParams.get("axis");
+      if (axisParam && !HEAR_AXES.includes(axisParam as typeof HEAR_AXES[number])) {
+        return json({ error: "invalid axis" }, 400);
+      }
+      const rawLimit = parseInt(url.searchParams.get("limit") || "10", 10);
+      const limit = Math.min(Math.max(isNaN(rawLimit) ? 10 : rawLimit, 1), 50);
+      try {
+        const params: unknown[] = [agentId];
+        let where = `agent_id = $1`;
+        if (axisParam) {
+          params.push(axisParam);
+          where += ` AND axis = $2`;
+        }
+        params.push(limit);
+        const { rows } = await pool.query(
+          `SELECT axis, score, reasoning, evidence_quotes, computed_at
+           FROM quality_evaluations
+           WHERE ${where}
+           ORDER BY computed_at DESC
+           LIMIT $${params.length}`,
+          params
+        );
+        const explanations = rows.map(r => ({
+          axis: r.axis,
+          score: Number(r.score),
+          reasoning: r.reasoning,
+          evidence_quotes: r.evidence_quotes,
+          computed_at: r.computed_at,
+        }));
+        return json({ explanations });
+      } catch (err) {
+        console.error("[hear] /api/agents/:id/quality/explanations error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Agent quality timeline — daily score (per axis, or composite) for last N days
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality\/timeline$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
+      const axisParam = url.searchParams.get("axis");
+      if (axisParam && !HEAR_AXES.includes(axisParam as typeof HEAR_AXES[number])) {
+        return json({ error: "invalid axis" }, 400);
+      }
+      const rawDays = parseInt(url.searchParams.get("days") || "30", 10);
+      const days = Math.min(Math.max(isNaN(rawDays) ? 30 : rawDays, 1), 90);
+      try {
+        const params: unknown[] = [agentId];
+        let filter = `agent_id = $1 AND computed_at > now() - ($2 || ' days')::interval`;
+        params.push(days);
+        if (axisParam) {
+          params.push(axisParam);
+          filter += ` AND axis = $3`;
+        }
+        const { rows } = await pool.query(
+          `SELECT DATE(computed_at) as date,
+                  AVG(score)::float as score,
+                  AVG(glicko_sigma)::float as sigma
+           FROM quality_evaluations
+           WHERE ${filter}
+           GROUP BY DATE(computed_at)
+           ORDER BY date`,
+          params
+        );
+        const timeline = rows.map(r => ({
+          date: r.date,
+          score: r.score === null ? null : Number(r.score),
+          sigma: r.sigma === null ? null : Number(r.sigma),
+        }));
+        return json({ timeline });
+      } catch (err) {
+        console.error("[hear] /api/agents/:id/quality/timeline error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Single artifact detail
+    if (url.pathname.match(/^\/api\/artifacts\/[^/]+$/) && req.method === "GET") {
+      const artifactId = url.pathname.split("/")[3];
+      if (!UUID_RE.test(artifactId)) return json({ error: "artifact not found" }, 404);
+      try {
+        const { rows } = await pool.query(
+          `SELECT ar.id, ar.type, ar.title, ar.content, ar.status,
+                  ar.created_at, ar.updated_at,
+                  ar.author_id, a.name as author_name,
+                  ar.company_id, c.name as company_name
+           FROM artifacts ar
+           LEFT JOIN agents a ON ar.author_id = a.id
+           LEFT JOIN companies c ON ar.company_id = c.id
+           WHERE ar.id = $1`,
+          [artifactId]
+        );
+        if (rows.length === 0) return json({ error: "artifact not found" }, 404);
+        const a = rows[0];
+        return json({
+          id: a.id,
+          type: a.type,
+          title: a.title,
+          content: a.content,
+          author_id: a.author_id,
+          author_name: a.author_name,
+          company_id: a.company_id,
+          company_name: a.company_name,
+          status: a.status,
+          created_at: a.created_at,
+          updated_at: a.updated_at,
+        });
+      } catch (err) {
+        console.error("[hear] /api/artifacts/:id error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Artifact judgment — latest HEAR evaluation per axis for an artifact
+    if (url.pathname.match(/^\/api\/artifacts\/[^/]+\/judgment$/) && req.method === "GET") {
+      const artifactId = url.pathname.split("/")[3];
+      if (!UUID_RE.test(artifactId)) return json({ error: "judgment not found" }, 404);
+      try {
+        const { rows } = await pool.query(
+          `SELECT DISTINCT ON (axis)
+             axis, score, glicko_sigma, judge_disagreement,
+             was_escalated, methodology_version, reasoning, evidence_quotes,
+             computed_at
+           FROM quality_evaluations
+           WHERE artifact_id = $1
+           ORDER BY axis, computed_at DESC`,
+          [artifactId]
+        );
+        if (rows.length === 0) return json({ error: "judgment not found" }, 404);
+        const axes: Record<string, unknown> = {};
+        let maxDisagreement = 0;
+        let wasEscalated = false;
+        let methodologyVersion: string | null = null;
+        for (const row of rows) {
+          axes[row.axis] = {
+            score: Number(row.score),
+            sigma: row.glicko_sigma === null ? null : Number(row.glicko_sigma),
+            reasoning: row.reasoning,
+            evidence_quotes: row.evidence_quotes,
+            computed_at: row.computed_at,
+          };
+          const d = row.judge_disagreement === null ? 0 : Number(row.judge_disagreement);
+          if (d > maxDisagreement) maxDisagreement = d;
+          if (row.was_escalated) wasEscalated = true;
+          methodologyVersion = row.methodology_version;
+        }
+        return json({
+          axes,
+          judge_disagreement: maxDisagreement,
+          was_escalated: wasEscalated,
+          methodology_version: methodologyVersion,
+        });
+      } catch (err) {
+        console.error("[hear] /api/artifacts/:id/judgment error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Leaderboard (quality dimension) — reuses existing /api/leaderboard path when dimension=quality
+    if (url.pathname === "/api/leaderboard" && req.method === "GET" && url.searchParams.get("dimension") === "quality") {
+      const axisParam = url.searchParams.get("axis");
+      const roleParam = url.searchParams.get("role");
+      if (axisParam && !HEAR_AXES.includes(axisParam as typeof HEAR_AXES[number])) {
+        return json({ error: "invalid axis" }, 400);
+      }
+      const validRoles = ["pm", "designer", "developer", "qa", "ops", "generalist"];
+      if (roleParam && !validRoles.includes(roleParam)) {
+        return json({ error: "invalid role" }, 400);
+      }
+      try {
+        const params: unknown[] = [];
+        const whereParts = [`a.status != 'retired'`];
+        if (roleParam) {
+          params.push(roleParam);
+          whereParts.push(`a.role = $${params.length}`);
+        }
+        let axisClause = "";
+        if (axisParam) {
+          params.push(axisParam);
+          axisClause = `AND qe.axis = $${params.length}`;
+        }
+        const { rows } = await pool.query(
+          `WITH latest AS (
+             SELECT DISTINCT ON (qe.agent_id, qe.axis)
+               qe.agent_id, qe.axis, qe.score, qe.glicko_sigma
+             FROM quality_evaluations qe
+             WHERE 1=1 ${axisClause}
+             ORDER BY qe.agent_id, qe.axis, qe.computed_at DESC
+           ),
+           composite AS (
+             SELECT agent_id,
+                    AVG(score)::float as score,
+                    AVG(glicko_sigma)::float as sigma
+             FROM latest
+             GROUP BY agent_id
+           )
+           SELECT
+             a.id, a.name, a.role, a.avatar_seed,
+             c.id as company_id, c.name as company_name,
+             comp.score, comp.sigma
+           FROM agents a
+           LEFT JOIN companies c ON a.company_id = c.id
+           JOIN composite comp ON comp.agent_id = a.id
+           WHERE ${whereParts.join(" AND ")}
+           ORDER BY comp.score DESC NULLS LAST
+           LIMIT 50`,
+          params
+        );
+        const agents = rows.map((row, i) => ({
+          rank: i + 1,
+          id: row.id,
+          name: row.name,
+          role: row.role,
+          avatar_seed: row.avatar_seed,
+          company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+          score: row.score === null ? null : Number(row.score),
+          sigma: row.sigma === null ? null : Number(row.sigma),
+          trend: "stable" as const,
+        }));
+        return json({ agents, dimension: "quality" });
+      } catch (err) {
+        console.error("[hear] /api/leaderboard?dimension=quality error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Research: methodology — static JSON (no DB)
+    if (url.pathname === "/api/research/methodology" && req.method === "GET") {
+      return json({
+        rubric_version: "1.0",
+        methodology_version: "1.0",
+        axes: [
+          { id: "reasoning_depth", label: "Reasoning Depth" },
+          { id: "decision_wisdom", label: "Decision Wisdom" },
+          { id: "communication_clarity", label: "Communication Clarity" },
+          { id: "initiative_quality", label: "Initiative Quality" },
+          { id: "collaborative_intelligence", label: "Collaborative Intelligence" },
+          { id: "self_awareness_calibration", label: "Self-Awareness & Calibration" },
+          { id: "persona_coherence", label: "Persona Coherence" },
+          { id: "contextual_judgment", label: "Contextual Judgment" },
+        ],
+        theoretical_frameworks: [
+          { name: "Dual Process Theory", citation: "Kahneman (2011). Thinking, Fast and Slow." },
+          { name: "Grice's Cooperative Principle", citation: "Grice (1975). Logic and Conversation." },
+          { name: "Bloom's Taxonomy", citation: "Anderson & Krathwohl (2001). A Taxonomy for Learning." },
+          { name: "Self-Determination Theory", citation: "Deci & Ryan (1985). Intrinsic Motivation." },
+          { name: "Metacognition / Calibration", citation: "Flavell (1979). Metacognition and Cognitive Monitoring." },
+          { name: "Contextual Integrity", citation: "Nissenbaum (2004). Privacy as Contextual Integrity." },
+        ],
+      });
+    }
+
+    // Research: calibration stats — psychometric reliability summary
+    if (url.pathname === "/api/research/calibration-stats" && req.method === "GET") {
+      // V2 will populate this from the HEAR analysis pipeline (E4). For V1 we
+      // return nulls so the frontend can render "pending" without erroring.
+      return json({
+        cohen_kappa: null,
+        krippendorff_alpha: null,
+        icc: null,
+        test_retest_correlation: null,
+        calibration_drift: null,
+        last_computed: null,
+      });
+    }
+
+    // Research: cost — current month's judge_runs spend
+    if (url.pathname === "/api/research/cost" && req.method === "GET") {
+      try {
+        const { rows } = await pool.query(
+          `SELECT
+             COALESCE(SUM(cost_usd), 0)::float as current_month_usd,
+             COALESCE(AVG(cost_usd), 0)::float as cost_per_eval_avg,
+             COUNT(*)::int as run_count
+           FROM judge_runs
+           WHERE created_at >= date_trunc('month', now())`
+        );
+        const r = rows[0] || { current_month_usd: 0, cost_per_eval_avg: 0, run_count: 0 };
+        return json({
+          current_month_usd: Number(r.current_month_usd) || 0,
+          monthly_cap_usd: 50,
+          cost_per_eval_avg: Number(r.cost_per_eval_avg) || 0,
+          trend: "stable",
+        });
+      } catch (err) {
+        console.error("[hear] /api/research/cost error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Research: calibration set browser (paginated)
+    if (url.pathname === "/api/research/calibration-set" && req.method === "GET") {
+      const rawLimit = parseInt(url.searchParams.get("limit") || "10", 10);
+      const limit = Math.min(Math.max(isNaN(rawLimit) ? 10 : rawLimit, 1), 50);
+      const rawOffset = parseInt(url.searchParams.get("offset") || "0", 10);
+      const offset = Math.max(isNaN(rawOffset) ? 0 : rawOffset, 0);
+      try {
+        const { rows: items } = await pool.query(
+          `SELECT id, artifact_type, artifact_content, rubric_version, added_at
+           FROM calibration_set
+           ORDER BY added_at DESC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        );
+        if (items.length === 0) return json({ items: [] });
+        const ids = items.map(i => i.id);
+        const { rows: grades } = await pool.query(
+          `SELECT calibration_id, grader_id, axis, score, justification, graded_at
+           FROM calibration_grades
+           WHERE calibration_id = ANY($1)`,
+          [ids]
+        );
+        const gradesByCalib = new Map<string, unknown[]>();
+        for (const g of grades) {
+          if (!gradesByCalib.has(g.calibration_id)) gradesByCalib.set(g.calibration_id, []);
+          gradesByCalib.get(g.calibration_id)!.push({
+            grader_id: g.grader_id,
+            axis: g.axis,
+            score: g.score,
+            justification: g.justification,
+            graded_at: g.graded_at,
+          });
+        }
+        const payload = items.map(i => ({
+          id: i.id,
+          artifact_type: i.artifact_type,
+          anonymized_content: i.artifact_content,
+          rubric_version: i.rubric_version,
+          added_at: i.added_at,
+          grades: gradesByCalib.get(i.id) || [],
+        }));
+        return json({ items: payload, limit, offset });
+      } catch (err) {
+        console.error("[hear] /api/research/calibration-set error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Internal: quality notify — broadcasts WS events, does NOT write to DB.
+    // Authenticated by shared secret header. The Judge service has already
+    // persisted results via its own DB connection before calling this.
+    if (url.pathname === "/api/internal/quality/notify" && req.method === "POST") {
+      const expected = process.env.HIVE_INTERNAL_TOKEN;
+      if (!expected) {
+        console.error("[hear] HIVE_INTERNAL_TOKEN not configured");
+        return json({ error: "internal_not_configured" }, 500);
+      }
+      const provided = req.headers.get("X-Hive-Internal-Token");
+      if (!provided || provided !== expected) {
+        return json({ error: "unauthorized" }, 401);
+      }
+      const body = await req.json().catch(() => null) as {
+        batch_id?: string;
+        evaluations?: Array<{
+          agent_id?: string;
+          axis?: string;
+          new_score?: number;
+          sigma?: number;
+          delta?: number;
+        }>;
+      } | null;
+      if (!body?.batch_id || !Array.isArray(body.evaluations)) {
+        return json({ error: "batch_id and evaluations[] required" }, 400);
+      }
+      try {
+        let broadcast = 0;
+        for (const ev of body.evaluations) {
+          if (!ev.agent_id || !UUID_RE.test(ev.agent_id)) continue;
+          if (!ev.axis || !HEAR_AXES.includes(ev.axis as typeof HEAR_AXES[number])) continue;
+          const { rows } = await pool.query(
+            `SELECT company_id FROM agents WHERE id = $1`,
+            [ev.agent_id]
+          );
+          const companyId = rows[0]?.company_id;
+          if (!companyId) continue;
+          router.broadcast(companyId, {
+            type: "quality_updated",
+            agent_id: ev.agent_id,
+            axis: ev.axis,
+            new_score: Number(ev.new_score ?? 0),
+            sigma: Number(ev.sigma ?? 0),
+            delta: Number(ev.delta ?? 0),
+          });
+          broadcast += 1;
+        }
+        return json({ ok: true, batch_id: body.batch_id, broadcast });
+      } catch (err) {
+        console.error("[hear] /api/internal/quality/notify error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
     }
 
     return new Response("Not Found", { status: 404 });
