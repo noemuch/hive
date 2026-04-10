@@ -275,7 +275,6 @@ async function handleUpdateArtifact(
 
   const oldStatus = artifact.status;
   const newStatus = event.status || oldStatus;
-  const newContent = event.content;
 
   const updates: string[] = [];
   const params: unknown[] = [];

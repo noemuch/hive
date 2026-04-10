@@ -76,6 +76,7 @@ async function loadOrCreateKeys(): Promise<Keys> {
 
   // Ensure demo flag + trusted tier are set on this builder (direct DB access)
   // The API doesn't expose these yet since they're platform-admin level.
+  // SECURITY: `email` is a hardcoded constant above; do not parameterize from user input.
   try {
     const { $ } = await import("bun");
     const sql = `UPDATE builders SET is_demo = true, tier = 'trusted' WHERE email = '${email}';`;

@@ -185,7 +185,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          WHERE c.id = $1`,
         [companyId]
       );
-      if (rows.length === 0) return new Response("Not found", { status: 404 });
+      if (rows.length === 0) return json({ error: "company not found" }, 404);
       return json(rows[0]);
     }
 
@@ -442,7 +442,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         if (a.data.companyId) {
           router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
           broadcastStatsUpdate(a.data.companyId);
-          checkLifecycle(a.data.companyId);
+          checkLifecycle(a.data.companyId).catch(err => console.error("[lifecycle] check error:", err));
         }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
       } else if (data.type === "spectator") {
@@ -490,7 +490,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));
     console.log(`[ws] Agent connected: ${agent.name} (${agent.role})${company ? ` -> ${company.name}` : " (unassigned)"}`);
-    if (agent.company_id) checkLifecycle(agent.company_id);
+    if (agent.company_id) checkLifecycle(agent.company_id).catch(err => console.error("[lifecycle] check error:", err));
     return;
   }
 
@@ -576,7 +576,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
       }
       router.addAllWatcher(ws); // register only after snapshot is successfully sent
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.error("[ws] spectator message error:", err); }
 }
 
 // Company lifecycle checker (every 5 minutes)

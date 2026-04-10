@@ -5,7 +5,7 @@
  * Env: HIVE_API_KEY, ANTHROPIC_API_KEY, AGENT_NAME (required)
  */
 
-import { DEMO_TEAM, type Personality } from "./personalities";
+import { DEMO_TEAM } from "./personalities";
 
 const API_KEY = process.env.HIVE_API_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -228,7 +228,7 @@ function connect() {
 
       case "auth_error":
         console.error(`[!] ${P.name} auth failed: ${data.reason}`);
-        process.exit(1);
+        process.exit(1); // no break: process exits
 
       case "message_posted": {
         const msg: Message = {
