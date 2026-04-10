@@ -63,13 +63,71 @@ bun run scripts/hear/compute-agreement.ts
 
 Reads both grade files, computes Cohen's κ (quadratic weighted), Pearson r, ICC, and mean absolute difference per axis. Writes a markdown report to `docs/research/calibration/analysis/v1-inter-rater.md`.
 
+## Judge Service (E2)
+
+The judge service evaluates real agent artifacts from the Hive database using the same HEAR rubric and grader prompt used in calibration, but with multi-judge aggregation and Glicko-2-ish score tracking.
+
+### What the judge does
+
+1. Fetches artifacts created in the last 24 hours from Postgres
+2. Applies a sampling policy (decisions: 100%, specs/PRs: 80%, components/docs: 60%, tickets: 30%)
+3. Anonymizes content (strips agent names, company names, UUIDs, timestamps)
+4. Runs two independent judge variants (A and B) via the Claude CLI
+5. Aggregates scores (mean of two judges), tracks disagreement per axis
+6. Updates Glicko-2-ish (mu, sigma) running averages per (agent, axis)
+7. Writes `quality_evaluations` and `judge_runs` rows to Postgres
+8. Notifies the Hive server so it can broadcast `quality_updated` via WebSocket
+
+### Running the judge (V1: manual)
+
+```bash
+# Full nightly batch (all artifacts from the last 24h)
+bun run scripts/hear/judge.ts
+
+# Dry run — sample + anonymize + print, no grading or DB writes
+bun run scripts/hear/judge.ts --dry-run
+
+# Single artifact (bypasses sampling)
+bun run scripts/hear/judge.ts --only <artifact_id>
+
+# Override model (default: claude-opus-4-6)
+bun run scripts/hear/judge.ts --model opus
+```
+
+### Environment variables
+
+| Variable                    | Default                                | Description                   |
+|-----------------------------|----------------------------------------|-------------------------------|
+| `DATABASE_URL`              | `postgresql://localhost:5432/hive`      | Postgres connection string    |
+| `HIVE_URL`                  | `http://localhost:3000`                | Hive server for notifications |
+| `HIVE_INTERNAL_TOKEN`       | `hear-dev-token`                       | Shared secret for internal API|
+| `HEAR_JUDGE_DAILY_BUDGET`   | `5`                                    | Max USD per day               |
+| `HEAR_JUDGE_MONTHLY_BUDGET` | `50`                                   | Max USD per month             |
+
+### What --dry-run does
+
+Dry run mode executes steps 1-3 (fetch, sample, anonymize) and prints the results without calling the Claude CLI or writing to the database. Useful for verifying that sampling and anonymization work correctly before spending money on judge calls.
+
+### V2 plans
+
+V2 will automate the judge service via Cloudflare Workers on a nightly cron schedule. It will also hydrate the monthly cost counter from the `judge_runs` table, support configurable judge count (N > 2), and add escalation logic when inter-judge disagreement exceeds a threshold.
+
 ## Files
 
 - `pre-grade.ts` — Opus pre-grading via Claude Code CLI
 - `review.ts` — Interactive human review CLI
 - `compute-agreement.ts` — Inter-rater reliability computation
+- `judge.ts` — Judge service main entry point (E2)
 - `lib/rubric.ts` — Shared rubric loading
 - `lib/schema.ts` — Grade JSON schemas
+- `lib/anonymizer.ts` — Content anonymization (blinding)
+- `lib/cost.ts` — Cost tracking + budget enforcement
+- `lib/db.ts` — Postgres client and DAOs
+- `lib/glicko.ts` — Simplified Glicko-2 running average
+- `lib/sampler.ts` — Sampling policy by artifact type + complexity
+- `lib/orchestrator.ts` — Multi-judge evaluation orchestration
+- `lib/hive-notify.ts` — Hive server notification
+- `lib/reliability.ts` — Inter-judge agreement statistics
 
 ## Technical notes
 
