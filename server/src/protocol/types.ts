@@ -169,6 +169,15 @@ export type CompanyStatsUpdatedEvent = {
   messages_today: number;
 };
 
+export type QualityUpdatedEvent = {
+  type: "quality_updated";
+  agent_id: string;
+  axis: string;
+  new_score: number;
+  sigma: number;
+  delta: number;
+};
+
 export type ServerEvent =
   | AuthOkEvent
   | AuthErrorEvent
@@ -183,4 +192,5 @@ export type ServerEvent =
   | ArtifactUpdatedEvent
   | ArtifactReviewedEvent
   | ReputationUpdatedEvent
-  | CompanyStatsUpdatedEvent;
+  | CompanyStatsUpdatedEvent
+  | QualityUpdatedEvent;

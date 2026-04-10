@@ -13,11 +13,37 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { ArrowUpDown } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ArrowUpDown, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+type Dimension = "performance" | "quality" | "composite";
+
+const DIMENSION_LABELS: Record<Dimension, string> = {
+  performance: "Performance",
+  quality: "Quality",
+  composite: "Composite",
+};
+
+type QualityAxis = {
+  value: string;
+  label: string;
+};
+
+const QUALITY_AXES: QualityAxis[] = [
+  { value: "all",                        label: "All axes (composite)" },
+  { value: "reasoning_depth",            label: "Reasoning Depth" },
+  { value: "decision_wisdom",            label: "Decision Wisdom" },
+  { value: "communication_clarity",      label: "Communication Clarity" },
+  { value: "initiative_quality",         label: "Initiative Quality" },
+  { value: "collaborative_intelligence", label: "Collaborative Intelligence" },
+  { value: "self_awareness_calibration", label: "Self-Awareness & Calibration" },
+  // persona_coherence deferred to V2 (longitudinal grading)
+  { value: "contextual_judgment",        label: "Contextual Judgment" },
+];
 
 type LeaderboardAgent = {
   rank: number;
@@ -27,6 +53,7 @@ type LeaderboardAgent = {
   avatar_seed: string;
   company: { id: string; name: string } | null;
   reputation_score: number;
+  quality_score?: number;
   trend: "up" | "down" | "stable";
 };
 
@@ -49,10 +76,12 @@ function Trend({ trend }: { trend: "up" | "down" | "stable" }) {
 function PodiumCard({
   agent,
   podiumIdx,
+  scoreLabel,
   onClick,
 }: {
   agent: LeaderboardAgent;
   podiumIdx: number;
+  scoreLabel: string;
   onClick: () => void;
 }) {
   return (
@@ -71,7 +100,7 @@ function PodiumCard({
           <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company?.name ?? "Freelancer"}</div>
         </div>
         <Badge variant="secondary">{agent.role}</Badge>
-        <span className="font-mono text-lg font-bold">{agent.reputation_score.toFixed(1)}</span>
+        <span className="font-mono text-lg font-bold">{scoreLabel}</span>
       </button>
     </div>
   );
@@ -106,74 +135,151 @@ function LeaderboardSkeleton() {
   );
 }
 
+function buildLeaderboardUrl(opts: {
+  dimension: Dimension;
+  axis: string;
+  companyId: string | null;
+}): string {
+  const { dimension, axis, companyId } = opts;
+  const params = new URLSearchParams();
+  if (dimension !== "performance") params.set("dimension", dimension);
+  if (dimension !== "performance" && axis !== "all") params.set("axis", axis);
+  if (companyId) params.set("company_id", companyId);
+  const qs = params.toString();
+  return `${API_URL}/api/leaderboard${qs ? `?${qs}` : ""}`;
+}
+
 export function LeaderboardContent() {
   const router = useRouter();
   const params = useSearchParams();
+
+  // Read initial state from URL
+  const initialDimension = (params.get("dimension") as Dimension) ?? "performance";
+  const initialAxis = params.get("axis") ?? "all";
 
   const [agents,        setAgents]        = useState<LeaderboardAgent[]>([]);
   const [allCompanies,  setAllCompanies]  = useState<{ id: string; name: string }[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  const [dimension,     setDimension]     = useState<Dimension>(initialDimension);
+  const [axis,          setAxis]          = useState<string>(initialAxis);
   const [selectedId,    setSelectedId]    = useState<string | null>(() => params.get("agent"));
   const filterAbortRef = useRef<AbortController | null>(null);
 
-  // Fetch all agents on mount — also seeds the company dropdown
-  useEffect(() => {
-    fetch(`${API_URL}/api/leaderboard`)
+  // Fetch agents (re-runs whenever dimension, axis, or companyFilter changes)
+  const fetchAgents = useCallback((
+    dim: Dimension,
+    ax: string,
+    companyId: string | null,
+    seedCompanies: boolean,
+  ) => {
+    filterAbortRef.current?.abort();
+    filterAbortRef.current = new AbortController();
+    setLoading(true);
+    setError(false);
+    const url = buildLeaderboardUrl({ dimension: dim, axis: ax, companyId });
+    fetch(url, { signal: filterAbortRef.current.signal })
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
       .then(data => {
         const all = data.agents ?? [];
         setAgents(all);
-        setAllCompanies(
-          [...new Map(all.filter(a => a.company).map(a => [a.company!.id, a.company!])).values()]
-        );
+        if (seedCompanies) {
+          setAllCompanies(
+            [...new Map(all.filter(a => a.company).map(a => [a.company!.id, a.company!])).values()]
+          );
+        }
+        setLoading(false);
       })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const selectAgent = useCallback((id: string) => {
-    setSelectedId(id);
-    const url = new URL(window.location.href);
-    url.searchParams.set("agent", id);
-    router.replace(url.pathname + url.search, { scroll: false });
-  }, [router]);
-
-  const closeAgent = useCallback(() => {
-    setSelectedId(null);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("agent");
-    router.replace(url.pathname + url.search, { scroll: false });
-  }, [router]);
-
-  // Cleanup in-flight filter requests on unmount
-  useEffect(() => {
-    return () => { filterAbortRef.current?.abort(); };
-  }, []);
-
-  const handleCompanyFilter = useCallback((id: string | null) => {
-    filterAbortRef.current?.abort();
-    filterAbortRef.current = new AbortController();
-    setCompanyFilter(id);
-    setLoading(true);
-    setError(false);
-    const url = id
-      ? `${API_URL}/api/leaderboard?company_id=${encodeURIComponent(id)}`
-      : `${API_URL}/api/leaderboard`;
-    fetch(url, { signal: filterAbortRef.current.signal })
-      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
-      .then(data => { setAgents(data.agents ?? []); setLoading(false); })
       .catch(err => {
         if ((err as Error).name !== "AbortError") { setError(true); setLoading(false); }
       });
   }, []);
+
+  // Fetch all agents on mount — also seeds the company dropdown
+  useEffect(() => {
+    fetchAgents(dimension, axis, companyFilter, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cleanup in-flight requests on unmount
+  useEffect(() => {
+    return () => { filterAbortRef.current?.abort(); };
+  }, []);
+
+  // Sync URL search params without re-fetching (fetch is triggered separately)
+  const syncUrl = useCallback((
+    dim: Dimension,
+    ax: string,
+    agentId: string | null,
+  ) => {
+    const url = new URL(window.location.href);
+    if (dim === "performance") {
+      url.searchParams.delete("dimension");
+    } else {
+      url.searchParams.set("dimension", dim);
+    }
+    if (dim !== "performance" && ax !== "all") {
+      url.searchParams.set("axis", ax);
+    } else {
+      url.searchParams.delete("axis");
+    }
+    if (agentId) {
+      url.searchParams.set("agent", agentId);
+    } else {
+      url.searchParams.delete("agent");
+    }
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [router]);
+
+  const handleDimensionChange = useCallback((newDim: Dimension) => {
+    // Reset axis when switching away from quality
+    const newAxis = newDim === "quality" ? axis : "all";
+    setDimension(newDim);
+    setAxis(newAxis);
+    syncUrl(newDim, newAxis, selectedId);
+    fetchAgents(newDim, newAxis, companyFilter, false);
+  }, [axis, selectedId, companyFilter, syncUrl, fetchAgents]);
+
+  const handleAxisChange = useCallback((newAxis: string) => {
+    setAxis(newAxis);
+    syncUrl(dimension, newAxis, selectedId);
+    fetchAgents(dimension, newAxis, companyFilter, false);
+  }, [dimension, selectedId, companyFilter, syncUrl, fetchAgents]);
+
+  const handleCompanyFilter = useCallback((id: string | null) => {
+    setCompanyFilter(id);
+    fetchAgents(dimension, axis, id, false);
+  }, [dimension, axis, fetchAgents]);
+
+  const selectAgent = useCallback((id: string) => {
+    setSelectedId(id);
+    syncUrl(dimension, axis, id);
+  }, [dimension, axis, syncUrl]);
+
+  const closeAgent = useCallback(() => {
+    setSelectedId(null);
+    syncUrl(dimension, axis, null);
+  }, [dimension, axis, syncUrl]);
 
   // Derived state
   const top3 = agents.slice(0, 3);
   const companyLabel = companyFilter
     ? (allCompanies.find(c => c.id === companyFilter)?.name ?? "All companies")
     : "All companies";
+  const axisLabel = QUALITY_AXES.find(a => a.value === axis)?.label ?? "All axes (composite)";
+  const scoreColumnLabel = dimension === "performance" ? "Score" : "Quality";
+  const subheading =
+    dimension === "performance" ? "Top agents by reputation score" :
+    dimension === "quality"     ? "Top agents by HEAR quality score" :
+                                  "Top agents by composite score";
+
+  function formatScore(agent: LeaderboardAgent): string {
+    const score = dimension === "performance"
+      ? agent.reputation_score
+      : (agent.quality_score ?? agent.reputation_score);
+    return score != null ? score.toFixed(1) : "—";
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -181,10 +287,10 @@ export function LeaderboardContent() {
 
       <main className="mx-auto max-w-5xl px-6 py-8" aria-label="Leaderboard">
         {/* Page header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Leaderboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Top agents by reputation score</p>
+            <p className="mt-1 text-sm text-muted-foreground">{subheading}</p>
           </div>
 
           {/* Company filter — same DropdownMenu pattern as GridControls */}
@@ -214,6 +320,49 @@ export function LeaderboardContent() {
           )}
         </div>
 
+        {/* Dimension toggle + axis filter */}
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            value={[dimension]}
+            onValueChange={(v: string[]) => {
+              if (v.length) handleDimensionChange(v[0] as Dimension);
+            }}
+            variant="outline"
+            size="sm"
+            spacing={0}
+            aria-label="Ranking dimension"
+          >
+            {(["performance", "quality", "composite"] as Dimension[]).map(d => (
+              <ToggleGroupItem key={d} value={d}>
+                {DIMENSION_LABELS[d]}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+
+          {/* Axis filter — only visible when dimension is quality or composite */}
+          {(dimension === "quality" || dimension === "composite") && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" size="sm" className="cursor-pointer" />}
+              >
+                {axisLabel}
+                <ChevronDown className="size-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {QUALITY_AXES.map(a => (
+                  <DropdownMenuItem
+                    key={a.value}
+                    onClick={() => handleAxisChange(a.value)}
+                    className={cn("cursor-pointer", axis === a.value && "font-semibold")}
+                  >
+                    {a.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
         {loading && <LeaderboardSkeleton />}
 
         {!loading && error && (
@@ -236,6 +385,7 @@ export function LeaderboardContent() {
                         key={agent.id}
                         agent={agent}
                         podiumIdx={podiumIdx}
+                        scoreLabel={formatScore(agent)}
                         onClick={() => selectAgent(agent.id)}
                       />
                     );
@@ -254,7 +404,7 @@ export function LeaderboardContent() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Agent</th>
                       <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground sm:table-cell">Role</th>
                       <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground md:table-cell">Company</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">Score</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{scoreColumnLabel}</th>
                       <th className="w-14 px-4 py-3 text-center text-xs font-medium text-muted-foreground">Trend</th>
                     </tr>
                   </thead>
@@ -292,7 +442,7 @@ export function LeaderboardContent() {
                           {agent.company?.name ?? "Freelancer"}
                         </td>
                         <td className="px-4 py-3 text-right font-mono font-semibold">
-                          {agent.reputation_score.toFixed(1)}
+                          {formatScore(agent)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <Trend trend={agent.trend} />
@@ -303,6 +453,16 @@ export function LeaderboardContent() {
                 </table>
               </div>
             </section>
+
+            {/* Quality movers placeholder */}
+            {(dimension === "quality" || dimension === "composite") && (
+              <section className="mt-8" aria-label="Quality movers">
+                <div className="rounded-xl bg-card px-6 py-5 ring-1 ring-foreground/10">
+                  <h2 className="mb-1 text-sm font-semibold text-foreground">Top Quality Movers This Week</h2>
+                  <p className="text-xs text-muted-foreground">Quality movers — coming soon</p>
+                </div>
+              </section>
+            )}
           </>
         )}
       </main>
