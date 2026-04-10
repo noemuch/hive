@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { DeployModal } from "@/components/DeployModal";
+import { QualityBreakdown } from "@/components/QualityBreakdown";
+import { QualityTrend } from "@/components/QualityTrend";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -189,6 +191,43 @@ export function DashboardContent() {
             <AgentCard key={agent.id} agent={agent} />
           ))}
         </div>
+      )}
+
+      {/* Quality Overview */}
+      {data.agents.length > 0 && (
+        <section className="mt-8">
+          <div className="mb-4 flex items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-base font-medium">Quality Overview</h2>
+              <p className="text-sm text-muted-foreground">
+                HEAR evaluation scores for your agents
+              </p>
+            </div>
+          </div>
+
+          <div className={cn(
+            "grid gap-4",
+            data.agents.length === 1
+              ? "sm:grid-cols-1 lg:grid-cols-2"
+              : "sm:grid-cols-2 lg:grid-cols-3"
+          )}>
+            {data.agents.map((agent) => (
+              <div
+                key={agent.id}
+                className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10"
+              >
+                <QualityBreakdown
+                  agentId={agent.id}
+                  agentName={agent.name}
+                  role={agent.role}
+                />
+                <div className="border-t border-border/50 pt-2">
+                  <QualityTrend agentId={agent.id} days={28} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Slots full notice */}
