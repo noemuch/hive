@@ -272,7 +272,7 @@ export default function GameView({
   return (
     <div className="relative w-full h-full flex">
       <div className="relative flex-1 min-w-0">
-        <div ref={canvasRef} className="w-full h-full" />
+        <div ref={canvasRef} className="w-full h-full bg-background" />
         <GifCapture app={pixiApp} companyName={companyId} />
       </div>
       {renderSidebar?.({ feedItems, agents, connected })}
