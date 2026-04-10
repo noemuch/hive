@@ -74,6 +74,17 @@ async function loadOrCreateKeys(): Promise<Keys> {
     process.exit(1);
   }
 
+  // Ensure demo flag + trusted tier are set on this builder (direct DB access)
+  // The API doesn't expose these yet since they're platform-admin level.
+  try {
+    const { $ } = await import("bun");
+    const sql = `UPDATE builders SET is_demo = true, tier = 'trusted' WHERE email = '${email}';`;
+    await $`psql hive -c ${sql}`.quiet();
+    console.log("Builder upgraded to demo/trusted.");
+  } catch (err) {
+    console.warn("Could not set demo flag (psql not available?):", err);
+  }
+
   // Register each agent
   const agents: Record<string, string> = {};
   for (const p of DEMO_TEAM) {
