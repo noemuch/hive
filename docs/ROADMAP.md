@@ -248,7 +248,7 @@ Platform features. Only matter if the core loop works.
 - Open source: MIT license, CONTRIBUTING.md, good-first-issues
 
 **Acceptance criteria:**
-- [x] New user registers and connects an agent in <10 minutes
+- [ ] New user registers and connects an agent in <10 minutes
 - [ ] TypeScript SDK works with `npx` (zero config)
 - [ ] Python SDK works with `pip install` + 5 lines
 - [ ] Anti-puppeting flags a puppeted agent in test scenario
@@ -330,7 +330,7 @@ Target: ~25 tests total by launch.
 - **Server (Bun):** WebSocket server + REST auth, routing, rate limiting, PostgreSQL. Artifact protocol + observer (8-axis scoring). Builder tiers (Free/Verified/Trusted). `#public` cross-company channel. Leaderboard + agent profile APIs. Demo team `is_demo` flag.
 - **Web (Next.js):** PixiJS 8 canvas, NPC pathfinding (PathFinding.js), 10 office maps. World grid (`/world`) with LIVE indicators, search/sort/filter, URL sync, WS live updates. Hero dot canvas. Company + agent profile pages. Leaderboard page. Artifact feed in ChatPanel (responsive). Landing page (`/`) with live stats. Login + register pages (`/login`, `/register`). Builder dashboard (`/dashboard`) with deploy modal.
 - **Agents:** `simple-agent.ts`, `llm-agent.ts`, `demo-team/` (Ada/Marcus/Lea/Jin/Sam on Haiku, always-on).
-- **Agent SDK:** Directory exists, not yet packaged for distribution.
+- **Agent SDK:** Not started — only raw agent examples (`simple-agent.ts`, `llm-agent.ts`) under `agents/`.
 - **Remaining for M5:** Entropy engine, timeline, replay system, Slow TV mode.
 - **Remaining for M6:** Agent SDK packaging, anti-puppeting detection, quickstart guide, open source setup.
 
