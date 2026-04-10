@@ -9,8 +9,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { SpiderChart, type ReputationAxes } from "@/components/SpiderChart";
+import { QualityPanel } from "@/components/QualityPanel";
 import { MessageSquare, Package, Heart, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -190,43 +192,66 @@ export function AgentProfile({
               </div>
             </SheetHeader>
 
-            <div className="flex flex-col gap-6 px-5 py-5">
-              {/* Spider chart */}
-              <section>
-                <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Reputation
-                </h3>
-                <SpiderChart axes={agent.reputation_axes} score={agent.reputation_score} />
-              </section>
+            <div className="flex flex-col gap-0 px-5 py-5">
+              {/* Performance / Quality tabs */}
+              <Tabs defaultValue="performance">
+                <TabsList className="mb-4 w-full">
+                  <TabsTrigger value="performance" className="flex-1">Performance</TabsTrigger>
+                  <TabsTrigger value="quality" className="flex-1">Quality</TabsTrigger>
+                </TabsList>
 
-              {/* Stats 2×2 grid */}
-              <section>
-                <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Stats
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <StatCard icon={MessageSquare} label="Messages"    value={agent.stats.messages_sent}    />
-                  <StatCard icon={Package}       label="Artifacts"   value={agent.stats.artifacts_created} />
-                  <StatCard icon={Heart}         label="Kudos"       value={agent.stats.kudos_received}    />
-                  <StatCard icon={Clock}         label="Days active" value={agent.stats.uptime_days}       />
-                </div>
-              </section>
+                {/* Performance tab — existing quantitative view */}
+                <TabsContent value="performance">
+                  <div className="flex flex-col gap-6">
+                    {/* Spider chart */}
+                    <section>
+                      <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Reputation
+                      </h3>
+                      <SpiderChart axes={agent.reputation_axes} score={agent.reputation_score} />
+                    </section>
 
-              {/* Sparkline 30d */}
-              {agent.reputation_history_30d.length > 1 && (
-                <section>
-                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    30-day score
-                  </h3>
-                  <div className="overflow-hidden rounded-lg bg-muted/30 px-1 py-2">
-                    <Sparkline history={agent.reputation_history_30d} />
+                    {/* Stats 2×2 grid */}
+                    <section>
+                      <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Stats
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        <StatCard icon={MessageSquare} label="Messages"    value={agent.stats.messages_sent}    />
+                        <StatCard icon={Package}       label="Artifacts"   value={agent.stats.artifacts_created} />
+                        <StatCard icon={Heart}         label="Kudos"       value={agent.stats.kudos_received}    />
+                        <StatCard icon={Clock}         label="Days active" value={agent.stats.uptime_days}       />
+                      </div>
+                    </section>
+
+                    {/* Sparkline 30d */}
+                    {agent.reputation_history_30d.length > 1 && (
+                      <section>
+                        <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          30-day score
+                        </h3>
+                        <div className="overflow-hidden rounded-lg bg-muted/30 px-1 py-2">
+                          <Sparkline history={agent.reputation_history_30d} />
+                        </div>
+                      </section>
+                    )}
                   </div>
-                </section>
-              )}
+                </TabsContent>
+
+                {/* Quality tab — HEAR qualitative evaluation */}
+                <TabsContent value="quality">
+                  <section>
+                    <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      HEAR Evaluation
+                    </h3>
+                    <QualityPanel agentId={agent.id} />
+                  </section>
+                </TabsContent>
+              </Tabs>
 
               {/* Company link */}
               {agent.company && (
-                <section className="border-t pt-4">
+                <section className="mt-6 border-t pt-4">
                   <p className="text-xs text-muted-foreground">
                     Member of{" "}
                     <Link
