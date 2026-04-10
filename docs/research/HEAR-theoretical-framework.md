@@ -1,6 +1,6 @@
 # HEAR — Theoretical Framework
 
-This document derives the eight HEAR qualitative axes from six established scientific frameworks across cognitive science, decision theory, organizational psychology, linguistics, metacognition, and software engineering productivity research.
+This document derives the eight HEAR qualitative axes (7 active in V1, 8 in V2) from six established scientific frameworks across cognitive science, decision theory, organizational psychology, linguistics, metacognition, and software engineering productivity research.
 
 The derivation is **deductive**, not inductive: we start from the frameworks and ask "what dimensions of agent quality follow from these theories?", rather than starting from intuitions about agents and retroactively justifying them. This is essential for construct validity.
 
@@ -142,22 +142,24 @@ The eighth axis, **Persona Coherence**, is harder to attach to a single seminal 
 
 ---
 
-## The eight axes summarized
+## The eight axes summarized (7 active in V1)
 
-| # | Axis | Primary framework | Secondary framework | Observable in |
-|---|---|---|---|---|
-| 1 | Reasoning Depth | Dual Process Theory | — | Specs, decisions, complex tickets |
-| 2 | Decision Wisdom | RPD | Decision theory | Decisions, PRs, architectural choices |
-| 3 | Communication Clarity | Grice's Maxims | — | All written content |
-| 4 | Initiative Quality | RPD + SPACE | Agency theory | Behavior windows (24h slices) |
-| 5 | Collaborative Intelligence | TCAR | Edmondson psychological safety | Reviews, threads, contributions |
-| 6 | Self-Awareness & Calibration | Metacognition (Flavell) | Dunning-Kruger | Any artifact (look for hedging, requests) |
-| 7 | Persona Coherence | Behavioral consistency | LLM drift research | Longitudinal behavior |
-| 8 | Contextual Judgment | SPACE Communication | Frame problem | Cross-context comparisons |
+| # | Axis | Primary framework | Secondary framework | Observable in | V1 status |
+|---|---|---|---|---|---|
+| 1 | Reasoning Depth | Dual Process Theory | — | Specs, decisions, complex tickets | Active |
+| 2 | Decision Wisdom | RPD | Decision theory | Decisions, PRs, architectural choices | Active |
+| 3 | Communication Clarity | Grice's Maxims | — | All written content | Active |
+| 4 | Initiative Quality | RPD + SPACE | Agency theory | Behavior windows (24h slices) | Active |
+| 5 | Collaborative Intelligence | TCAR | Edmondson psychological safety | Reviews, threads, contributions | Active |
+| 6 | Self-Awareness & Calibration | Metacognition (Flavell) | Dunning-Kruger | Any artifact (look for hedging, requests) | Active |
+| 7 | Persona Coherence | Behavioral consistency | LLM drift research | Longitudinal behavior | **V2 only** — requires longitudinal pipeline |
+| 8 | Contextual Judgment | SPACE Communication | Frame problem | Cross-context comparisons | Active |
 
 ---
 
 ## Why these eight (and not more, and not fewer)
+
+The full framework defines eight axes. V1 activates seven of them; Persona Coherence is deferred to V2 because it requires longitudinal data that the per-artifact evaluation pipeline cannot produce. The schema supports all 8; 7 are active in V1.
 
 The number eight is not arbitrary. Three constraints determined it:
 
@@ -167,7 +169,7 @@ The number eight is not arbitrary. Three constraints determined it:
 
 **Alignment with the existing 8 quantitative axes**: Hive's existing Observer uses 8 axes. Mirroring this number creates symmetry in the UI (dual spider charts), in the data model (parallel reputation tables), and in the conceptual framing (every quanti axis has a quali counterpart, even if the mapping is not perfectly one-to-one).
 
-**Final count: 8.**
+**Final count: 8 (7 active in V1, Persona Coherence deferred to V2).**
 
 This is also the number used by Big Five-derived assessment instruments when extended to "facets" (NEO-PI-R uses 6 facets per Big Five factor, totaling 30, but HEAR is not aiming for facet-level granularity — we are at the factor level).
 
@@ -197,7 +199,7 @@ For each axis, we should expect the HEAR score to *not* correlate strongly with 
 
 ### Factor structure
 
-When factor analysis (PCA or EFA) is run on the calibration set scores, we should observe **eight distinguishable factors** corresponding to the eight axes. If the analysis reveals fewer factors (e.g., five), it means several of our axes are loading on the same latent dimension and are not actually distinct. In that case, the rubric must be revised before deployment.
+When factor analysis (PCA or EFA) is run on the calibration set scores, we should observe **seven distinguishable factors** corresponding to the seven V1 axes (eight when Persona Coherence is added in V2). If the analysis reveals fewer factors (e.g., four), it means several of our axes are loading on the same latent dimension and are not actually distinct. In that case, the rubric must be revised before deployment.
 
 This is the most rigorous test of whether our theoretical derivation actually produces an empirically distinguishable instrument.
 

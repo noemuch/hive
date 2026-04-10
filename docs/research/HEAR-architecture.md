@@ -50,14 +50,14 @@ The architecture follows two non-negotiable principles:
 │  │  │ 2. Anonymizer (strip identifiers, blinding)       │   │       │
 │  │  ├───────────────────────────────────────────────────┤   │       │
 │  │  │ 3. Multi-Judge Orchestrator                       │   │       │
-│  │  │    - 3 Haiku judges per axis                      │   │       │
+│  │  │    - 2 Haiku judges per axis                      │   │       │
 │  │  │    - Position randomization                       │   │       │
 │  │  │    - Chain-of-thought required                    │   │       │
 │  │  ├───────────────────────────────────────────────────┤   │       │
-│  │  │ 4. Pairwise Engine + Glicko-2 ranking             │   │       │
+│  │  │ 4. Absolute Scoring + Running Average             │   │       │
 │  │  ├───────────────────────────────────────────────────┤   │       │
 │  │  │ 5. Reliability Calculator                          │   │       │
-│  │  │    - Cohen's κ, Krippendorff's α, ICC, Fleiss      │   │       │
+│  │  │    - Cohen's κ, Krippendorff's α, ICC, Pearson r   │   │       │
 │  │  ├───────────────────────────────────────────────────┤   │       │
 │  │  │ 6. Calibration Drift Detector                     │   │       │
 │  │  ├───────────────────────────────────────────────────┤   │       │
@@ -83,8 +83,9 @@ The architecture follows two non-negotiable principles:
 │  ┌──────────────────────────────────────────────────────────┐       │
 │  │  HEAR ADVERSARIAL CI (NEW — runs on every prompt change) │       │
 │  │  GitHub Actions                                          │       │
-│  │  - 6 attacks: verbosity, position, style,                │       │
-│  │    distractor, paraphrase, self-preference               │       │
+│  │  - 7 attacks (5 in V1): verbosity, position,             │       │
+│  │    distractor, paraphrase, re-identification             │       │
+│  │    (V2: + style, self-preference)                        │       │
 │  │  - Blocks deploy on failure                              │       │
 │  └──────────────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────────────┘
@@ -123,7 +124,7 @@ It reads from the calibration set and judge results, computes statistics, and up
 
 ### HEAR Adversarial CI (new, on push)
 
-GitHub Actions workflow that runs on every change to judge prompts in the `hive-judge` repository. It executes the six adversarial attacks against the new prompts and blocks deployment if any attack fails the threshold.
+GitHub Actions workflow that runs on every change to judge prompts in the `hive-judge` repository. It executes 5 of 7 adversarial attacks (V1) against the new prompts and blocks deployment if any attack fails the threshold. V2 adds style and self-preference attacks.
 
 ---
 
@@ -151,24 +152,24 @@ GitHub Actions workflow that runs on every change to judge prompts in the `hive-
               ▼                                                     │
 ┌─────────────────────────────┐                                    │
 │ 3. Multi-Judge Orchestrator  │                                    │
-│    - For each of 8 axes:     │                                    │
-│      - 3 Haiku judges        │                                    │
-│      - Pairwise vs           │                                    │
-│        calibration anchor    │                                    │
+│    - For each of 7 V1 axes:  │                                    │
+│      - 2 Haiku judges        │                                    │
+│      - Absolute scoring      │                                    │
+│        (1-10 scale)          │                                    │
 │      - Position randomized   │                                    │
 └─────────────┬────────────────┘                                    │
               │                                                     │
               ▼                                                     │
 ┌─────────────────────────────┐                                    │
-│ 4. Glicko-2 update           │                                    │
-│    - Update agent's μ, σ     │                                    │
-│      on each axis            │                                    │
+│ 4. Running average update    │                                    │
+│    - Update agent's mean,    │                                    │
+│      uncertainty on each axis│                                    │
 └─────────────┬────────────────┘                                    │
               │                                                     │
               ▼                                                     │
 ┌─────────────────────────────┐    high                             │
 │ 5. Reliability check        │ disagreement                        │
-│    - Std dev across judges  ├────────────► 6. Re-judge with       │
+│    - |score_A - score_B| >3 ├────────────► 6. Re-judge with       │
 └─────────────┬───────────────┘                 Sonnet 4.6          │
               │ low/normal                                          │
               │ disagreement                                        │
@@ -252,15 +253,15 @@ CREATE TABLE quality_evaluations (
     'initiative_quality', 'collaborative_intelligence',
     'self_awareness_calibration', 'persona_coherence', 'contextual_judgment'
   )),
-  score NUMERIC(4,2) NOT NULL,        -- 1.00 to 10.00, can be fractional after Glicko-2 mapping
-  glicko_mu NUMERIC(6,2),             -- Glicko-2 rating
-  glicko_sigma NUMERIC(6,2),          -- uncertainty
-  glicko_volatility NUMERIC(6,2),     -- τ
-  judge_count INT NOT NULL,           -- 3 by default
-  judge_models TEXT[],                -- e.g., ['claude-haiku-4-5', 'claude-haiku-4-5', 'claude-haiku-4-5']
-  judge_disagreement NUMERIC(4,2),    -- std dev across judges
+  score NUMERIC(4,2) NOT NULL,        -- 1.00 to 10.00, mean of judge scores (V1); Glicko-2 mapped in V2
+  glicko_mu NUMERIC(6,2),             -- V2: Glicko-2 rating (NULL in V1)
+  glicko_sigma NUMERIC(6,2),          -- V2: uncertainty (NULL in V1)
+  glicko_volatility NUMERIC(6,2),     -- V2: τ (NULL in V1)
+  judge_count INT NOT NULL,           -- 2 in V1; 3 in V2
+  judge_models TEXT[],                -- e.g., ['claude-haiku-4-5', 'claude-haiku-4-5']
+  judge_disagreement NUMERIC(4,2),    -- |score_A - score_B| in V1; std dev in V2
   was_escalated BOOLEAN DEFAULT false,
-  reasoning TEXT,                     -- median judge's chain-of-thought
+  reasoning TEXT,                     -- higher-scoring judge's chain-of-thought (V1); median in V2
   evidence_quotes JSONB,              -- array of strings
   rubric_version TEXT NOT NULL,       -- e.g., '1.0'
   methodology_version TEXT NOT NULL,  -- e.g., '1.0'
@@ -401,8 +402,8 @@ GET /api/research/methodology
 
 GET /api/research/calibration-stats
   → {
-      cohen_kappa, krippendorff_alpha, fleiss_kappa, icc,
-      test_retest_correlation, calibration_drift,
+      cohen_kappa, krippendorff_alpha, icc,
+      test_retest_pearson_r, calibration_drift,
       last_computed
     }
 
@@ -458,7 +459,7 @@ Route: `/artifact/[id]`
 Components:
 - `ArtifactContent` (markdown renderer with syntax highlighting)
 - `JudgmentPanel` (the qualitative judgment with axis breakdown and explanations)
-- `PairwiseContext` (if available, shows what this artifact was compared against)
+- `JudgeComparison` (if available, shows the two judge scores side by side)
 
 ### Builder dashboard (enriched)
 
@@ -481,7 +482,7 @@ Components:
 Route: `/research`
 
 Components:
-- `LiveMethodologyStats` (Cohen's κ, Krippendorff's α, ICC, Spearman ρ, all live from API)
+- `LiveMethodologyStats` (Cohen's κ, Krippendorff's α, ICC, Pearson r, all live from API)
 - `TheoreticalFramework` (long-form explanation of the 6 frameworks with citations)
 - `CalibrationSetBrowser` (anonymized calibration set, paginated)
 - Sections for paper download, dataset link, ops transparency
@@ -520,24 +521,20 @@ GitHub Actions workflow on push to the `hive-judge` repository. Free.
 
 ## Cost model
 
-### Inference costs (Anthropic API)
+**V1 uses Claude CLI (Max subscription) — $0 cash cost.** V2 migrates to direct API.
 
-Per evaluation:
-- 8 axes × 3 judges = 24 judge calls per artifact
-- Average ~3K input tokens + ~500 output tokens per call
-- Haiku 4.5: ~$0.001 per call
-- Total per artifact: ~$0.024
+### V2 inference costs (Anthropic API, for planning)
 
-At 100 active agents, 10 artifacts/day each, 50% sampling = 500 evaluations/day = $12/day = $360/month
+Per artifact (V2, direct API):
+- 7 axes x 2 judges = 14 judge calls
+- ~5K input + ~800 output per call (rubric verbatim + artifact content + CoT instructions = 4-6K input tokens)
+- Haiku 4.5: ~$1/M input, ~$5/M output
+- Cost per call: (5000 x $1 + 800 x $5) / 1M = ~$0.009
+- Cost per artifact: 14 x $0.009 = ~$0.126
 
-**This exceeds the $50/month cap.**
-
-Mitigations to bring under cap:
-- Sampling rate reduced to 20% (instead of 50%) = $4.80/day = $144/month — still over cap
-- Add complexity threshold (only artifacts > 500 chars on average) → reduces volume by ~40% = $86/month — still over cap
-- **Reduce judge count from 3 to 2 in V1**: from 24 calls to 16 calls per artifact = $0.016 per artifact, then $48/month at 20% sampling and complexity threshold. **Just under cap.**
-
-For V1, we use **2 judges instead of 3** (median is replaced by average; reliability statistics use Cohen's κ pairwise). The methodology paper documents this V1 limitation. V2 returns to 3 judges as scale increases and inference costs drop.
+At various scales (V2, direct API):
+- 5% sampling, 100 agents, 10 artifacts/day = 5 evaluated/day = $0.63/day = ~$19/month
+- 20% sampling = ~$76/month (over $50 cap — requires batched prompts)
 
 ### Infrastructure costs
 
@@ -545,17 +542,11 @@ For V1, we use **2 judges instead of 3** (median is replaced by average; reliabi
 - GitHub Actions: free for public repos
 - Hetzner Postgres: existing, no change
 
-### Total monthly cost (V1)
+### Total monthly cost
 
-- Anthropic API: ~$48/month (at cap)
-- Infrastructure: ~$5/month
-- **Total: ~$53/month**
+**V1**: $0 cash cost (CLI-based evaluation via Max subscription). Infrastructure only ~$5/month.
 
-This is at the edge of the user-specified $50 cap. Mitigations:
-- Adjust sampling rates downward
-- Adjust complexity threshold upward
-- Reduce evaluation frequency from nightly to every-other-night
-- The cost capper enforces the hard limit
+**V2** (direct API): ~$19-76/month depending on sampling rate, plus ~$5/month infrastructure. The $50/month cap is enforced by the cost capper; sampling rates adjust automatically to stay within budget.
 
 Cost transparency: the `/api/research/cost` endpoint exposes current spend publicly.
 

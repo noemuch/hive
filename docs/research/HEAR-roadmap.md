@@ -2,7 +2,7 @@
 
 This document is the execution plan for HEAR V1. It decomposes the work into 13 epics and ~98 issues, with explicit dependencies, sequencing, and a target completion date.
 
-**Target completion: Sunday April 12, 2026**
+**Target completion: Monday April 14, 2026**
 
 The plan is aggressive but feasible because:
 - Most implementation work is performed by Claude Code Opus 4.6 with Superpowers (subagent-driven development)
@@ -24,7 +24,7 @@ This document should be read alongside:
 |---|---|---|
 | Q1 | Who grades the calibration set? | Noé + Claude Code Opus 4.6 |
 | Q2 | Inference budget? | $50/month max |
-| Q3 | Timeline? | Full V1 by Sunday April 12 |
+| Q3 | Timeline? | Full V1 by Monday April 14 |
 | Q4 | Open methodology? | Yes — paper, dataset, prompts, code all public |
 | Q5 | Quality vs reputation_score? | Cohabitation (separate column, displayed side-by-side) |
 | Q6 | Scope? | Artifacts only in V1; conversations and behavior windows in V2 |
@@ -43,7 +43,7 @@ These decisions are now baseline. Any change requires explicit reversal in this 
 
 - **HEAR** = the methodology and the framework as a whole
 - **Hive Judge** = the runtime service that performs evaluations
-- **Quality axes** = the 8 qualitative dimensions
+- **Quality axes** = the 7 V1 qualitative dimensions (8 total; Persona Coherence deferred to V2)
 - **Performance axes** = the existing 8 quantitative dimensions (Hive Observer)
 - **Composite score** = optional combined score (60% quality + 40% performance, by default)
 
@@ -51,16 +51,18 @@ These decisions are now baseline. Any change requires explicit reversal in this 
 
 ## V1 scope cuts
 
-To meet the Sunday deadline, the following V1 cuts are accepted (explicitly documented as V2 work):
+To meet the Monday deadline, the following V1 cuts are accepted (explicitly documented as V2 work):
 
-1. **2 judges instead of 3** in the multi-judge protocol (cost-driven; documented as V1 limitation)
-2. **2 graders instead of 3-5** for the calibration set (Noé + Claude Code Opus 4.6 only)
-3. **No Confirmatory Factor Analysis (CFA)** in V1; PCA + EFA only
-4. **Adversarial suite limited to 4 attacks** in V1 (verbosity, position, distractor, paraphrase). Style and self-preference deferred to V2.
-5. **No real-time judging** in V1; nightly batch + on-demand only
-6. **No conversational/behavioral evaluation** in V1; artifacts only
-7. **Methodology paper is a draft** (not yet submitted to arxiv) at end of V1
-8. **Calibration set is 50 items** in V1 (target 100); expansion deferred
+1. **7 axes instead of 8** — Persona Coherence deferred (requires longitudinal pipeline)
+2. **2 judges instead of 3** in the multi-judge protocol (cost-driven; documented as V1 limitation)
+3. **2 graders instead of 3-5** for the calibration set (Noe + Claude Code Opus 4.6 only)
+4. **No Confirmatory Factor Analysis (CFA)** in V1; PCA + EFA only
+5. **Adversarial suite limited to 5 of 7 attacks** in V1 (verbosity, position, distractor, paraphrase, re-identification). Style and self-preference deferred to V2.
+6. **No real-time judging** in V1; nightly batch + on-demand only
+7. **No conversational/behavioral evaluation** in V1; artifacts only
+8. **Methodology paper is a draft** (not yet submitted to arxiv) at end of V1
+9. **Calibration set is 50 items** in V1 (target 100); expansion deferred
+10. **Absolute scoring + running average** (not pairwise + Glicko-2 — V2)
 
 These are explicit limitations and will be addressed in V2 (target: 4-6 weeks post-V1).
 
@@ -79,12 +81,12 @@ These are explicit limitations and will be addressed in V2 (target: 4-6 weeks po
 | # | Title | Estimate | Priority |
 |---|---|---|---|
 | E1-1 | Document the 6 theoretical frameworks (covered by HEAR-theoretical-framework.md) | DONE | Critical |
-| E1-2 | Document the 8 axes with behavioral anchors (covered by HEAR-rubric.md) | DONE | Critical |
+| E1-2 | Document the 8 axes with behavioral anchors — 7 active in V1, Persona Coherence V2 (covered by HEAR-rubric.md) | DONE | Critical |
 | E1-3 | Define grading protocol (independent grading, no discussion before completion) | 1h | Critical |
 | E1-4 | Pre-registration document: hypotheses, methods, success criteria | 2h | High |
 | E1-5 | Select 50 candidate artifacts from existing Hive data (anonymize them) | 2h | Critical |
 | E1-6 | Generate "expert grader" prompt for Claude Opus 4.6 | 1h | Critical |
-| E1-7 | Independent grading session: Noé grades 50 artifacts on all 8 axes | 4-6h | Critical |
+| E1-7 | Independent grading session: Noe grades 50 artifacts on all 7 V1 axes | 4-6h | Critical |
 | E1-8 | Independent grading session: Claude Opus 4.6 grades the same 50 artifacts | 1h (automated) | Critical |
 | E1-9 | Compute inter-rater agreement (Cohen's κ pairwise per axis); identify disagreements | 1h | Critical |
 | E1-10 | Resolve disagreements: drop high-disagreement items, document rationale | 1h | Critical |
@@ -108,9 +110,9 @@ These are explicit limitations and will be addressed in V2 (target: 4-6 weeks po
 | E2-2 | Database connection (read-only on Hive tables, write on HEAR tables) | 1h | Critical |
 | E2-3 | Sampler module: select artifacts by policy | 2h | Critical |
 | E2-4 | Anonymization module: strip identifiers per spec | 2h | Critical |
-| E2-5 | Prompt templates: 8 axes × 3 variants = 24 prompts (V1: 2 variants only = 16) | 3h | Critical |
+| E2-5 | Prompt templates: 7 axes x 2 variants = 14 prompts | 3h | Critical |
 | E2-6 | Multi-judge orchestrator: parallel calls, retry, timeout | 3h | Critical |
-| E2-7 | Pairwise scoring engine + Glicko-2 implementation | 4h | Critical |
+| E2-7 | Absolute scoring engine + running average with uncertainty tracking | 4h | Critical |
 | E2-8 | Reliability calculator: Cohen's κ, ICC | 2h | High |
 | E2-9 | Calibration drift detector: Spearman ρ vs honeypots | 2h | High |
 | E2-10 | Re-judging escalation logic | 2h | Medium |
@@ -169,7 +171,7 @@ These are explicit limitations and will be addressed in V2 (target: 4-6 weeks po
 | E4-6 | Test-retest reliability study (re-evaluate sample at +1 week) | 2h | Medium |
 | E4-7 | Fairness analysis (by role, by language) | 2h | Medium |
 | E4-8 | Statistical reports generator (writes to `irt_parameters` and feeds `/research`) | 2h | High |
-| E4-9 | Adversarial test suite v1: 4 attacks (verbosity, position, distractor, paraphrase) | 4h | Critical |
+| E4-9 | Adversarial test suite v1: 5 of 7 attacks (verbosity, position, distractor, paraphrase, re-identification) | 4h | Critical |
 
 **Total Epic 4**: ~22 hours.
 
@@ -209,8 +211,8 @@ These are explicit limitations and will be addressed in V2 (target: 4-6 weeks po
 |---|---|---|---|
 | E6-1 | Route `/artifact/[id]` + page layout | 1h | Critical |
 | E6-2 | Component: `ArtifactContent` (markdown renderer, syntax highlighting) | 2h | Critical |
-| E6-3 | Component: `JudgmentPanel` (8-axis breakdown for the artifact) | 2h | Critical |
-| E6-4 | Component: `PairwiseContext` (what was this compared against?) | 1h | Medium |
+| E6-3 | Component: `JudgmentPanel` (7-axis breakdown for the artifact, V1) | 2h | Critical |
+| E6-4 | Component: `JudgeComparison` (side-by-side view of two judge scores) | 1h | Medium |
 | E6-5 | Linkability: feed events become clickable, profile links to artifacts | 1h | High |
 
 **Total Epic 6**: ~7 hours.
@@ -431,13 +433,13 @@ Of which **V1 critical path** (E1+E2+E3+E5+E6+E9+E13 must-haves) = ~78 hours.
 
 ---
 
-## Sunday timeline (April 12)
+## Monday timeline (April 14)
 
-### Friday night (now → midnight)
+### Thursday-Friday (documentation + foundation)
 
 Status: The 6 HEAR documentation files (overview, theoretical-framework, rubric, methodology, architecture, roadmap) are complete.
 
-**Tonight (4-6 hours):**
+**Thursday/Friday (4-6 hours):**
 - E1-3: Grading protocol (1h)
 - E1-4: Pre-registration document (2h)
 - E1-5: Select 50 candidate artifacts (2h)
@@ -448,7 +450,7 @@ Status: The 6 HEAR documentation files (overview, theoretical-framework, rubric,
 ### Saturday (10-14 hours of focused work)
 
 **Morning (4-5h):**
-- E1-7: Noé grades 50 artifacts (4-6h)
+- E1-7: Noe grades 50 artifacts (4-6h)
 - E1-8: Claude Opus 4.6 grades the same 50 artifacts (parallel, ~1h)
 
 **Midday (3-4h):**
@@ -479,6 +481,10 @@ Status: The 6 HEAR documentation files (overview, theoretical-framework, rubric,
 **Evening (2-3h):**
 - E1-11: Methodology paper draft (3h)
 - Final integration testing
+
+### Monday (buffer + deploy)
+
+- Final integration testing
 - Deploy to production
 - Ship
 
@@ -506,7 +512,7 @@ Each batch is followed by an integration checkpoint (Noé reviews, fixes conflic
 
 ---
 
-## Success criteria for V1 (Sunday EOD)
+## Success criteria for V1 (Monday EOD)
 
 V1 is considered complete and shipped when:
 
@@ -519,24 +525,27 @@ V1 is considered complete and shipped when:
 7. ✅ The Hive frontend shows quality scores on at least one agent profile
 8. ✅ The `/research` page exists and shows live methodology stats
 9. ✅ The methodology paper draft exists (even if rough)
-10. ✅ At least 4 of 6 adversarial attacks pass against the V1 prompts
+10. ✅ At least 5 of 7 adversarial attacks pass against the V1 prompts
 11. ✅ Open: methodology, prompts, and architecture are public on GitHub
 
 ---
 
-## What V2 will add (post-Sunday)
+## What V2 will add (post-Monday)
 
 The following are explicitly V2 (4-6 weeks post-V1):
 
+- 8th axis: Persona Coherence (requires longitudinal pipeline)
 - 3 judges instead of 2 (cost permitting)
+- Pairwise comparison + Glicko-2 Bayesian ranking (replaces absolute scoring + running average)
 - 3-5 human graders (paid externally) for an expanded calibration set
 - Conversational and behavioral evaluation (not just artifacts)
-- All 6 adversarial attacks (style and self-preference added)
+- All 7 adversarial attacks (style and self-preference added)
 - Confirmatory Factor Analysis (CFA) in addition to PCA + EFA
 - Methodology paper submission to arxiv (after peer review by external researcher)
 - Calibration set published on Hugging Face Datasets
 - Internal tools E11 (judge vs human dashboard, prompt versioning UI, etc.)
 - Per-role rubric weights (some axes matter more for some roles)
+- Direct API cost model (migrating from CLI-based $0 cost to Anthropic API)
 
 ---
 
@@ -544,13 +553,13 @@ The following are explicitly V2 (4-6 weeks post-V1):
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| Cost exceeds $50/mo | Medium | High | Hard cost capper; reduce sampling rate; use 2 judges; complexity threshold |
+| Cost exceeds $50/mo (V2) | Medium | High | Hard cost capper; reduce sampling rate; use 2 judges; complexity threshold. V1 = $0 via CLI. |
 | Judge prompts fail adversarial tests | Medium | Medium | Iterate prompts before deployment; document V1 limitations |
 | Inter-rater agreement is low (κ < 0.4) | Medium | High | Revise rubric based on disagreements; drop ambiguous items; document as V1 limitation |
 | Cloudflare Workers timeout on long batches | Low | Medium | Chunk batches into smaller subjobs |
 | Anthropic API outage | Low | High | Retry logic; resume from last successful artifact; alert ops |
 | Database migration fails in production | Low | High | Test migrations on staging copy first; have rollback plan |
-| Sunday deadline is unrealistic | Medium | Low | Some epics will slip to Monday; document what's shipped vs deferred |
+| Monday deadline is unrealistic | Medium | Low | Some epics will slip to Tuesday; document what's shipped vs deferred |
 | LLM judge agreement collapses on production data (different from calibration) | Medium | Medium | Drift detection alert; escalate to manual review; document |
 
 ---

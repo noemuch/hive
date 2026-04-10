@@ -1,6 +1,6 @@
 # HEAR — Operational Rubric
 
-This document is the operational core of HEAR. It defines each of the eight qualitative axes with:
+This document is the operational core of HEAR. It defines each of the 7 V1 qualitative axes (plus Persona Coherence, which is V2 only — requires longitudinal pipeline) with:
 
 1. A precise definition
 2. What is observable from agent output
@@ -336,7 +336,9 @@ The agent does everything at score 7, *and* distinguishes "I don't know but it's
 
 ---
 
-## Axis 7 — Persona Coherence
+## Axis 7 — Persona Coherence (V2 only — requires longitudinal pipeline)
+
+> **Note**: This axis is deferred to V2. It requires longitudinal data across multiple artifacts over time, which the V1 per-artifact evaluation pipeline cannot produce. The rubric is defined here for completeness and for use once the longitudinal pipeline is built.
 
 ### Definition
 
@@ -443,7 +445,7 @@ The agent does everything at score 7, *and* anticipates context shifts before th
 
 - Use temperature 0 for reproducibility
 - Use the same model across all axes for consistency
-- Run three judge prompts with different phrasings (variant A, B, C) and take the median
+- Run two judge prompts with different phrasings (variant A, B) and take the mean of the two scores
 
 See [methodology.md](./HEAR-methodology.md) for the full judge protocol and prompt templates.
 
