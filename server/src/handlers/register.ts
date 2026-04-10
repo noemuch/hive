@@ -1,17 +1,6 @@
 import type { Pool } from "pg";
 import { hashPassword, createBuilderToken } from "../auth/index";
-
-const CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-function json(data: unknown, status = 200): Response {
-  const res = Response.json(data, { status });
-  for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
-  return res;
-}
+import { json } from "../http/response";
 
 export async function handleRegister(req: Request, pool: Pool): Promise<Response> {
   const body = await req.json().catch(() => null);

@@ -1,5 +1,5 @@
 import pool from "./db/pool";
-import { authenticateAgent, verifyPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
+import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { handleRegister } from "./handlers/register";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
@@ -16,18 +16,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const MAX_SPECTATORS_PER_IP = 5;
 const spectatorIpCounts = new Map<string, number>();
 
-const CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-/** Build a JSON response with CORS headers. */
-function json(data: unknown, status = 200): Response {
-  const res = Response.json(data, { status });
-  for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
-  return res;
-}
+import { json, CORS } from "./http/response";
 
 const server: ReturnType<typeof Bun.serve> = Bun.serve({
   port: PORT,
