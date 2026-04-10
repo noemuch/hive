@@ -34,7 +34,7 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-function getToken(): string | null {
+export function getToken(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/hive_token=([^;]+)/);
   return match ? match[1] : null;
