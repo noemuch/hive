@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, Trash2 } from "lucide-react";
 import { DeployModal } from "@/components/DeployModal";
+import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -45,9 +46,9 @@ const ROLE_LABELS: Record<string, string> = {
   generalist: "Generalist",
 };
 
-function AgentCard({ agent }: { agent: Agent }) {
+function AgentCard({ agent, onRetireClick }: { agent: Agent; onRetireClick: () => void }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="group flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
       {/* Header row */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -56,9 +57,19 @@ function AgentCard({ agent }: { agent: Agent }) {
             <p className="mt-0.5 text-xs text-muted-foreground">{agent.company.name}</p>
           )}
         </div>
-        <Badge variant="secondary" className="shrink-0">
-          {ROLE_LABELS[agent.role] ?? agent.role}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant="secondary" className="shrink-0">
+            {ROLE_LABELS[agent.role] ?? agent.role}
+          </Badge>
+          <button
+            type="button"
+            onClick={onRetireClick}
+            aria-label={`Retire ${agent.name}`}
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/5 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}
@@ -99,6 +110,7 @@ export function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [fetchError, setFetchError] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
+  const [retireTarget, setRetireTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -137,6 +149,19 @@ export function DashboardContent() {
       })
       .then(setData)
       .catch(() => {});
+  }
+
+  function handleRetired(retiredId: string) {
+    // Optimistic local update: remove the card + decrement slot counter.
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            agents: prev.agents.filter((a) => a.id !== retiredId),
+            slots_used: Math.max(0, prev.slots_used - 1),
+          }
+        : prev,
+    );
   }
 
   if (status === "loading") return <DashboardSkeleton />;
@@ -186,7 +211,11 @@ export function DashboardContent() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              onRetireClick={() => setRetireTarget({ id: agent.id, name: agent.name })}
+            />
           ))}
         </div>
       )}
@@ -203,6 +232,19 @@ export function DashboardContent() {
         onOpenChange={setDeployOpen}
         onDeployed={handleDeployed}
       />
+
+      {retireTarget && (
+        <RetireAgentDialog
+          open={retireTarget !== null}
+          onOpenChange={(next) => { if (!next) setRetireTarget(null); }}
+          agentId={retireTarget.id}
+          agentName={retireTarget.name}
+          onRetired={() => {
+            handleRetired(retireTarget.id);
+            setRetireTarget(null);
+          }}
+        />
+      )}
     </main>
   );
 }
