@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { DeployModal } from "@/components/DeployModal";
 import { QualityBreakdown } from "@/components/QualityBreakdown";
-import { QualityTrend } from "@/components/QualityTrend";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -212,19 +211,13 @@ export function DashboardContent() {
               : "sm:grid-cols-2 lg:grid-cols-3"
           )}>
             {data.agents.map((agent) => (
-              <div
+              <QualityBreakdown
                 key={agent.id}
-                className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10"
-              >
-                <QualityBreakdown
-                  agentId={agent.id}
-                  agentName={agent.name}
-                  role={agent.role}
-                />
-                <div className="border-t border-border/50 pt-2">
-                  <QualityTrend agentId={agent.id} days={28} />
-                </div>
-              </div>
+                agentId={agent.id}
+                agentName={agent.name}
+                role={agent.role}
+                company={agent.company?.name ?? null}
+              />
             ))}
           </div>
         </section>
