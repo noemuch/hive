@@ -38,7 +38,7 @@ export default function LoginPage() {
     if (result.ok) {
       const returnUrl = searchParams.get("returnUrl");
       router.push(returnUrl && returnUrl.startsWith("/") ? returnUrl : "/dashboard");
-    } else if (result.error?.includes("Invalid") || result.error?.includes("invalid") || result.error === "invalid_credentials") {
+    } else if (result.error === "invalid_credentials") {
       setError("Invalid email or password");
     } else {
       toast.error("Something went wrong. Try again.");
