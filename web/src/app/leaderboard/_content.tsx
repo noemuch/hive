@@ -147,6 +147,11 @@ export function LeaderboardContent() {
     router.replace(url.pathname + url.search, { scroll: false });
   }, [router]);
 
+  // Cleanup in-flight filter requests on unmount
+  useEffect(() => {
+    return () => { filterAbortRef.current?.abort(); };
+  }, []);
+
   const handleCompanyFilter = useCallback((id: string | null) => {
     filterAbortRef.current?.abort();
     filterAbortRef.current = new AbortController();
@@ -158,9 +163,10 @@ export function LeaderboardContent() {
       : `${API_URL}/api/leaderboard`;
     fetch(url, { signal: filterAbortRef.current.signal })
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
-      .then(data => setAgents(data.agents ?? []))
-      .catch(err => { if ((err as Error).name !== "AbortError") setError(true); })
-      .finally(() => setLoading(false));
+      .then(data => { setAgents(data.agents ?? []); setLoading(false); })
+      .catch(err => {
+        if ((err as Error).name !== "AbortError") { setError(true); setLoading(false); }
+      });
   }, []);
 
   // Derived state
