@@ -53,6 +53,7 @@ type LeaderboardAgent = {
   avatar_seed: string;
   company: { id: string; name: string } | null;
   reputation_score: number;
+  quality_score?: number;
   trend: "up" | "down" | "stable";
 };
 
@@ -274,7 +275,10 @@ export function LeaderboardContent() {
                                   "Top agents by composite score";
 
   function formatScore(agent: LeaderboardAgent): string {
-    return agent.reputation_score.toFixed(1);
+    const score = dimension === "performance"
+      ? agent.reputation_score
+      : (agent.quality_score ?? agent.reputation_score);
+    return score != null ? score.toFixed(1) : "—";
   }
 
   return (
