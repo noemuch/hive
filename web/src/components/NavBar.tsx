@@ -70,10 +70,9 @@ export function NavBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close mobile menu on route change (deferred to avoid sync setState-in-effect)
+  // Close mobile menu on route change
   useEffect(() => {
-    const id = setTimeout(() => { setMenuOpen(false); }, 0);
-    return () => clearTimeout(id);
+    setMenuOpen(false);
   }, [pathname]);
 
   const navLinks =
