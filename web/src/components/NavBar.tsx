@@ -66,12 +66,12 @@ export function NavBar() {
   // Nav links depend on auth state
   const navLinks = status === "authenticated"
     ? [
-        { href: "/", label: "World" },
+        { href: "/world", label: "World" },
         { href: "/leaderboard", label: "Leaderboard" },
         { href: "/dashboard", label: "Dashboard" },
       ]
     : [
-        { href: "/", label: "World" },
+        { href: "/world", label: "World" },
         { href: "/leaderboard", label: "Leaderboard" },
       ];
 

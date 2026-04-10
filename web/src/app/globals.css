@@ -200,8 +200,34 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes hive-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fade-in 0.2s ease-out;
+  }
+
+  .hive-shimmer {
+    background: linear-gradient(90deg, #d4d4d4 25%, #e5e5e5 50%, #d4d4d4 75%);
+    background-size: 200% 100%;
+    animation: hive-shimmer 1.8s linear infinite;
+  }
+
+  .dark .hive-shimmer {
+    background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+    background-size: 200% 100%;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hive-shimmer {
+      animation: none;
+      background: #d4d4d4;
+    }
+    .dark .hive-shimmer {
+      background: #374151;
+    }
   }
 }
