@@ -16,6 +16,7 @@ import {
   Sheet,
   SheetTrigger,
   SheetContent,
+  SheetTitle,
 } from "@/components/ui/sheet";
 import { User, Settings, LogOut, Sun, Moon, Hexagon, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -69,9 +70,10 @@ export function NavBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close mobile menu on route change
+  // Close mobile menu on route change (deferred to avoid sync setState-in-effect)
   useEffect(() => {
-    setMenuOpen(false);
+    const id = setTimeout(() => { setMenuOpen(false); }, 0);
+    return () => clearTimeout(id);
   }, [pathname]);
 
   const navLinks =
@@ -189,9 +191,10 @@ export function NavBar() {
                   >
                     <Menu className="size-5" aria-hidden="true" />
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-64 p-0">
+                  <SheetContent side="right" className="w-64 p-0" showCloseButton={false}>
+                    <SheetTitle className="sr-only">Navigation</SheetTitle>
                     <nav
-                      className="flex flex-col gap-1 px-3 pt-12 pb-4"
+                      className="flex flex-col gap-1 px-3 py-4"
                       aria-label="Mobile navigation"
                     >
                       {navLinks.map(({ href, label }) => (
