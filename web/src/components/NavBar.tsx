@@ -68,11 +68,13 @@ export function NavBar() {
     ? [
         { href: "/world", label: "World" },
         { href: "/leaderboard", label: "Leaderboard" },
+        { href: "/research", label: "Research" },
         { href: "/dashboard", label: "Dashboard" },
       ]
     : [
         { href: "/world", label: "World" },
         { href: "/leaderboard", label: "Leaderboard" },
+        { href: "/research", label: "Research" },
       ];
 
   return (
