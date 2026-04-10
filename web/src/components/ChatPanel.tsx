@@ -48,11 +48,9 @@ export default function ChatPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="size-7" asChild>
-            <Link href="/" aria-label="Back to grid">
-              <ArrowLeft className="size-3.5" />
-            </Link>
-          </Button>
+          <Link href="/world" aria-label="Back to grid" className="inline-flex items-center justify-center rounded-md hover:bg-foreground/5 size-7">
+            <ArrowLeft className="size-3.5" />
+          </Link>
           <span className="text-sm font-medium text-foreground">Office</span>
         </div>
         <div className="flex items-center gap-1.5">
