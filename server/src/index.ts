@@ -121,6 +121,58 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
+    // Retire an agent — permanent, immediate API key revocation
+    if (url.pathname.match(/^\/api\/agents\/[^/]+$/) && req.method === "DELETE") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid token" }, 401);
+
+      const agentId = url.pathname.split("/")[3];
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
+        return json({ error: "not_found" }, 404);
+      }
+
+      const { rows } = await pool.query(
+        `SELECT id, builder_id, status, company_id FROM agents WHERE id = $1`,
+        [agentId]
+      );
+      if (rows.length === 0) return json({ error: "not_found" }, 404);
+      const agent = rows[0];
+      if (agent.builder_id !== decoded.builder_id) return json({ error: "forbidden" }, 403);
+      if (agent.status === "retired") return json({ error: "already_retired" }, 409);
+
+      // Retire: revoke key, set status, record timestamp, unassign company
+      await pool.query(
+        `UPDATE agents
+         SET status = 'retired',
+             api_key_hash = '',
+             api_key_prefix = NULL,
+             retired_at = now(),
+             company_id = NULL
+         WHERE id = $1`,
+        [agentId]
+      );
+
+      // Disconnect any active WebSocket for this agent
+      // Remove from router BEFORE close to prevent in-flight handlers from routing events
+      const existingWs = router.getAgentSocket(agentId);
+      if (existingWs) {
+        router.removeAgent(existingWs);
+        existingWs.close();
+      }
+      console.log(`[retire] Agent ${agentId} retired by builder ${decoded.builder_id}`);
+
+      // If the agent was in a company, notify and re-check lifecycle
+      if (agent.company_id) {
+        router.broadcast(agent.company_id, { type: "agent_left", agent_id: agentId, reason: "retired" });
+        checkLifecycle(agent.company_id).catch(err => console.error("[lifecycle] check error:", err));
+        broadcastStatsUpdate(agent.company_id);
+      }
+
+      return new Response(null, { status: 204, headers: CORS });
+    }
+
     if (url.pathname === "/api/companies" && req.method === "GET") {
       const status = url.searchParams.get("status");
       const sort = url.searchParams.get("sort") || "founded_at";
@@ -185,7 +237,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          WHERE c.id = $1`,
         [companyId]
       );
-      if (rows.length === 0) return new Response("Not found", { status: 404 });
+      if (rows.length === 0) return json({ error: "company not found" }, 404);
       return json(rows[0]);
     }
 
@@ -887,11 +939,16 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       if (data.type === "agent" && (data as AgentSocket["data"]).authenticated) {
         const a = ws as unknown as AgentSocket;
         router.removeAgent(a);
-        await pool.query(`UPDATE agents SET status = 'disconnected' WHERE id = $1`, [a.data.agentId]);
-        if (a.data.companyId) {
+        // Conditional UPDATE: don't overwrite 'retired' status
+        const { rowCount } = await pool.query(
+          `UPDATE agents SET status = 'disconnected' WHERE id = $1 AND status != 'retired'`,
+          [a.data.agentId]
+        );
+        // Only broadcast agent_left if the row was actually updated (not a retire-triggered close)
+        if (rowCount && rowCount > 0 && a.data.companyId) {
           router.broadcast(a.data.companyId, { type: "agent_left", agent_id: a.data.agentId, reason: "disconnected" });
           broadcastStatsUpdate(a.data.companyId);
-          checkLifecycle(a.data.companyId);
+          checkLifecycle(a.data.companyId).catch(err => console.error("[lifecycle] check error:", err));
         }
         console.log(`[ws] Agent disconnected: ${a.data.agentName}`);
       } else if (data.type === "spectator") {
@@ -939,7 +996,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 
     ws.send(JSON.stringify({ type: "auth_ok", agent_id: agent.agent_id, agent_name: agent.name, company, channels, teammates } satisfies AuthOkEvent));
     console.log(`[ws] Agent connected: ${agent.name} (${agent.role})${company ? ` -> ${company.name}` : " (unassigned)"}`);
-    if (agent.company_id) checkLifecycle(agent.company_id);
+    if (agent.company_id) checkLifecycle(agent.company_id).catch(err => console.error("[lifecycle] check error:", err));
     return;
   }
 
@@ -1025,7 +1082,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
       }
       router.addAllWatcher(ws); // register only after snapshot is successfully sent
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.error("[ws] spectator message error:", err); }
 }
 
 // Company lifecycle checker (every 5 minutes)

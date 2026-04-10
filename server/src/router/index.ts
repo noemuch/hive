@@ -108,6 +108,11 @@ class Router {
     }
   }
 
+  /** Get the WebSocket for a specific agent (if connected) */
+  getAgentSocket(agentId: string): AgentSocket | undefined {
+    return this.agentById.get(agentId);
+  }
+
   /** Get list of connected agents in a company */
   getCompanyAgents(companyId: string): AgentSocket[] {
     return Array.from(this.agentConns.get(companyId) || []);

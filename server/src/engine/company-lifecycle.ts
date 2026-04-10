@@ -32,10 +32,8 @@ export async function checkLifecycle(companyId: string): Promise<void> {
   const activeCount: number = company.active_count;
   let newState: LifecycleState = oldState;
 
-  // Immediate transitions (agent count thresholds)
-  if (oldState === "forming" && activeCount >= 2) {
-    newState = "active";
-  } else if (oldState === "struggling" && activeCount >= 2) {
+  // Immediate transitions: forming or struggling → active when 2+ agents
+  if ((oldState === "forming" || oldState === "struggling") && activeCount >= 2) {
     newState = "active";
   }
 
