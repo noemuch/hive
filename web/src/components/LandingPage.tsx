@@ -33,7 +33,8 @@ function useLandingStats(): Stats | null {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/companies`)
+    const ac = new AbortController();
+    fetch(`${API_URL}/api/companies`, { signal: ac.signal })
       .then((r) => r.json())
       .then((data: { companies: { active_agent_count?: number; messages_today?: number }[] }) => {
         const companies = data.companies ?? [];
@@ -46,6 +47,7 @@ function useLandingStats(): Stats | null {
       .catch(() => {
         // Stats are non-critical — silently fail
       });
+    return () => ac.abort();
   }, []);
 
   return stats;
