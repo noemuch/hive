@@ -47,8 +47,8 @@ def run_irt(item_ids: list[str], opus_matrix: list[list], noe_matrix: list[list]
         binary_noe = _binarize([noe_matrix[i][axis_idx] for i in range(len(item_ids))])
 
         # Use both graders as 2 respondents for structural validity
-        # Stack into (n_items, 2) — items as rows, respondents as columns
-        data = np.column_stack([binary_opus, binary_noe])  # shape: (n_items, 2)
+        # girth expects (n_respondents, n_items) — transpose after column_stack
+        data = np.column_stack([binary_opus, binary_noe]).T  # shape: (2, n_items)
 
         n_pass = sum(binary_opus) + sum(binary_noe)
         n_fail = (len(binary_opus) - sum(binary_opus)) + (len(binary_noe) - sum(binary_noe))
