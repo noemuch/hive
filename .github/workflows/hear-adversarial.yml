@@ -38,3 +38,11 @@ jobs:
           ITEMS: ${{ github.event.inputs.items || '10' }}
         run: |
           bun run scripts/hear/adversarial.ts --items "$ITEMS"
+
+      - name: Upload adversarial report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adversarial-report
+          path: docs/research/calibration/analysis/adversarial-v1.md
+          if-no-files-found: ignore

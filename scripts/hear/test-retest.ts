@@ -16,8 +16,8 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
-import { listItemIds, loadGraderPrompt, loadItem, loadRubric, RUBRIC_VERSION } from "./lib/rubric";
+import { listItemIds, loadItem, RUBRIC_VERSION } from "./lib/rubric";
+import { callClaude, buildPrompt, extractJson } from "./lib/claude";
 import { emptyGradesFile, type ItemGrade, validateItemGrade } from "./lib/schema";
 
 const PROJECT_ROOT = join(import.meta.dir, "..", "..");
@@ -87,49 +87,7 @@ function compareFiles(pathA: string, pathB: string) {
   }
 }
 
-// ---- grading mode ----
-async function callClaude(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      "claude",
-      ["-p", "--output-format", "json", "--model", "claude-opus-4-6"],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    let out = "";
-    proc.stdout.on("data", (d) => { out += d.toString(); });
-    proc.on("close", (code) => {
-      if (code !== 0) return reject(new Error(`claude exit ${code}`));
-      try {
-        resolve(JSON.parse(out).result ?? "");
-      } catch {
-        reject(new Error(`parse fail: ${out.slice(0, 200)}`));
-      }
-    });
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
-}
-
-function buildPrompt(itemId: string, content: string, type: string): string {
-  const rubric = loadRubric();
-  const graderDoc = loadGraderPrompt();
-  const match = graderDoc.match(/## The prompt\s*\n\s*```\s*\n([\s\S]*?)\n```/);
-  if (!match) throw new Error("cannot extract prompt template from grader-prompt-opus.md");
-  return match[1]
-    .replace("{{FULL_RUBRIC_CONTENT_HERE}}", rubric)
-    .replace("{{ARTIFACT_TYPE}}", type)
-    .replace("{{ARTIFACT_CONTENT}}", content)
-    .replace("{{ITEM_ID}}", itemId)
-    .replace("{{ISO_TIMESTAMP}}", new Date().toISOString());
-}
-
-function extractJson(text: string): unknown {
-  try { return JSON.parse(text); } catch { /* fall through */ }
-  const m = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
-  if (m) try { return JSON.parse(m[1]); } catch { /* fall through */ }
-  const s = text.indexOf("{"), e = text.lastIndexOf("}");
-  if (s >= 0 && e > s) return JSON.parse(text.slice(s, e + 1));
-  throw new Error("no JSON object found in response");
+// ---- grading mode — Claude CLI helpers in lib/claude.ts ----
 }
 
 async function main() {
