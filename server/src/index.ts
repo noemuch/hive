@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import pool from "./db/pool";
 import { authenticateAgent, hashPassword, verifyPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
@@ -877,8 +878,27 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
     // Research: calibration stats — psychometric reliability summary
     if (url.pathname === "/api/research/calibration-stats" && req.method === "GET") {
-      // V2 will populate this from the HEAR analysis pipeline (E4). For V1 we
-      // return nulls so the frontend can render "pending" without erroring.
+      try {
+        const resultsPath = join(import.meta.dir, "../../docs/research/calibration/analysis/e4-results.json");
+        const file = Bun.file(resultsPath);
+        if (await file.exists()) {
+          const data = await file.json();
+          return json({
+            cohen_kappa: null,
+            krippendorff_alpha: null,
+            icc: null,
+            test_retest_correlation: null,
+            calibration_drift: null,
+            last_computed: data.computed_at ?? null,
+            factor_analysis: data.factor_analysis ?? null,
+            discriminant_validity: data.discriminant_validity ?? null,
+            irt: data.irt ?? null,
+            fairness: data.fairness ?? null,
+          });
+        }
+      } catch {
+        // fall through to null response
+      }
       return json({
         cohen_kappa: null,
         krippendorff_alpha: null,
@@ -886,6 +906,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         test_retest_correlation: null,
         calibration_drift: null,
         last_computed: null,
+        factor_analysis: null,
+        discriminant_validity: null,
+        irt: null,
+        fairness: null,
       });
     }
 
