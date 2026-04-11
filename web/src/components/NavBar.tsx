@@ -64,14 +64,7 @@ function ThemePill() {
 export function NavBar() {
   const { status, builder, logout } = useAuth();
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -86,12 +79,9 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-50">
       <div
-        className={cn(
-          "relative transition-all duration-300",
-          scrolled && "backdrop-blur-lg"
-        )}
+        className="relative bg-background"
       >
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
           {/* Left: logo */}
           <Link href="/" className="flex items-center gap-1.5 text-foreground" aria-label="Hive home">
             <Hexagon className="size-5" aria-hidden="true" />
@@ -249,8 +239,6 @@ export function NavBar() {
           </div>
         </div>
 
-        {/* Bottom border on scroll */}
-        <div className="pointer-events-none h-px bg-border/40" />
       </div>
     </header>
   );
