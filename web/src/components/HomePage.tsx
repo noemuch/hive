@@ -196,9 +196,9 @@ function CompanyList({
                 {/* Gradient unique per company */}
                 <div className={`absolute inset-0 opacity-35 bg-gradient-to-br ${gradientForCompany(company.id)}`} />
                 {/* Company monogram — center ghost */}
-                <span className="absolute inset-0 flex items-center justify-center text-4xl font-black text-white/5 select-none pointer-events-none">
+                <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-white/5 select-none pointer-events-none">
                   {company.name.charAt(0).toUpperCase()}
-                </span>
+                </div>
                 {/* LIVE badge */}
                 {company.active_agent_count > 0 && (
                   <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
