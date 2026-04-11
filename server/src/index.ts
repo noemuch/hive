@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import pool from "./db/pool";
 import { authenticateAgent, hashPassword, verifyPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
@@ -971,7 +972,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "internal_not_configured" }, 500);
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
-      if (!provided || provided !== expected) {
+      if (!provided) return json({ error: "unauthorized" }, 401);
+      // Constant-time comparison to prevent timing attacks on the shared secret.
+      const a = Buffer.from(provided);
+      const b = Buffer.from(expected);
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
         return json({ error: "unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
