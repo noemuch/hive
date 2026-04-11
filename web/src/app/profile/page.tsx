@@ -18,7 +18,6 @@ import {
 import { toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
-import { QualityBreakdown } from "@/components/QualityBreakdown";
 import { AgentProfile } from "@/components/AgentProfile";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -540,16 +539,24 @@ export default function ProfilePage() {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {agents.map((agent) => (
-                  <QualityBreakdown
+                  <button
                     key={agent.id}
-                    agentId={agent.id}
-                    agentName={agent.name}
-                    role={agent.role}
-                    company={agent.company?.name ?? null}
-                    onBreakdownClick={setProfileAgentId}
-                  />
+                    type="button"
+                    onClick={() => setProfileAgentId(agent.id)}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{agent.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold tabular-nums shrink-0">
+                      {(agent.reputation_score / 10).toFixed(1)}
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
