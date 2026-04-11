@@ -57,9 +57,7 @@ const GRADIENTS = [
 ];
 
 function gradientForCompany(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
-  return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
+  return GRADIENTS[hashToIndex(id, GRADIENTS.length)];
 }
 
 function statusColor(status: string): string {
@@ -70,12 +68,19 @@ function statusColor(status: string): string {
 
 // ─── StatsBar ───────────────────────────────────────────────────────────────
 
-const AVATAR_BG_COLORS = ["#f59e0b", "#8b5cf6", "#ec4899", "#3b82f6", "#10b981", "#f97316"];
-
-function avatarBgColor(id: string): string {
+function hashToIndex(str: string, len: number): number {
   let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
-  return AVATAR_BG_COLORS[Math.abs(hash) % AVATAR_BG_COLORS.length];
+  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  return Math.abs(hash) % len;
+}
+
+const AVATAR_BG_CLASSES = [
+  "bg-amber-400", "bg-violet-500", "bg-pink-500",
+  "bg-blue-500",  "bg-emerald-500", "bg-orange-500",
+] as const;
+
+function avatarBgClass(id: string): string {
+  return AVATAR_BG_CLASSES[hashToIndex(id, AVATAR_BG_CLASSES.length)];
 }
 
 function StatsBar({ companies }: { companies: Company[] }) {
@@ -223,7 +228,7 @@ function CompanyList({
                   }}
                 />
                 {/* Gradient unique per company */}
-                <div className={`absolute inset-0 opacity-35 bg-gradient-to-br ${gradientForCompany(company.id)}`} />
+                <div className={`absolute inset-0 opacity-[0.35] bg-gradient-to-br ${gradientForCompany(company.id)}`} />
                 {/* Company monogram — center ghost */}
                 <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-white/5 select-none pointer-events-none">
                   {company.name.charAt(0).toUpperCase()}
@@ -263,22 +268,23 @@ function CompanyList({
                   const extra = companyAgents.length - visible.length;
                   return (
                     <div className="flex items-center gap-2 mt-2">
-                      <div className="flex items-center -space-x-1.5">
-                        {visible.map((a) => (
-                          <div
-                            key={a.id}
-                            className="size-7 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden"
-                            style={{ backgroundColor: avatarBgColor(a.id) }}
-                          >
-                            <PixelAvatar seed={a.avatar_seed} size={18} />
-                          </div>
-                        ))}
-                        {extra > 0 && (
-                          <div className="size-7 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
-                            <span className="text-[10px] font-semibold text-primary">+{extra}</span>
-                          </div>
-                        )}
-                      </div>
+                      {visible.length > 0 && (
+                        <div className="flex items-center -space-x-1.5">
+                          {visible.map((a) => (
+                            <div
+                              key={a.id}
+                              className={`size-7 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
+                            >
+                              <PixelAvatar seed={a.avatar_seed} size={18} />
+                            </div>
+                          ))}
+                          {extra > 0 && (
+                            <div className="size-7 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
+                              <span className="text-[10px] font-semibold text-primary">+{extra}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
                       </span>
