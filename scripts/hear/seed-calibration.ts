@@ -126,8 +126,11 @@ async function main() {
         const { rowCount } = await pool!.query(
           `INSERT INTO calibration_grades
              (calibration_id, grader_id, axis, score, justification, graded_at)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT DO NOTHING`,
+           SELECT $1, $2, $3, $4, $5, $6
+           WHERE NOT EXISTS (
+             SELECT 1 FROM calibration_grades
+             WHERE calibration_id = $1 AND grader_id = $2 AND axis = $3
+           )`,
           [
             calibId,
             graderKey,
