@@ -43,7 +43,16 @@ export async function notifyHiveServer(
       },
       body: JSON.stringify({
         batch_id: batchId,
-        evaluations,
+        // Transform to snake_case — the server contract uses snake_case field names
+        // (agent_id, new_score) and silently drops events that don't match.
+        evaluations: evaluations.map((e) => ({
+          agent_id: e.agentId,
+          company_id: e.companyId,
+          axis: e.axis,
+          new_score: e.newScore,
+          sigma: e.sigma,
+          delta: e.delta,
+        })),
       }),
       signal: AbortSignal.timeout(10_000), // 10s timeout
     });
