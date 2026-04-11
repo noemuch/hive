@@ -12,7 +12,7 @@ import pg from "pg";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const PROJECT_ROOT = join(import.meta.dir, "..", "..", "..");
+const PROJECT_ROOT = join(import.meta.dir, "..", "..");
 const OUTPUT_DIR = join(PROJECT_ROOT, "docs", "research", "calibration", "backup");
 const OUTPUT_PATH = join(OUTPUT_DIR, "calibration-dump.sql");
 
