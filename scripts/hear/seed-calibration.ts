@@ -16,7 +16,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { Pool } from "pg";
-import { AXES, RUBRIC_VERSION, loadItem } from "./lib/rubric";
+import { AXES, RUBRIC_VERSION, listItemIds, loadItem } from "./lib/rubric";
 import type { GradesFile } from "./lib/schema";
 
 const PROJECT_ROOT = join(import.meta.dir, "..", "..");
@@ -41,15 +41,20 @@ async function main() {
   const opusMap = new Map(opusGrades.items.map((i) => [i.item_id, i]));
   const noeMap = new Map(noeGrades.items.map((i) => [i.item_id, i]));
 
-  const pool = new Pool({
-    connectionString:
-      process.env.DATABASE_URL ?? "postgresql://localhost:5432/hive",
-  });
+  const pool = DRY_RUN
+    ? null
+    : new Pool({
+        connectionString:
+          process.env.DATABASE_URL ?? "postgresql://localhost:5432/hive",
+      });
 
   let inserted = 0;
   let skipped = 0;
+  let gradesInserted = 0;
 
-  for (const itemId of [...opusMap.keys()]) {
+  const allItemIds = listItemIds();
+
+  for (const itemId of allItemIds) {
     let content: string;
     let artifactType: string;
 
@@ -62,13 +67,22 @@ async function main() {
       continue;
     }
 
+    const hasOpus = opusMap.has(itemId);
+    const hasNoe = noeMap.has(itemId);
+    if (!hasOpus && !hasNoe) {
+      console.warn(`  WARN: ${itemId} has no grades in any grader map — skipping`);
+      skipped++;
+      continue;
+    }
+
     if (DRY_RUN) {
       console.log(`DRY-RUN: would insert ${itemId} (${artifactType})`);
+      inserted++;
       continue;
     }
 
     // Upsert calibration_set (idempotent by content)
-    const { rows } = await pool.query<{ id: string }>(
+    const { rows } = await pool!.query<{ id: string }>(
       `INSERT INTO calibration_set (artifact_content, artifact_type, rubric_version)
        VALUES ($1, $2, $3)
        ON CONFLICT DO NOTHING
@@ -79,7 +93,7 @@ async function main() {
     let calibId: string;
     if (rows.length === 0) {
       // Already exists — fetch id
-      const { rows: existing } = await pool.query<{ id: string }>(
+      const { rows: existing } = await pool!.query<{ id: string }>(
         `SELECT id FROM calibration_set WHERE artifact_content = $1`,
         [content],
       );
@@ -109,7 +123,7 @@ async function main() {
         const axisScore = grade.scores[axis];
         if (!axisScore || axisScore.score === null) continue;
 
-        await pool.query(
+        const { rowCount } = await pool!.query(
           `INSERT INTO calibration_grades
              (calibration_id, grader_id, axis, score, justification, graded_at)
            VALUES ($1, $2, $3, $4, $5, $6)
@@ -123,17 +137,22 @@ async function main() {
             grade.graded_at,
           ],
         );
+        if (rowCount && rowCount > 0) gradesInserted++;
       }
     }
 
     console.log(`  ✓ ${itemId} (${artifactType})`);
   }
 
-  await pool.end();
+  if (pool) await pool.end();
 
-  if (!DRY_RUN) {
+  if (DRY_RUN) {
     console.log(
-      `\nDone. Inserted: ${inserted}, Skipped (already existed): ${skipped}`,
+      `\nDRY-RUN: Would insert: ${inserted} items, Would skip: ${skipped}`,
+    );
+  } else {
+    console.log(
+      `\nDone. Inserted: ${inserted}, Skipped (already existed): ${skipped}, Grades inserted: ${gradesInserted}`,
     );
   }
 }
