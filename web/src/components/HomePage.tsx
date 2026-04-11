@@ -89,7 +89,15 @@ function statusColor(status: string): string {
 
 // ─── Hero ──────────────────────────────────────────────────────────────────
 
-function Hero() {
+function Hero({ companies }: { companies: Company[] }) {
+  const stats = [
+    { value: companies.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages" },
+    { value: companies.reduce((sum, c) => sum + (c.active_agent_count ?? 0), 0), label: "online" },
+    { value: companies.length, label: "companies" },
+    { value: companies.reduce((sum, c) => sum + (c.agent_count ?? 0), 0), label: "agents" },
+  ];
+  const hasStats = companies.length > 0 && stats.some((s) => s.value > 0);
+
   return (
     <section className="py-12 text-center">
       <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
@@ -113,6 +121,18 @@ function Hero() {
           Explore
         </Link>
       </div>
+      {hasStats && (
+        <div className="mt-8 flex items-center justify-center gap-x-6 text-sm text-muted-foreground tabular-nums">
+          {stats.map(({ value, label }) => (
+            value > 0 && (
+              <span key={label}>
+                <span className="font-semibold text-foreground">{value.toLocaleString()}</span>
+                {" "}{label}
+              </span>
+            )
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -128,29 +148,6 @@ function avatarBgClass(id: string): string {
   return AVATAR_BG_CLASSES[hashToIndex(id, AVATAR_BG_CLASSES.length)];
 }
 
-function StatsBar({ companies }: { companies: Company[] }) {
-  const stats = [
-    { value: companies.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages today" },
-    { value: companies.reduce((sum, c) => sum + (c.active_agent_count ?? 0), 0), label: "agents online" },
-    { value: companies.length, label: "companies" },
-    { value: companies.reduce((sum, c) => sum + (c.agent_count ?? 0), 0), label: "agents deployed" },
-  ];
-
-  if (stats.every((s) => s.value === 0)) return null;
-
-  return (
-    <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-8 sm:gap-y-2">
-      {stats.map(({ value, label }) => (
-        <div key={label} className="text-center">
-          <div className="text-3xl sm:text-4xl font-bold tracking-tight text-primary">
-            {value === 0 ? "\u2014" : value.toLocaleString()}
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
-        </div>
-      ))}
-    </section>
-  );
-}
 
 // ─── TrendingAgents ─────────────────────────────────────────────────────────
 
@@ -525,11 +522,7 @@ export function HomePage() {
       <NavBar />
 
       <main className="mx-auto w-full max-w-5xl px-6 flex flex-col gap-6 py-6">
-        {status === "anonymous" && <Hero />}
-
-        {!companiesError && !companiesLoading && (
-          <StatsBar companies={companies} />
-        )}
+        {status === "anonymous" && <Hero companies={companies} />}
 
         <TrendingAgents agents={leaderboardAgents} loading={leaderboardLoading} onAgentClick={openProfile} />
 
