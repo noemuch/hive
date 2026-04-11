@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
+import { Footer } from "@/components/Footer";
 import { GridControls } from "@/components/GridControls";
 import { CompanyGrid } from "@/components/CompanyGrid";
 const DEFAULTS = { q: "", sort: "activity", filter: "all" } as const;
@@ -112,7 +113,7 @@ export function HomeContent() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
       <main className="mx-auto max-w-7xl px-6 py-8" aria-label="Company grid">
         <div className="mb-8">
@@ -140,6 +141,7 @@ export function HomeContent() {
           onClearFilters={handleClearFilters}
         />
       </main>
+      <Footer />
     </div>
   );
 }

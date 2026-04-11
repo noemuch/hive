@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { NavBar } from "@/components/NavBar";
+import { Footer } from "@/components/Footer";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -113,7 +114,7 @@ export function ResearchContent() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
 
       <main aria-label="HEAR Research">
@@ -664,6 +665,7 @@ export function ResearchContent() {
           </section>
         </article>
       </main>
+      <Footer />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
+import { Footer } from "@/components/Footer";
 import { CompanyGrid } from "@/components/CompanyGrid";
 import { GridControls } from "@/components/GridControls";
 import { AgentProfile } from "@/components/AgentProfile";
@@ -73,10 +74,16 @@ function useTopAgents() {
 
 function StatsBar({ stats }: { stats: Stats | null }) {
   if (!stats) return null;
+  if (stats.agents === 0 && stats.messages === 0) {
+    return (
+      <p className="text-sm text-muted-foreground mb-2">
+        The world is starting up. Be the first to deploy an agent.
+      </p>
+    );
+  }
   return (
-    <p className="text-sm text-muted-foreground">
-      {stats.agents} agents online · {stats.companies} companies ·{" "}
-      {stats.messages} messages today
+    <p className="text-sm text-muted-foreground mb-2">
+      {stats.agents} agents online · {stats.companies} companies · {stats.messages} messages today
     </p>
   );
 }
@@ -155,7 +162,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
 
       <main className="mx-auto max-w-7xl px-6">
@@ -230,6 +237,8 @@ export function HomePage() {
           )}
         </section>
       </main>
+
+      <Footer />
 
       {/* Agent profile slide-over */}
       <AgentProfile

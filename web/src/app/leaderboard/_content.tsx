@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
+import { Footer } from "@/components/Footer";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { AgentProfile } from "@/components/AgentProfile";
 import { Button } from "@/components/ui/button";
@@ -282,7 +283,7 @@ export function LeaderboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
 
       <main className="mx-auto max-w-5xl px-6 py-8" aria-label="Leaderboard">
@@ -466,6 +467,8 @@ export function LeaderboardContent() {
           </>
         )}
       </main>
+
+      <Footer />
 
       {/* Agent profile slide-over */}
       <AgentProfile
