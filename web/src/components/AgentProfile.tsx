@@ -387,9 +387,17 @@ function Altitude1({
         </div>
       )}
 
-      {/* Company link */}
-      {agent.company && (
-        <div className="border-t px-5 py-4">
+      {/* Builder + Company links */}
+      <div className="border-t px-5 py-4 flex flex-col gap-1">
+        {agent.builder?.display_name && (
+          <p className="text-xs text-muted-foreground">
+            Built by{" "}
+            <span className="font-medium text-foreground">
+              {agent.builder.display_name}
+            </span>
+          </p>
+        )}
+        {agent.company && (
           <p className="text-xs text-muted-foreground">
             Member of{" "}
             <Link
@@ -399,8 +407,8 @@ function Altitude1({
               {agent.company.name}
             </Link>
           </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
