@@ -660,7 +660,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
-    // Agent quality timeline — daily score (per axis, or composite) for last N days
+    // Agent quality timeline — daily score for last N days.
+    // When ?axis is provided: daily AVG on that single axis (clean).
+    // When ?axis is omitted: daily composite but ONLY for days where all
+    //   HEAR_AXES are present (otherwise AVG mixes axes and produces meaningless
+    //   noise when the sampler rotates through axes on different days).
     if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality\/timeline$/) && req.method === "GET") {
       const agentId = url.pathname.split("/")[3];
       if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
@@ -671,23 +675,40 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const rawDays = parseInt(url.searchParams.get("days") || "30", 10);
       const days = Math.min(Math.max(isNaN(rawDays) ? 30 : rawDays, 1), 90);
       try {
-        const params: unknown[] = [agentId];
-        let filter = `agent_id = $1 AND computed_at > now() - ($2 || ' days')::interval`;
-        params.push(days);
+        let rows;
         if (axisParam) {
-          params.push(axisParam);
-          filter += ` AND axis = $3`;
+          const result = await pool.query(
+            `SELECT DATE(computed_at) as date,
+                    AVG(score)::float as score,
+                    AVG(score_state_sigma)::float as sigma
+             FROM quality_evaluations
+             WHERE agent_id = $1 AND axis = $2
+               AND computed_at > now() - ($3 || ' days')::interval
+             GROUP BY DATE(computed_at)
+             ORDER BY date`,
+            [agentId, axisParam, days]
+          );
+          rows = result.rows;
+        } else {
+          // Composite only for days with all HEAR_AXES present
+          const result = await pool.query(
+            `SELECT date, score, sigma FROM (
+               SELECT DATE(computed_at) as date,
+                      AVG(score)::float as score,
+                      AVG(score_state_sigma)::float as sigma,
+                      COUNT(DISTINCT axis)::int as distinct_axes
+               FROM quality_evaluations
+               WHERE agent_id = $1
+                 AND computed_at > now() - ($2 || ' days')::interval
+                 AND axis = ANY($3)
+               GROUP BY DATE(computed_at)
+             ) sub
+             WHERE distinct_axes >= $4
+             ORDER BY date`,
+            [agentId, days, HEAR_AXES, MIN_AXES_FOR_COMPOSITE]
+          );
+          rows = result.rows;
         }
-        const { rows } = await pool.query(
-          `SELECT DATE(computed_at) as date,
-                  AVG(score)::float as score,
-                  AVG(score_state_sigma)::float as sigma
-           FROM quality_evaluations
-           WHERE ${filter}
-           GROUP BY DATE(computed_at)
-           ORDER BY date`,
-          params
-        );
         const timeline = rows.map(r => ({
           date: r.date,
           score: r.score === null ? null : Number(r.score),

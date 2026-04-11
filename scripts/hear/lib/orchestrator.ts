@@ -80,9 +80,13 @@ const PROMPT_VERSION = "judge-v1.1";
 
 // ---- Claude CLI (copied from pre-grade.ts to keep lib self-contained) ----
 
+/** Hard timeout for a single CLI call: the judge batch must not hang forever. */
+const CLI_TIMEOUT_MS = 120_000; // 2 minutes
+
 /**
  * Call the `claude` CLI in print mode with the prompt piped via stdin.
  * Returns the raw text response plus cost/usage metadata from the envelope.
+ * Kills the subprocess and rejects if it exceeds CLI_TIMEOUT_MS.
  */
 async function callClaudeCli(
   prompt: string,
@@ -97,6 +101,15 @@ async function callClaudeCli(
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    // Hard timeout: kill the process if it hangs (network glitch, auth re-prompt, etc.)
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { proc.kill("SIGKILL"); } catch { /* already exited */ }
+      reject(new Error(`claude CLI timed out after ${CLI_TIMEOUT_MS / 1000}s`));
+    }, CLI_TIMEOUT_MS);
 
     proc.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
@@ -107,6 +120,10 @@ async function callClaudeCli(
     });
 
     proc.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+
       if (code !== 0) {
         reject(
           new Error(
@@ -139,6 +156,9 @@ async function callClaudeCli(
     });
 
     proc.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       reject(
         new Error(
           `failed to spawn 'claude' — is Claude Code installed and in your PATH? (${err.message})`,
@@ -146,8 +166,15 @@ async function callClaudeCli(
       );
     });
 
-    proc.stdin.write(prompt);
-    proc.stdin.end();
+    // Swallow EPIPE on stdin — the CLI may close stdin before we finish writing
+    proc.stdin.on("error", () => { /* intentionally ignored */ });
+
+    try {
+      proc.stdin.write(prompt);
+      proc.stdin.end();
+    } catch {
+      // EPIPE / stream closed — the close handler will still fire with a non-zero code
+    }
   });
 }
 
@@ -178,10 +205,22 @@ function extractJson(text: string): unknown {
   const lastBrace = text.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     const candidate = text.slice(firstBrace, lastBrace + 1);
-    return JSON.parse(candidate); // throws if still invalid
+    try {
+      return JSON.parse(candidate);
+    } catch (err) {
+      // Provide forensic context: which strategy failed, what we parsed,
+      // and the first 500 chars of the original response.
+      throw new Error(
+        `extractJson strategy 3 failed: ${(err as Error).message}\n` +
+        `candidate (first 500 chars): ${candidate.slice(0, 500)}\n` +
+        `original response (first 500 chars): ${text.slice(0, 500)}`,
+      );
+    }
   }
 
-  throw new Error("no JSON object found in response");
+  throw new Error(
+    `no JSON object found in response (first 500 chars): ${text.slice(0, 500)}`,
+  );
 }
 
 // ---- Prompt assembly ----

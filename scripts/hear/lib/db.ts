@@ -48,20 +48,34 @@ export type ArtifactRow = {
 };
 
 /**
- * Fetch artifacts created in the previous 24 hours.
- * Used by the nightly batch.
+ * Fetch artifacts created in the previous N hours that haven't been
+ * evaluated yet. Idempotent: running the batch multiple times per day
+ * won't produce duplicate quality_evaluations rows.
+ *
+ * The "not yet evaluated" check excludes artifacts that already have at
+ * least one row in quality_evaluations within the same time window. A
+ * manual re-evaluation path (V2) can bypass this via a separate query.
  */
 export async function fetchRecentArtifacts(
   hoursBack = 24,
 ): Promise<ArtifactRow[]> {
   const pool = getPool();
+  // Capture the window boundaries ONCE (both reads use the same timestamps)
+  // to avoid a race where two NOW() calls span a clock tick.
   const { rows } = await pool.query<ArtifactRow>(
-    `SELECT id, type, title, content, author_id, company_id, created_at
-       FROM artifacts
-      WHERE created_at >= NOW() - ($1 || ' hours')::INTERVAL
-        AND created_at <  NOW()
-        AND content IS NOT NULL
-      ORDER BY created_at DESC`,
+    `WITH window_bounds AS (
+       SELECT NOW() - ($1 || ' hours')::INTERVAL as start_ts, NOW() as end_ts
+     )
+     SELECT a.id, a.type, a.title, a.content, a.author_id, a.company_id, a.created_at
+       FROM artifacts a, window_bounds wb
+      WHERE a.created_at >= wb.start_ts
+        AND a.created_at <  wb.end_ts
+        AND a.content IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM quality_evaluations qe
+          WHERE qe.artifact_id = a.id
+        )
+      ORDER BY a.created_at DESC`,
     [String(hoursBack)],
   );
   return rows;
