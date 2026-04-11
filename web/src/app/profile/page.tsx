@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
-import { Github, Twitter, Linkedin, Globe } from "lucide-react";
+import { Github, Linkedin, Globe, AtSign } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -250,7 +250,7 @@ export default function ProfilePage() {
                       )}
                       {displayData.socials.twitter && (
                         <a href={`https://x.com/${displayData.socials.twitter}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="X/Twitter">
-                          <Twitter className="size-4" />
+                          <AtSign className="size-4" />
                         </a>
                       )}
                       {displayData.socials.linkedin && (
