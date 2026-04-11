@@ -571,7 +571,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (axis) axis, score, score_state_sigma, computed_at
            FROM quality_evaluations
-           WHERE agent_id = $1
+           WHERE agent_id = $1 AND invalidated_at IS NULL
            ORDER BY axis, computed_at DESC`,
           [agentId]
         );
@@ -611,7 +611,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const limit = Math.min(Math.max(isNaN(rawLimit) ? 10 : rawLimit, 1), 50);
       try {
         const params: unknown[] = [agentId];
-        let where = `agent_id = $1`;
+        let where = `agent_id = $1 AND invalidated_at IS NULL`;
         if (axisParam) {
           params.push(axisParam);
           where += ` AND axis = $2`;
@@ -663,6 +663,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              FROM quality_evaluations
              WHERE agent_id = $1 AND axis = $2
                AND computed_at > now() - ($3 || ' days')::interval
+               AND invalidated_at IS NULL
              GROUP BY DATE(computed_at)
              ORDER BY date`,
             [agentId, axisParam, days]
@@ -680,6 +681,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
                WHERE agent_id = $1
                  AND computed_at > now() - ($2 || ' days')::interval
                  AND axis = ANY($3)
+                 AND invalidated_at IS NULL
                GROUP BY DATE(computed_at)
              ) sub
              WHERE distinct_axes >= $4
@@ -748,7 +750,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              was_escalated, methodology_version, reasoning, evidence_quotes,
              computed_at
            FROM quality_evaluations
-           WHERE artifact_id = $1
+           WHERE artifact_id = $1 AND invalidated_at IS NULL
            ORDER BY axis, computed_at DESC`,
           [artifactId]
         );
@@ -814,7 +816,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              SELECT DISTINCT ON (qe.agent_id, qe.axis)
                qe.agent_id, qe.axis, qe.score, qe.score_state_sigma
              FROM quality_evaluations qe
-             WHERE 1=1 ${axisClause}
+             WHERE qe.invalidated_at IS NULL ${axisClause}
              ORDER BY qe.agent_id, qe.axis, qe.computed_at DESC
            ),
            composite AS (
@@ -905,7 +907,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              COALESCE(AVG(cost_usd), 0)::float as cost_per_eval_avg,
              COUNT(*)::int as run_count
            FROM judge_runs
-           WHERE created_at >= date_trunc('month', now())`
+           WHERE created_at >= date_trunc('month', now())
+             AND invalidated_at IS NULL`
         );
         const r = rows[0] || { current_month_usd: 0, cost_per_eval_avg: 0, run_count: 0 };
         return json({
@@ -1023,6 +1026,87 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       } catch (err) {
         console.error("[hear] /api/internal/quality/notify error:", err);
         return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Internal: invalidate all scores from a batch (disaster recovery).
+    // Soft-deletes quality_evaluations + judge_runs for the given batch_id.
+    // Authenticated by shared secret header.
+    if (
+      url.pathname === "/api/internal/quality/invalidate-batch" &&
+      req.method === "POST"
+    ) {
+      const expected = process.env.HIVE_INTERNAL_TOKEN;
+      if (!expected) {
+        console.error("[hear] HIVE_INTERNAL_TOKEN not configured");
+        return json({ error: "internal_not_configured" }, 500);
+      }
+      const provided = req.headers.get("X-Hive-Internal-Token");
+      if (!provided || provided.length !== expected.length || !timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
+        return json({ error: "unauthorized" }, 401);
+      }
+      const body = await req.json().catch(() => null) as {
+        batch_id?: string;
+        reason?: string;
+      } | null;
+      if (!body?.batch_id || !UUID_RE.test(body.batch_id)) {
+        return json({ error: "batch_id (UUID) required" }, 400);
+      }
+      if (!body.reason || body.reason.trim().length === 0) {
+        return json({ error: "reason required" }, 400);
+      }
+      if (body.reason.trim().length > 500) {
+        return json({ error: "reason must be 500 characters or fewer" }, 400);
+      }
+      const reason = body.reason.trim();
+      const batchId = body.batch_id;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // Two queries so we get an accurate run count (rowCount on UPDATE)
+        // and the distinct artifact IDs without conflating the two numbers.
+        const { rowCount: runsInvalidated } = await client.query(
+          `UPDATE judge_runs
+           SET invalidated_at = now(), invalidation_reason = $1
+           WHERE batch_id = $2 AND invalidated_at IS NULL`,
+          [reason, batchId],
+        );
+        const { rows: invalidatedRows } = await client.query<{
+          artifact_id: string;
+        }>(
+          `SELECT DISTINCT artifact_id FROM judge_runs
+           WHERE batch_id = $1 AND artifact_id IS NOT NULL`,
+          [batchId],
+        );
+        const artifactIds = invalidatedRows.map((r) => r.artifact_id);
+
+        let evalsInvalidated = 0;
+        if (artifactIds.length > 0) {
+          const { rowCount } = await client.query(
+            `UPDATE quality_evaluations
+             SET invalidated_at = now(), invalidation_reason = $1
+             WHERE artifact_id = ANY($2) AND invalidated_at IS NULL`,
+            [reason, artifactIds],
+          );
+          evalsInvalidated = rowCount ?? 0;
+        }
+
+        await client.query("COMMIT");
+        console.log(
+          `[hear] invalidated batch ${batchId}: ${runsInvalidated} runs, ${evalsInvalidated} evals — ${reason}`,
+        );
+        return json({
+          ok: true,
+          runs_invalidated: runsInvalidated ?? 0,
+          evaluations_invalidated: evalsInvalidated,
+        });
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error("[hear] /api/internal/quality/invalidate-batch error:", err);
+        return json({ error: "internal_error" }, 500);
+      } finally {
+        client.release();
       }
     }
 

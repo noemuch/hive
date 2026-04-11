@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const PROJECT_ROOT = join(import.meta.dir, "..", "..", "..");
@@ -59,7 +59,6 @@ export function loadItem(itemId: string): { content: string; type: string } {
 }
 
 export function listItemIds(): string[] {
-  const { readdirSync } = require("node:fs") as typeof import("node:fs");
   const dir = join(PROJECT_ROOT, "docs", "research", "calibration", "items");
   return readdirSync(dir)
     .filter((f: string) => f.endsWith(".md") && /^\d{3}-/.test(f))

@@ -20,8 +20,9 @@
  *   - Add escalation logic when disagreement exceeds threshold
  */
 
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { callClaude } from "./claude-cli";
+import type { ClaudeResponse } from "./claude-cli";
 import { loadRubric, loadGraderPrompt, AXES, RUBRIC_VERSION } from "./rubric";
 import type { AxisScore } from "./schema";
 import type { CostMonitor } from "./cost";
@@ -77,106 +78,6 @@ const JUDGE_PREAMBLES: Record<number, string> = {
 };
 
 const PROMPT_VERSION = "judge-v1.1";
-
-// ---- Claude CLI (copied from pre-grade.ts to keep lib self-contained) ----
-
-/** Hard timeout for a single CLI call: the judge batch must not hang forever. */
-const CLI_TIMEOUT_MS = 120_000; // 2 minutes
-
-/**
- * Call the `claude` CLI in print mode with the prompt piped via stdin.
- * Returns the raw text response plus cost/usage metadata from the envelope.
- * Kills the subprocess and rejects if it exceeds CLI_TIMEOUT_MS.
- */
-async function callClaudeCli(
-  prompt: string,
-  model: string,
-): Promise<{ text: string; cost?: number; usage?: unknown }> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      "claude",
-      ["-p", "--output-format", "json", "--model", model],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-
-    // Hard timeout: kill the process if it hangs (network glitch, auth re-prompt, etc.)
-    const timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try { proc.kill("SIGKILL"); } catch { /* already exited */ }
-      reject(new Error(`claude CLI timed out after ${CLI_TIMEOUT_MS / 1000}s`));
-    }, CLI_TIMEOUT_MS);
-
-    proc.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeoutId);
-
-      if (code !== 0) {
-        reject(
-          new Error(
-            `claude CLI exited with code ${code}\nstderr: ${stderr.slice(0, 500)}`,
-          ),
-        );
-        return;
-      }
-
-      try {
-        const envelope = JSON.parse(stdout);
-        const text = envelope.result ?? envelope.message ?? envelope.text;
-        if (typeof text !== "string") {
-          throw new Error(
-            `unexpected CLI envelope shape: ${JSON.stringify(envelope).slice(0, 500)}`,
-          );
-        }
-        resolve({
-          text,
-          cost: envelope.total_cost_usd,
-          usage: envelope.usage,
-        });
-      } catch (err) {
-        reject(
-          new Error(
-            `failed to parse claude CLI JSON output: ${(err as Error).message}\nfirst 500 chars of output: ${stdout.slice(0, 500)}`,
-          ),
-        );
-      }
-    });
-
-    proc.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeoutId);
-      reject(
-        new Error(
-          `failed to spawn 'claude' — is Claude Code installed and in your PATH? (${err.message})`,
-        ),
-      );
-    });
-
-    // Swallow EPIPE on stdin — the CLI may close stdin before we finish writing
-    proc.stdin.on("error", () => { /* intentionally ignored */ });
-
-    try {
-      proc.stdin.write(prompt);
-      proc.stdin.end();
-    } catch {
-      // EPIPE / stream closed — the close handler will still fire with a non-zero code
-    }
-  });
-}
 
 /**
  * Extract JSON from Claude's response. The grader prompt requests raw JSON,
@@ -294,7 +195,7 @@ async function runSingleJudge(
   const promptHash = hashContent(prompt);
 
   const startTime = Date.now();
-  const { text, cost } = await callClaudeCli(prompt, model);
+  const { text, cost } = await callClaude(prompt, model);
   const durationMs = Date.now() - startTime;
 
   const parsed = extractJson(text) as { scores?: Record<string, AxisScore> };
