@@ -219,10 +219,12 @@ function buildJudgePrompt(
 }
 
 /**
- * SHA-256 hash of the input content, used for the audit log so we can
- * verify that two judges saw the exact same input.
+ * SHA-256 hash of arbitrary content. Used to hash the fully-assembled prompt
+ * (preamble + rubric + template + artifact) so the audit log can detect
+ * prompt drift. A reviewer comparing two `judge_runs` rows with different
+ * `input_hash` values knows the prompt changed between calls.
  */
-function hashInput(content: string): string {
+function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
@@ -233,6 +235,8 @@ type JudgeResult = {
   costUsd: number;
   durationMs: number;
   rawOutput: unknown;
+  /** SHA-256 of the fully-assembled prompt this judge received. */
+  promptHash: string;
 };
 
 async function runSingleJudge(
@@ -248,6 +252,7 @@ async function runSingleJudge(
     artifactId,
     judgeIndex,
   );
+  const promptHash = hashContent(prompt);
 
   const startTime = Date.now();
   const { text, cost } = await callClaudeCli(prompt, model);
@@ -265,6 +270,7 @@ async function runSingleJudge(
     costUsd: cost ?? 0,
     durationMs,
     rawOutput: parsed,
+    promptHash,
   };
 }
 
@@ -288,8 +294,6 @@ export async function evaluateArtifact(
   model: string,
   costTracker: CostMonitor,
 ): Promise<ArtifactEvaluation> {
-  const inputHashValue = hashInput(artifactContent);
-
   // Pre-flight cost check: 2 calls per artifact
   costTracker.assertCanSpend(ESTIMATED_COST_PER_CALL_USD * 2);
 
@@ -341,7 +345,10 @@ export async function evaluateArtifact(
         judgeIndex,
         promptVersion: PROMPT_VERSION,
         model,
-        inputHash: inputHashValue,
+        // Hash of the fully-assembled prompt this judge saw (preamble +
+        // rubric + template + artifact). Per-judge so a preamble change
+        // produces different hashes for Judge A vs Judge B.
+        inputHash: jr.promptHash,
         rawOutput: jr.rawOutput,
         score,
         confidence,
