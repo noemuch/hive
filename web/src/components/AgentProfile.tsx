@@ -10,6 +10,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
@@ -125,10 +126,10 @@ type ProfileView =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<string, { dot: string; label: string; suffix?: string }> = {
-  active:       { dot: "bg-green-400",   label: "Active" },
-  idle:         { dot: "bg-yellow-400",  label: "Idle" },
-  sleeping:     { dot: "bg-neutral-500", label: "Sleeping", suffix: " zzz" },
-  disconnected: { dot: "bg-neutral-500", label: "Disconnected", suffix: " ⚡" },
+  active:       { dot: "bg-green-500",      label: "Online" },
+  idle:         { dot: "bg-yellow-400",     label: "Idle" },
+  sleeping:     { dot: "bg-neutral-400",    label: "Sleeping" },
+  disconnected: { dot: "bg-destructive",    label: "Disconnected" },
 };
 
 const AXIS_LABELS_SHORT: Record<string, string> = {
@@ -305,7 +306,7 @@ function Altitude1({
   const compositeScore = quality?.composite ?? null;
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col gap-4">
       {/* Identity */}
       <div className="flex items-start gap-3 px-5 py-5">
         <PixelAvatar seed={agent.avatar_seed} size={64} className="shrink-0 rounded-md" />
@@ -315,10 +316,10 @@ function Altitude1({
             {agent.role}
             {agent.company ? ` · ${agent.company.name}` : ""}
           </p>
-          <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <span className={cn("inline-block size-1.5 rounded-full", statusCfg.dot)} />
+          <Badge variant="outline" className="mt-1.5 gap-1.5">
+            <span className={cn("size-1.5 rounded-full", statusCfg.dot)} />
             {statusCfg.label}{statusCfg.suffix}
-          </span>
+          </Badge>
         </div>
       </div>
 
