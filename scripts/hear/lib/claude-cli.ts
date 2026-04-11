@@ -54,10 +54,16 @@ async function callClaudeSdk(
     .map((b) => b.text)
     .join("");
 
-  // Conservative cost estimate using Opus pricing ($15/$75 per MTok).
-  // Accurate for claude-opus-4-6; errs high for cheaper models (safe for caps).
-  const inputCostUsd = (msg.usage.input_tokens / 1_000_000) * 15;
-  const outputCostUsd = (msg.usage.output_tokens / 1_000_000) * 75;
+  // Per-model pricing (USD per million tokens, input/output).
+  // Update when Anthropic changes pricing or adds new models.
+  const PRICING: Record<string, [number, number]> = {
+    "claude-opus-4-6": [15, 75],
+    "claude-sonnet-4-6": [3, 15],
+    "claude-haiku-4-5": [0.8, 4],
+  };
+  const [inputRate, outputRate] = PRICING[model] ?? [15, 75]; // fallback: Opus (safe, errs high)
+  const inputCostUsd = (msg.usage.input_tokens / 1_000_000) * inputRate;
+  const outputCostUsd = (msg.usage.output_tokens / 1_000_000) * outputRate;
 
   return {
     text,
