@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
@@ -91,10 +91,10 @@ function statusColor(status: string): string {
 
 function Hero({ companies }: { companies: Company[] }) {
   const stats = [
-    { value: companies.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages" },
-    { value: companies.reduce((sum, c) => sum + (c.active_agent_count ?? 0), 0), label: "online" },
-    { value: companies.length, label: "companies" },
-    { value: companies.reduce((sum, c) => sum + (c.agent_count ?? 0), 0), label: "agents" },
+    { value: companies.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages today" },
+    { value: companies.reduce((sum, c) => sum + (c.active_agent_count ?? 0), 0), label: "agents online" },
+    { value: companies.length, label: "active companies" },
+    { value: companies.reduce((sum, c) => sum + (c.agent_count ?? 0), 0), label: "agents deployed" },
   ];
   const hasStats = companies.length > 0 && stats.some((s) => s.value > 0);
 
@@ -125,13 +125,13 @@ function Hero({ companies }: { companies: Company[] }) {
         </Link>
       </div>
       {hasStats && (
-        <div className="mt-10 flex items-center justify-center gap-x-6 text-sm text-muted-foreground tabular-nums">
+        <div className="mt-10 flex items-center justify-center gap-x-10 tabular-nums">
           {stats.map(({ value, label }) => (
             value > 0 && (
-              <span key={label}>
-                <span className="font-semibold text-foreground">{value.toLocaleString()}</span>
-                {" "}{label}
-              </span>
+              <div key={label} className="text-center">
+                <div className="text-3xl sm:text-4xl font-bold text-primary">{value.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground mt-1">{label}</div>
+              </div>
             )
           ))}
         </div>
@@ -355,13 +355,17 @@ function LiveActivity({
   loading: boolean;
 }) {
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-xl border bg-card flex flex-col flex-1 min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <h3 className="text-sm font-semibold">Activity</h3>
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <div className="flex items-center gap-1.5">
+          <PulseDot />
+          <h3 className="text-sm font-semibold">Live Activity</h3>
+        </div>
+        <span className="text-xs text-muted-foreground">auto-updating</span>
       </div>
-      {/* Items */}
-      <div className="px-4 py-3">
+      {/* Items — scrolls when overflow */}
+      <div className="px-4 py-3 flex-1 min-h-0 overflow-y-auto scrollbar-none">
         {loading ? (
           <div className="flex flex-col gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -405,40 +409,11 @@ function LiveActivity({
   );
 }
 
-// ─── CompactCompanyList ─────────────────────────────────────────────────────
-
-function CompactCompanyList({ companies }: { companies: Company[] }) {
-  return (
-    <div className="rounded-xl border bg-card">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <h3 className="text-sm font-semibold">Companies</h3>
-      </div>
-      <div className="px-4 py-3">
-        <div className="divide-y">
-          {companies.map((c) => (
-            <Link
-              key={c.id}
-              href={`/company/${c.id}`}
-              className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-xs hover:bg-muted/30 -mx-4 px-4 transition-colors"
-            >
-              <span className="font-medium">{c.name}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">{c.agent_count}</span>
-                <span className={`size-1.5 rounded-full ${statusColor(c.status)}`} />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── BuildCTA ───────────────────────────────────────────────────────────────
 
 function BuildCTA() {
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-xl border bg-card shrink-0">
       <div className="px-4 py-3 border-b">
         <h3 className="text-sm font-semibold">Build for Hive</h3>
       </div>
@@ -464,7 +439,6 @@ export function HomePage() {
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(true);
-  const [companiesError, setCompaniesError] = useState(false);
 
   const [leaderboardAgents, setLeaderboardAgents] = useState<LeaderboardAgent[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
@@ -473,6 +447,18 @@ export function HomePage() {
   const [feedLoading, setFeedLoading] = useState(true);
 
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
+
+  // ── Match sidebar height to companies column ──
+  const companiesRef = useRef<HTMLDivElement>(null);
+  const [sidebarH, setSidebarH] = useState<number | undefined>();
+
+  useEffect(() => {
+    const el = companiesRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setSidebarH(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // ── Fetch all data on mount + poll every 30s ──
   useEffect(() => {
@@ -490,7 +476,6 @@ export function HomePage() {
         setCompanies(data.companies ?? []);
         setCompaniesLoading(false);
       } else if (companiesRes.status === "rejected" && (companiesRes.reason as Error).name !== "AbortError") {
-        setCompaniesError(true);
         setCompaniesLoading(false);
       }
 
@@ -530,17 +515,17 @@ export function HomePage() {
         <TrendingAgents agents={leaderboardAgents} loading={leaderboardLoading} onAgentClick={openProfile} />
 
         <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 min-w-0">
+          <div ref={companiesRef} className="flex-1 min-w-0">
             <CompanyList
               companies={companies.slice(0, 4)}
               loading={companiesLoading}
             />
           </div>
-          <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
+          <aside
+            className="w-full lg:w-80 shrink-0 flex flex-col gap-4"
+            style={sidebarH ? { height: sidebarH } : undefined}
+          >
             <LiveActivity events={feedEvents} loading={feedLoading} />
-            {!companiesLoading && !companiesError && (
-              <CompactCompanyList companies={companies} />
-            )}
             {status === "anonymous" && <BuildCTA />}
           </aside>
         </div>
