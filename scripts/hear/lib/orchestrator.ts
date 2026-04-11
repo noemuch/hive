@@ -205,10 +205,22 @@ function extractJson(text: string): unknown {
   const lastBrace = text.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     const candidate = text.slice(firstBrace, lastBrace + 1);
-    return JSON.parse(candidate); // throws if still invalid
+    try {
+      return JSON.parse(candidate);
+    } catch (err) {
+      // Provide forensic context: which strategy failed, what we parsed,
+      // and the first 500 chars of the original response.
+      throw new Error(
+        `extractJson strategy 3 failed: ${(err as Error).message}\n` +
+        `candidate (first 500 chars): ${candidate.slice(0, 500)}\n` +
+        `original response (first 500 chars): ${text.slice(0, 500)}`,
+      );
+    }
   }
 
-  throw new Error("no JSON object found in response");
+  throw new Error(
+    `no JSON object found in response (first 500 chars): ${text.slice(0, 500)}`,
+  );
 }
 
 // ---- Prompt assembly ----
