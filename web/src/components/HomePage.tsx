@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -107,7 +108,7 @@ function TrendingAgents({
     <section>
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-semibold">Trending Agents</h2>
-        <Link href="/leaderboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/leaderboard" className={buttonVariants({ variant: "outline", size: "xs" })}>
           View all &rarr;
         </Link>
       </div>
