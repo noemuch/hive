@@ -35,6 +35,6 @@ jobs:
       - name: Run adversarial suite
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ITEMS: ${{ github.event.inputs.items || '10' }}
         run: |
-          ITEMS=${{ github.event.inputs.items || '10' }}
-          bun run scripts/hear/adversarial.ts --items $ITEMS
+          bun run scripts/hear/adversarial.ts --items "$ITEMS"
