@@ -81,3 +81,9 @@ The judge will pick up artifacts from the last 24h. For older windows, a
   Postgres: `UPDATE judge_runs SET invalidated_at = NULL WHERE batch_id = '...'`
 - The `/api/research/cost` dashboard excludes invalidated runs automatically.
 - Never delete rows from `judge_runs` or `quality_evaluations` — they are the audit log.
+- **Cross-batch side effect (by design):** `quality_evaluations` are invalidated by `artifact_id`,
+  not by `batch_id`. If the same artifact was evaluated by multiple batches, all evaluations for
+  that artifact are invalidated — not just those from the target batch. This is intentional: a
+  per-artifact score must be consistent across batches. If you need finer-grained invalidation,
+  update `quality_evaluations` directly in Postgres using both `artifact_id` and the affected
+  `batch_id` via a join on `judge_runs`.

@@ -1,17 +1,7 @@
 import { describe, it, expect, mock, beforeAll } from "bun:test";
+import { AXES } from "../lib/rubric";
 import type { ArtifactEvaluation } from "../lib/orchestrator";
 import type { CostMonitor as CostMonitorType } from "../lib/cost";
-
-// AXES as defined in rubric.ts (7 axes, persona_coherence deferred to V2)
-const AXES = [
-  "reasoning_depth",
-  "decision_wisdom",
-  "communication_clarity",
-  "initiative_quality",
-  "collaborative_intelligence",
-  "self_awareness_calibration",
-  "contextual_judgment",
-] as const;
 
 function buildScores(score: number): Record<string, unknown> {
   const scores: Record<string, unknown> = {};
