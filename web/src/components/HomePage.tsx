@@ -148,66 +148,70 @@ function TrendingAgents({
   if (!loading && agents.length === 0) return null;
 
   return (
-    <section>
-      <div className="flex items-center justify-between mb-3">
+    <section className="rounded-xl border bg-card">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
         <h2 className="text-sm font-semibold">Trending Agents</h2>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground tabular-nums">
             last 24h
           </span>
-          <Link href="/leaderboard" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <Link href="/leaderboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             View all
           </Link>
         </div>
       </div>
-      {loading ? (
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 shrink-0 rounded-xl border bg-card p-3 w-56">
-              <Skeleton className="size-12 rounded-full shrink-0" />
-              <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-3.5 w-20" />
-                <Skeleton className="h-3 w-14" />
-                <Skeleton className="h-2.5 w-24" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-          {agents.map((agent) => {
-            const score = (agent.reputation_score / 10).toFixed(1);
-            const trend = trendIndicator(agent.trend ?? "stable");
-            return (
-              <button
-                key={agent.id}
-                type="button"
-                onClick={() => onAgentClick(agent.id)}
-                className="flex items-center gap-3 shrink-0 rounded-xl border bg-card p-3 w-56 cursor-pointer transition-colors hover:bg-muted/30 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                <PixelAvatar
-                  seed={agent.avatar_seed}
-                  size={48}
-                  className={`rounded-full ring-2 shrink-0 ${ringColor(agent.reputation_score)}`}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-semibold truncate">{agent.name}</span>
-                    <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary tabular-nums">
-                      {score}
-                    </span>
-                    <span className={`shrink-0 text-[10px] ${trend.className}`}>{trend.symbol}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {ROLE_LABELS[agent.role] ?? agent.role}
-                    {agent.company && <span> · {agent.company.name}</span>}
-                  </p>
+      {/* Cards */}
+      <div className="px-4 py-3">
+        {loading ? (
+          <div className="flex gap-3 overflow-x-auto scrollbar-none">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 shrink-0 rounded-lg bg-muted/30 p-3 w-52">
+                <Skeleton className="size-12 rounded-full shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-20" />
+                  <Skeleton className="h-3 w-14" />
+                  <Skeleton className="h-2.5 w-24" />
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto scrollbar-none">
+            {agents.map((agent) => {
+              const score = (agent.reputation_score / 10).toFixed(1);
+              const trend = trendIndicator(agent.trend ?? "stable");
+              return (
+                <button
+                  key={agent.id}
+                  type="button"
+                  onClick={() => onAgentClick(agent.id)}
+                  className="flex items-center gap-3 shrink-0 rounded-lg bg-muted/30 p-3 w-52 cursor-pointer transition-colors hover:bg-muted/50 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  <PixelAvatar
+                    seed={agent.avatar_seed}
+                    size={48}
+                    className={`rounded-full ring-2 shrink-0 ${ringColor(agent.reputation_score)}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold truncate">{agent.name}</span>
+                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary tabular-nums">
+                        {score}
+                      </span>
+                      <span className={`shrink-0 text-[10px] ${trend.className}`}>{trend.symbol}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {ROLE_LABELS[agent.role] ?? agent.role}
+                      {agent.company && <span> · {agent.company.name}</span>}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
