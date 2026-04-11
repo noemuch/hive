@@ -9,12 +9,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PixelAvatar } from "@/components/PixelAvatar";
-import { SpiderChart, type ReputationAxes } from "@/components/SpiderChart";
-import { MessageSquare, Package, Heart, Clock, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
+import { type ReputationAxes } from "@/components/SpiderChart";
+import { MessageSquare, Package, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -495,12 +494,10 @@ function QualityBars({
 }
 
 function Altitude2({
-  agent,
   quality,
   onBack,
   onAxisClick,
 }: {
-  agent: AgentDetail;
   quality: QualityData | null;
   onBack: () => void;
   onAxisClick: (key: QualityAxisKey) => void;
@@ -520,77 +517,17 @@ function Altitude2({
         )}
       </div>
 
-      {/* Tabs: Performance / Quality / Composite */}
-      <Tabs defaultValue="quality" className="flex flex-col">
-        <div className="border-b px-5 py-3">
-          <TabsList className="w-full">
-            <TabsTrigger value="performance" className="flex-1">Performance</TabsTrigger>
-            <TabsTrigger value="quality" className="flex-1">Quality</TabsTrigger>
-            <TabsTrigger value="composite" className="flex-1">Composite</TabsTrigger>
-          </TabsList>
+      {/* Quality bars — sorted, no tabs */}
+      {!quality ? (
+        <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
+          <p className="text-sm font-medium">Quality evaluation pending</p>
+          <p className="max-w-[240px] text-xs text-muted-foreground">
+            HEAR evaluations run nightly. Check back after the agent has produced artifacts.
+          </p>
         </div>
-
-        {/* Performance tab — existing quantitative view */}
-        <TabsContent value="performance">
-          <div className="flex flex-col gap-6 px-5 py-6">
-            <section>
-              <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Reputation
-              </h3>
-              <SpiderChart axes={agent.reputation_axes} score={agent.reputation_score} />
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Stats
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <StatCard icon={MessageSquare} label="Messages"    value={agent.stats.messages_sent} />
-                <StatCard icon={Package}       label="Artifacts"   value={agent.stats.artifacts_created} />
-                <StatCard icon={Heart}         label="Kudos"       value={agent.stats.kudos_received} />
-                <StatCard icon={Clock}         label="Days active" value={agent.stats.uptime_days} />
-              </div>
-            </section>
-            {agent.reputation_history_30d.length > 1 && (
-              <section>
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  30-day score
-                </h3>
-                <div className="overflow-hidden rounded-lg bg-muted/30 px-1 py-2">
-                  <Sparkline history={agent.reputation_history_30d} />
-                </div>
-              </section>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Quality tab — sorted horizontal bars */}
-        <TabsContent value="quality">
-          {!quality ? (
-            <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
-              <p className="text-sm font-medium">Quality evaluation pending</p>
-              <p className="max-w-[240px] text-xs text-muted-foreground">
-                HEAR evaluations run nightly. Check back after the agent has produced artifacts.
-              </p>
-            </div>
-          ) : (
-            <QualityBars quality={quality} onAxisClick={onAxisClick} />
-          )}
-        </TabsContent>
-
-        {/* Composite tab — V1: show quality view */}
-        <TabsContent value="composite">
-          {!quality ? (
-            <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
-              <p className="text-sm font-medium">Quality evaluation pending</p>
-              <p className="max-w-[240px] text-xs text-muted-foreground">
-                HEAR evaluations run nightly. Check back after the agent has produced artifacts.
-              </p>
-            </div>
-          ) : (
-            <QualityBars quality={quality} onAxisClick={onAxisClick} />
-          )}
-        </TabsContent>
-      </Tabs>
+      ) : (
+        <QualityBars quality={quality} onAxisClick={onAxisClick} />
+      )}
     </div>
   );
 }
@@ -853,7 +790,7 @@ export function AgentProfile({
 
   return (
     <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <SheetContent side="right" className="flex flex-col gap-0 overflow-hidden p-0">
+      <SheetContent side="right" className="flex flex-col gap-0 overflow-hidden p-0" showCloseButton={view.altitude === 1}>
         {/* Hidden accessible title/description for screen readers */}
         <SheetHeader className="sr-only">
           <SheetTitle>{agent?.name ?? "Agent Profile"}</SheetTitle>
@@ -891,7 +828,6 @@ export function AgentProfile({
 
             {view.altitude === 2 && (
               <Altitude2
-                agent={agent}
                 quality={quality}
                 onBack={() => setView({ altitude: 1 })}
                 onAxisClick={key => setView({ altitude: 3, axis: key })}
