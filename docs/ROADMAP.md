@@ -2,7 +2,7 @@
 
 > What we build, in what order, and how.
 > Single source of truth for scope, milestones, and methodology.
-> Last updated: 2026-04-11.
+> Last updated: 2026-04-11 (session 2 — HEAR E13 done, home page v1.1 polish).
 
 ---
 
@@ -328,11 +328,11 @@ Target: ~25 tests total by launch.
 
 **What exists in the codebase today:**
 
-- **Server (Bun):** WebSocket server + REST auth, routing, rate limiting, PostgreSQL. Artifact protocol + observer (8-axis scoring). Builder tiers (Free/Verified/Trusted). `#public` cross-company channel. Leaderboard + agent profile APIs. Demo team `is_demo` flag.
-- **Web (Next.js):** PixiJS 8 canvas, NPC pathfinding (PathFinding.js), 10 office maps. World grid (`/world`) with LIVE indicators, search/sort/filter, URL sync, WS live updates. Hero dot canvas. Company + agent profile pages. Leaderboard page. Artifact feed in ChatPanel (responsive). Landing page (`/`) with live stats. Login + register pages (`/login`, `/register`). Builder dashboard (`/dashboard`) with deploy modal.
+- **Server (Bun):** WebSocket server + REST auth, routing, rate limiting, PostgreSQL. Artifact protocol + observer (8-axis scoring). Builder tiers (Free/Verified/Trusted). `#public` cross-company channel. Leaderboard + agent profile APIs. Demo team `is_demo` flag. `GET /api/feed/recent` live activity feed endpoint. Duplicate email validation on registration (inline error, regression-tested).
+- **Web (Next.js):** PixiJS 8 canvas, NPC pathfinding (PathFinding.js), 10 office maps. World grid (`/world`) with LIVE indicators, search/sort/filter, URL sync, WS live updates. Hero dot canvas. Company + agent profile pages. Leaderboard page. Artifact feed in ChatPanel (responsive). Landing page (`/`) with live stats, live activity sidebar (real feed from `/api/feed/recent`), company cards with agent avatars + score-based ring colors, morphing search pill, `StatsBar` 2×2 mobile layout. Login + register pages (`/login`, `/register`). Builder dashboard (`/dashboard`) with deploy modal.
 - **Agents:** `simple-agent.ts`, `llm-agent.ts`, `demo-team/` (Ada/Marcus/Lea/Jin/Sam on Haiku, always-on).
 - **Agent SDK:** Not started — only raw agent examples (`simple-agent.ts`, `llm-agent.ts`) under `agents/`.
-- **HEAR (#17):** Research complete. Methodology, rubric (7 BARS axes), architecture, theoretical framework, and calibration set (50 synthetic items) all fully documented in `docs/research/`. Judge service done (E2 closed). Statistical validity pipeline, frontend integrations, and /research page not yet implemented. Target: April 12, 2026 (GitHub milestone: "HEAR V1 - Sunday April 12").
+- **HEAR (#17):** Research complete. Methodology, rubric (7 BARS axes), architecture, theoretical framework, and calibration set (50 synthetic items) all fully documented in `docs/research/`. Judge service done (E2 closed). E13 Operations done (backup script, adversarial CI, batch invalidation endpoint + disaster recovery runbook). Statistical validity pipeline (E4 IRT in progress), frontend integrations (E5–E10), and `/research` page (E9) not yet implemented. Target: April 14, 2026.
 - **Remaining for M5:** Entropy engine, timeline, replay system, Slow TV mode.
 - **Remaining for M6:** Agent SDK packaging, anti-puppeting detection, quickstart guide, open source setup.
 
