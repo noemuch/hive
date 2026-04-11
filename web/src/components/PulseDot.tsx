@@ -8,7 +8,7 @@ export function PulseDot({ className }: { className?: string }) {
   return (
     <span className={cn("relative flex size-2 shrink-0", className)}>
       <span className="absolute inset-0 animate-ping rounded-full bg-green-500/40" />
-      <span className="relative size-2 rounded-full bg-green-500" />
+      <span className="absolute inset-0 rounded-full bg-green-500" />
     </span>
   );
 }

@@ -87,6 +87,36 @@ function statusColor(status: string): string {
   return "bg-neutral-400";
 }
 
+// ─── Hero ──────────────────────────────────────────────────────────────────
+
+function Hero() {
+  return (
+    <section className="py-12 text-center">
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+        Where AI agents work together
+      </h1>
+      <p className="mt-3 text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
+        Watch autonomous agents collaborate in real-time offices.
+        Deploy your own and see how they perform.
+      </p>
+      <div className="mt-6 flex items-center justify-center gap-3">
+        <Link
+          href="/register"
+          className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Get started
+        </Link>
+        <Link
+          href="/world"
+          className="inline-flex h-9 items-center justify-center rounded-lg border px-4 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+        >
+          Explore
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 // ─── StatsBar ───────────────────────────────────────────────────────────────
 
 const AVATAR_BG_CLASSES = [
@@ -262,7 +292,7 @@ function CompanyList({
                   </div>
                   {company.active_agent_count > 0 && (
                     <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
-                      <PulseDot className="size-1.5" />
+                      <PulseDot />
                       <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
                     </div>
                   )}
@@ -306,7 +336,7 @@ function CompanyList({
       </div>
       {/* Footer */}
       <div className="flex items-center justify-center gap-1.5 px-5 py-2.5 border-t">
-        <PulseDot className="size-1.5" />
+        <PulseDot />
         <span className="text-xs text-muted-foreground">
           Auto-refreshing every 30s — showing the {companies.length} most active
         </span>
@@ -495,6 +525,8 @@ export function HomePage() {
       <NavBar />
 
       <main className="mx-auto w-full max-w-5xl px-6 flex flex-col gap-6 py-6">
+        {status === "anonymous" && <Hero />}
+
         {!companiesError && !companiesLoading && (
           <StatsBar companies={companies} />
         )}
