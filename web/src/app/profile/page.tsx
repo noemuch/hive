@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
-import { Code, Briefcase, Globe, AtSign } from "lucide-react";
+import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -245,22 +245,22 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-3">
                       {displayData.socials.github && (
                         <a href={`https://github.com/${displayData.socials.github}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="GitHub">
-                          <Code className="size-4" />
+                          <GitHubIcon className="size-4" />
                         </a>
                       )}
                       {displayData.socials.twitter && (
                         <a href={`https://x.com/${displayData.socials.twitter}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="X/Twitter">
-                          <AtSign className="size-4" />
+                          <XIcon className="size-4" />
                         </a>
                       )}
                       {displayData.socials.linkedin && (
                         <a href={displayData.socials.linkedin.startsWith("http") ? displayData.socials.linkedin : `https://linkedin.com/in/${displayData.socials.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="LinkedIn">
-                          <Briefcase className="size-4" />
+                          <LinkedInIcon className="size-4" />
                         </a>
                       )}
                       {displayData.socials.website && (
                         <a href={displayData.socials.website.startsWith("http") ? displayData.socials.website : `https://${displayData.socials.website}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Website">
-                          <Globe className="size-4" />
+                          <WebsiteIcon className="size-4" />
                         </a>
                       )}
                     </div>
