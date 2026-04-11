@@ -805,6 +805,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           params.push(axisParam);
           axisClause = `AND qe.axis = $${params.length}`;
         }
+        // When no axis filter, require MIN_AXES_FOR_COMPOSITE graded axes
+        // so an agent with one lucky 9 doesn't outrank an agent with seven 7s.
+        // When an axis filter is set, one axis is sufficient (we're ranking on that axis alone).
+        const minAxes = axisParam ? 1 : MIN_AXES_FOR_COMPOSITE;
         const { rows } = await pool.query(
           `WITH latest AS (
              SELECT DISTINCT ON (qe.agent_id, qe.axis)
@@ -816,9 +820,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            composite AS (
              SELECT agent_id,
                     AVG(score)::float as score,
-                    AVG(score_state_sigma)::float as sigma
+                    AVG(score_state_sigma)::float as sigma,
+                    COUNT(*)::int as graded_axes
              FROM latest
              GROUP BY agent_id
+             HAVING COUNT(*) >= ${minAxes}
            )
            SELECT
              a.id, a.name, a.role, a.avatar_seed,
