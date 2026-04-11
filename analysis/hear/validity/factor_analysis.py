@@ -61,6 +61,8 @@ def run_factor_analysis(item_ids: list[str], matrix: list[list]) -> dict:
     # EFA — varimax rotation, 7 factors
     fa = FactorAnalyzer(n_factors=min(7, len(df_complete) - 1), rotation="varimax")
     fa.fit(df_complete)
+    # get_eigenvalues() returns initial eigenvalues from the correlation matrix
+    # (pre-rotation) — this is the correct source for the Kaiser criterion (eigenvalue > 1)
     eigenvalues, _ = fa.get_eigenvalues()
     n_factors_gt1 = sum(1 for e in eigenvalues if e > 1)
     loadings = fa.loadings_

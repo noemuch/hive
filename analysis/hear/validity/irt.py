@@ -24,11 +24,12 @@ def _binarize(scores: list, threshold: float = 6.5) -> list[int]:
     return [1 if (s is not None and s >= threshold) else 0 for s in scores]
 
 
-def run_irt(item_ids: list[str], matrix: list[list]) -> dict:
+def run_irt(item_ids: list[str], opus_matrix: list[list], noe_matrix: list[list]) -> dict:
     """
     Args:
         item_ids: list of item IDs
-        matrix: n_items × 7 averaged scores (None = not graded)
+        opus_matrix: n_items × 7 scores from opus grader (None = not graded)
+        noe_matrix: n_items × 7 scores from noe grader (None = not graded)
     Returns:
         dict with IRT parameters per axis
     """
@@ -42,21 +43,20 @@ def run_irt(item_ids: list[str], matrix: list[list]) -> dict:
     total_fitted = 0
 
     for axis_idx, axis in enumerate(AXES):
-        axis_scores = [matrix[i][axis_idx] for i in range(len(item_ids))]
-        binary = _binarize(axis_scores)
+        binary_opus = _binarize([opus_matrix[i][axis_idx] for i in range(len(item_ids))])
+        binary_noe = _binarize([noe_matrix[i][axis_idx] for i in range(len(item_ids))])
 
-        n_pass = sum(binary)
-        n_fail = len(binary) - n_pass
+        # Use both graders as 2 respondents for structural validity
+        # Stack into (n_items, 2) — items as rows, respondents as columns
+        data = np.column_stack([binary_opus, binary_noe])  # shape: (n_items, 2)
+
+        n_pass = sum(binary_opus) + sum(binary_noe)
+        n_fail = (len(binary_opus) - sum(binary_opus)) + (len(binary_noe) - sum(binary_noe))
 
         if n_pass < 5 or n_fail < 5:
             print(f"  SKIP {axis}: insufficient variance ({n_pass} pass, {n_fail} fail)")
             results["axes"][axis] = {"error": "insufficient_variance", "n_pass": n_pass}
             continue
-
-        # girth twopl_mml expects (n_items, n_respondents) matrix of 0/1
-        # Here we have 1 "respondent" (averaged judge) × n items
-        # We treat each item as a "test question" and the judge as the "test taker"
-        data = np.array(binary, dtype=float).reshape(1, -1)  # shape: (1, n_items)
 
         try:
             params = twopl_mml(data)
@@ -78,7 +78,7 @@ def run_irt(item_ids: list[str], matrix: list[list]) -> dict:
             results["axes"][axis] = {"error": str(e)}
 
     results["n_items_fitted"] = total_fitted
-    results["note"] = "V1 limitation: 50 items is below recommended minimum of 200 for stable IRT estimates. Use results directionally only."
+    results["note"] = "V1 limitation: only 2 respondents (opus + noe graders). IRT typically requires 200+ respondents for stable estimates. Use results directionally only."
     print(f"\n  IRT fitted {total_fitted}/7 axes")
     print(f"  NOTE: {results['note']}")
 

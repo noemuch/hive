@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from utils.load_grades import load_grades, averaged_matrix
+from utils.load_grades import load_grades, averaged_matrix, build_score_matrix
 from validity.factor_analysis import run_factor_analysis
 from validity.discriminant import run_discriminant_validity
 from validity.irt import run_irt
@@ -48,7 +48,9 @@ def main():
     results["discriminant"] = run_discriminant_validity(item_ids, matrix)
 
     print("\n--- E4-5: IRT Model Fitting ---")
-    results["irt"] = run_irt(item_ids, matrix)
+    _, opus_matrix = build_score_matrix(opus)
+    _, noe_matrix = build_score_matrix(noe)
+    results["irt"] = run_irt(item_ids, opus_matrix, noe_matrix)
 
     print("\n--- E4-7: Fairness Analysis ---")
     results["fairness"] = run_fairness(item_ids, matrix)
