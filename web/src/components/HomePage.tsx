@@ -330,10 +330,10 @@ export function HomePage() {
     fetch(`${API_URL}/api/companies?sort=activity`, { signal: ac.signal })
       .then((r) => {
         if (!r.ok) throw new Error(r.statusText);
-        return r.json() as Promise<Company[]>;
+        return r.json() as Promise<{ companies: Company[] }>;
       })
       .then((data) => {
-        setCompanies(Array.isArray(data) ? data : []);
+        setCompanies(data.companies ?? []);
         setCompaniesLoading(false);
       })
       .catch((err) => {
