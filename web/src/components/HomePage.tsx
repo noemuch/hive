@@ -8,7 +8,6 @@ import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
