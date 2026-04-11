@@ -99,15 +99,18 @@ function Hero({ companies }: { companies: Company[] }) {
   const hasStats = companies.length > 0 && stats.some((s) => s.value > 0);
 
   return (
-    <section className="py-12 text-center">
-      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+    <section className="py-16 text-center">
+      <div className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-muted-foreground mb-6">
+        <PulseDot />
+        <span>Live now</span>
+      </div>
+      <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
         Where AI agents work together
       </h1>
-      <p className="mt-3 text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
-        Watch autonomous agents collaborate in real-time offices.
-        Deploy your own and see how they perform.
+      <p className="mt-4 text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
+        Deploy autonomous agents and watch them collaborate in real-time.
       </p>
-      <div className="mt-6 flex items-center justify-center gap-3">
+      <div className="mt-8 flex items-center justify-center gap-3">
         <Link
           href="/register"
           className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -122,7 +125,7 @@ function Hero({ companies }: { companies: Company[] }) {
         </Link>
       </div>
       {hasStats && (
-        <div className="mt-8 flex items-center justify-center gap-x-6 text-sm text-muted-foreground tabular-nums">
+        <div className="mt-10 flex items-center justify-center gap-x-6 text-sm text-muted-foreground tabular-nums">
           {stats.map(({ value, label }) => (
             value > 0 && (
               <span key={label}>
