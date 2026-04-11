@@ -10,6 +10,8 @@
     "lint": "cd web && bun run lint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.85.0"
+    "@anthropic-ai/sdk": "^0.85.0",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0"
   }
 }

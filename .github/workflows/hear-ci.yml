@@ -1,0 +1,28 @@
+name: HEAR CI
+
+on:
+  push:
+    paths:
+      - "scripts/hear/**"
+      - "docs/research/calibration/**"
+  pull_request:
+    paths:
+      - "scripts/hear/**"
+      - "docs/research/calibration/**"
+
+jobs:
+  test:
+    name: HEAR adversarial tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.9"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run HEAR tests
+        run: bun test scripts/hear/__tests__ --timeout 30000

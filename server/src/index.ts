@@ -1,6 +1,8 @@
 import { join } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import pool from "./db/pool";
-import { authenticateAgent, hashPassword, verifyPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
+import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
+import { handleRegister } from "./handlers/register";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -16,18 +18,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const MAX_SPECTATORS_PER_IP = 5;
 const spectatorIpCounts = new Map<string, number>();
 
-const CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-/** Build a JSON response with CORS headers. */
-function json(data: unknown, status = 200): Response {
-  const res = Response.json(data, { status });
-  for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
-  return res;
-}
+import { json, CORS } from "./http/response";
 
 const server: ReturnType<typeof Bun.serve> = Bun.serve({
   port: PORT,
@@ -64,18 +55,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     }
 
     if (url.pathname === "/api/builders/register" && req.method === "POST") {
-      const body = await req.json().catch(() => null);
-      if (!body?.email || !body?.password || !body?.display_name) return json({ error: "email, password, display_name required" }, 400);
-      try {
-        const { rows } = await pool.query(
-          `INSERT INTO builders (email, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id, email, display_name`,
-          [body.email, await hashPassword(body.password), body.display_name]
-        );
-        return json({ builder: rows[0], token: createBuilderToken(rows[0].id) }, 201);
-      } catch (err: unknown) {
-        if (err instanceof Error && err.message.includes("unique")) return json({ error: "email_taken" }, 409);
-        throw err;
-      }
+      return handleRegister(req, pool);
     }
 
     if (url.pathname === "/api/builders/login" && req.method === "POST") {
@@ -592,7 +572,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (axis) axis, score, score_state_sigma, computed_at
            FROM quality_evaluations
-           WHERE agent_id = $1
+           WHERE agent_id = $1 AND invalidated_at IS NULL
            ORDER BY axis, computed_at DESC`,
           [agentId]
         );
@@ -632,7 +612,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const limit = Math.min(Math.max(isNaN(rawLimit) ? 10 : rawLimit, 1), 50);
       try {
         const params: unknown[] = [agentId];
-        let where = `agent_id = $1`;
+        let where = `agent_id = $1 AND invalidated_at IS NULL`;
         if (axisParam) {
           params.push(axisParam);
           where += ` AND axis = $2`;
@@ -660,7 +640,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
-    // Agent quality timeline — daily score (per axis, or composite) for last N days
+    // Agent quality timeline — daily score for last N days.
+    // When ?axis is provided: daily AVG on that single axis (clean).
+    // When ?axis is omitted: daily composite but ONLY for days where all
+    //   HEAR_AXES are present (otherwise AVG mixes axes and produces meaningless
+    //   noise when the sampler rotates through axes on different days).
     if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality\/timeline$/) && req.method === "GET") {
       const agentId = url.pathname.split("/")[3];
       if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
@@ -671,23 +655,42 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const rawDays = parseInt(url.searchParams.get("days") || "30", 10);
       const days = Math.min(Math.max(isNaN(rawDays) ? 30 : rawDays, 1), 90);
       try {
-        const params: unknown[] = [agentId];
-        let filter = `agent_id = $1 AND computed_at > now() - ($2 || ' days')::interval`;
-        params.push(days);
+        let rows;
         if (axisParam) {
-          params.push(axisParam);
-          filter += ` AND axis = $3`;
+          const result = await pool.query(
+            `SELECT DATE(computed_at) as date,
+                    AVG(score)::float as score,
+                    AVG(score_state_sigma)::float as sigma
+             FROM quality_evaluations
+             WHERE agent_id = $1 AND axis = $2
+               AND computed_at > now() - ($3 || ' days')::interval
+               AND invalidated_at IS NULL
+             GROUP BY DATE(computed_at)
+             ORDER BY date`,
+            [agentId, axisParam, days]
+          );
+          rows = result.rows;
+        } else {
+          // Composite only for days with all HEAR_AXES present
+          const result = await pool.query(
+            `SELECT date, score, sigma FROM (
+               SELECT DATE(computed_at) as date,
+                      AVG(score)::float as score,
+                      AVG(score_state_sigma)::float as sigma,
+                      COUNT(DISTINCT axis)::int as distinct_axes
+               FROM quality_evaluations
+               WHERE agent_id = $1
+                 AND computed_at > now() - ($2 || ' days')::interval
+                 AND axis = ANY($3)
+                 AND invalidated_at IS NULL
+               GROUP BY DATE(computed_at)
+             ) sub
+             WHERE distinct_axes >= $4
+             ORDER BY date`,
+            [agentId, days, HEAR_AXES, MIN_AXES_FOR_COMPOSITE]
+          );
+          rows = result.rows;
         }
-        const { rows } = await pool.query(
-          `SELECT DATE(computed_at) as date,
-                  AVG(score)::float as score,
-                  AVG(score_state_sigma)::float as sigma
-           FROM quality_evaluations
-           WHERE ${filter}
-           GROUP BY DATE(computed_at)
-           ORDER BY date`,
-          params
-        );
         const timeline = rows.map(r => ({
           date: r.date,
           score: r.score === null ? null : Number(r.score),
@@ -748,7 +751,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              was_escalated, methodology_version, reasoning, evidence_quotes,
              computed_at
            FROM quality_evaluations
-           WHERE artifact_id = $1
+           WHERE artifact_id = $1 AND invalidated_at IS NULL
            ORDER BY axis, computed_at DESC`,
           [artifactId]
         );
@@ -805,20 +808,26 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           params.push(axisParam);
           axisClause = `AND qe.axis = $${params.length}`;
         }
+        // When no axis filter, require MIN_AXES_FOR_COMPOSITE graded axes
+        // so an agent with one lucky 9 doesn't outrank an agent with seven 7s.
+        // When an axis filter is set, one axis is sufficient (we're ranking on that axis alone).
+        const minAxes = axisParam ? 1 : MIN_AXES_FOR_COMPOSITE;
         const { rows } = await pool.query(
           `WITH latest AS (
              SELECT DISTINCT ON (qe.agent_id, qe.axis)
                qe.agent_id, qe.axis, qe.score, qe.score_state_sigma
              FROM quality_evaluations qe
-             WHERE 1=1 ${axisClause}
+             WHERE qe.invalidated_at IS NULL ${axisClause}
              ORDER BY qe.agent_id, qe.axis, qe.computed_at DESC
            ),
            composite AS (
              SELECT agent_id,
                     AVG(score)::float as score,
-                    AVG(score_state_sigma)::float as sigma
+                    AVG(score_state_sigma)::float as sigma,
+                    COUNT(*)::int as graded_axes
              FROM latest
              GROUP BY agent_id
+             HAVING COUNT(*) >= ${minAxes}
            )
            SELECT
              a.id, a.name, a.role, a.avatar_seed,
@@ -855,6 +864,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       return json({
         rubric_version: "1.0",
         methodology_version: "1.0",
+        // V1: 7 axes. persona_coherence deferred to V2 (longitudinal grading).
         axes: [
           { id: "reasoning_depth", label: "Reasoning Depth" },
           { id: "decision_wisdom", label: "Decision Wisdom" },
@@ -862,7 +872,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           { id: "initiative_quality", label: "Initiative Quality" },
           { id: "collaborative_intelligence", label: "Collaborative Intelligence" },
           { id: "self_awareness_calibration", label: "Self-Awareness & Calibration" },
-          { id: "persona_coherence", label: "Persona Coherence" },
           { id: "contextual_judgment", label: "Contextual Judgment" },
         ],
         theoretical_frameworks: [
@@ -922,7 +931,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              COALESCE(AVG(cost_usd), 0)::float as cost_per_eval_avg,
              COUNT(*)::int as run_count
            FROM judge_runs
-           WHERE created_at >= date_trunc('month', now())`
+           WHERE created_at >= date_trunc('month', now())
+             AND invalidated_at IS NULL`
         );
         const r = rows[0] || { current_month_usd: 0, cost_per_eval_avg: 0, run_count: 0 };
         return json({
@@ -995,7 +1005,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "internal_not_configured" }, 500);
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
-      if (!provided || provided !== expected) {
+      if (!provided) return json({ error: "unauthorized" }, 401);
+      // Constant-time comparison to prevent timing attacks on the shared secret.
+      const a = Buffer.from(provided);
+      const b = Buffer.from(expected);
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
         return json({ error: "unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
@@ -1036,6 +1050,87 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       } catch (err) {
         console.error("[hear] /api/internal/quality/notify error:", err);
         return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Internal: invalidate all scores from a batch (disaster recovery).
+    // Soft-deletes quality_evaluations + judge_runs for the given batch_id.
+    // Authenticated by shared secret header.
+    if (
+      url.pathname === "/api/internal/quality/invalidate-batch" &&
+      req.method === "POST"
+    ) {
+      const expected = process.env.HIVE_INTERNAL_TOKEN;
+      if (!expected) {
+        console.error("[hear] HIVE_INTERNAL_TOKEN not configured");
+        return json({ error: "internal_not_configured" }, 500);
+      }
+      const provided = req.headers.get("X-Hive-Internal-Token");
+      if (!provided || provided.length !== expected.length || !timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
+        return json({ error: "unauthorized" }, 401);
+      }
+      const body = await req.json().catch(() => null) as {
+        batch_id?: string;
+        reason?: string;
+      } | null;
+      if (!body?.batch_id || !UUID_RE.test(body.batch_id)) {
+        return json({ error: "batch_id (UUID) required" }, 400);
+      }
+      if (!body.reason || body.reason.trim().length === 0) {
+        return json({ error: "reason required" }, 400);
+      }
+      if (body.reason.trim().length > 500) {
+        return json({ error: "reason must be 500 characters or fewer" }, 400);
+      }
+      const reason = body.reason.trim();
+      const batchId = body.batch_id;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        // Two queries so we get an accurate run count (rowCount on UPDATE)
+        // and the distinct artifact IDs without conflating the two numbers.
+        const { rowCount: runsInvalidated } = await client.query(
+          `UPDATE judge_runs
+           SET invalidated_at = now(), invalidation_reason = $1
+           WHERE batch_id = $2 AND invalidated_at IS NULL`,
+          [reason, batchId],
+        );
+        const { rows: invalidatedRows } = await client.query<{
+          artifact_id: string;
+        }>(
+          `SELECT DISTINCT artifact_id FROM judge_runs
+           WHERE batch_id = $1 AND artifact_id IS NOT NULL`,
+          [batchId],
+        );
+        const artifactIds = invalidatedRows.map((r) => r.artifact_id);
+
+        let evalsInvalidated = 0;
+        if (artifactIds.length > 0) {
+          const { rowCount } = await client.query(
+            `UPDATE quality_evaluations
+             SET invalidated_at = now(), invalidation_reason = $1
+             WHERE artifact_id = ANY($2) AND invalidated_at IS NULL`,
+            [reason, artifactIds],
+          );
+          evalsInvalidated = rowCount ?? 0;
+        }
+
+        await client.query("COMMIT");
+        console.log(
+          `[hear] invalidated batch ${batchId}: ${runsInvalidated} runs, ${evalsInvalidated} evals — ${reason}`,
+        );
+        return json({
+          ok: true,
+          runs_invalidated: runsInvalidated ?? 0,
+          evaluations_invalidated: evalsInvalidated,
+        });
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error("[hear] /api/internal/quality/invalidate-batch error:", err);
+        return json({ error: "internal_error" }, 500);
+      } finally {
+        client.release();
       }
     }
 

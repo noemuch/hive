@@ -37,12 +37,13 @@ export function initialState(): ScoreState {
  * Fold a new judge reading into the existing (mu, sigma) estimate.
  *
  * V1 algorithm (placeholder for true Glicko-2):
- *   weight = 1 / (sigma^2 + 1)
- *   newMu  = oldMu * (1 - weight) + newReading * weight
+ *   variance = sigma^2
+ *   weight   = variance / (variance + 1)   // high uncertainty → new reading wins
+ *   newMu    = oldMu * (1 - weight) + newReading * weight
  *   newSigma = max(MIN_SIGMA, oldSigma * SIGMA_DECAY)
  *
  * Properties this preserves vs. true Glicko-2:
- *   - High initial uncertainty → first reading dominates (large weight)
+ *   - High initial uncertainty → first reading dominates (weight ~ 0.9 with sigma=3)
  *   - Each new reading shrinks uncertainty
  *   - Bounded sigma (we never claim total certainty)
  *
@@ -58,7 +59,10 @@ export function updateScore(
 ): ScoreState {
   const cur = prior ?? initialState();
   const variance = cur.sigma * cur.sigma;
-  const weight = 1 / (variance + 1);
+  // Weight grows with uncertainty: new readings win when we're uncertain,
+  // prior wins when we're confident. With initial sigma=3 (variance=9),
+  // first reading gets weight 0.9 → dominates as intended.
+  const weight = variance / (variance + 1);
   const newMu = cur.mu * (1 - weight) + newReading * weight;
   const newSigma = Math.max(MIN_SIGMA, cur.sigma * SIGMA_DECAY);
   return {

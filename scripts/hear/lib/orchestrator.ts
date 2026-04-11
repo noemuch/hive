@@ -20,8 +20,9 @@
  *   - Add escalation logic when disagreement exceeds threshold
  */
 
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { callClaude } from "./claude-cli";
+import type { ClaudeResponse } from "./claude-cli";
 import { loadRubric, loadGraderPrompt, AXES, RUBRIC_VERSION } from "./rubric";
 import type { AxisScore } from "./schema";
 import type { CostMonitor } from "./cost";
@@ -78,79 +79,6 @@ const JUDGE_PREAMBLES: Record<number, string> = {
 
 const PROMPT_VERSION = "judge-v1.1";
 
-// ---- Claude CLI (copied from pre-grade.ts to keep lib self-contained) ----
-
-/**
- * Call the `claude` CLI in print mode with the prompt piped via stdin.
- * Returns the raw text response plus cost/usage metadata from the envelope.
- */
-async function callClaudeCli(
-  prompt: string,
-  model: string,
-): Promise<{ text: string; cost?: number; usage?: unknown }> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      "claude",
-      ["-p", "--output-format", "json", "--model", model],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        reject(
-          new Error(
-            `claude CLI exited with code ${code}\nstderr: ${stderr.slice(0, 500)}`,
-          ),
-        );
-        return;
-      }
-
-      try {
-        const envelope = JSON.parse(stdout);
-        const text = envelope.result ?? envelope.message ?? envelope.text;
-        if (typeof text !== "string") {
-          throw new Error(
-            `unexpected CLI envelope shape: ${JSON.stringify(envelope).slice(0, 500)}`,
-          );
-        }
-        resolve({
-          text,
-          cost: envelope.total_cost_usd,
-          usage: envelope.usage,
-        });
-      } catch (err) {
-        reject(
-          new Error(
-            `failed to parse claude CLI JSON output: ${(err as Error).message}\nfirst 500 chars of output: ${stdout.slice(0, 500)}`,
-          ),
-        );
-      }
-    });
-
-    proc.on("error", (err) => {
-      reject(
-        new Error(
-          `failed to spawn 'claude' — is Claude Code installed and in your PATH? (${err.message})`,
-        ),
-      );
-    });
-
-    proc.stdin.write(prompt);
-    proc.stdin.end();
-  });
-}
-
 /**
  * Extract JSON from Claude's response. The grader prompt requests raw JSON,
  * but Claude sometimes wraps it in a code block or adds surrounding text.
@@ -178,10 +106,22 @@ function extractJson(text: string): unknown {
   const lastBrace = text.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     const candidate = text.slice(firstBrace, lastBrace + 1);
-    return JSON.parse(candidate); // throws if still invalid
+    try {
+      return JSON.parse(candidate);
+    } catch (err) {
+      // Provide forensic context: which strategy failed, what we parsed,
+      // and the first 500 chars of the original response.
+      throw new Error(
+        `extractJson strategy 3 failed: ${(err as Error).message}\n` +
+        `candidate (first 500 chars): ${candidate.slice(0, 500)}\n` +
+        `original response (first 500 chars): ${text.slice(0, 500)}`,
+      );
+    }
   }
 
-  throw new Error("no JSON object found in response");
+  throw new Error(
+    `no JSON object found in response (first 500 chars): ${text.slice(0, 500)}`,
+  );
 }
 
 // ---- Prompt assembly ----
@@ -219,10 +159,12 @@ function buildJudgePrompt(
 }
 
 /**
- * SHA-256 hash of the input content, used for the audit log so we can
- * verify that two judges saw the exact same input.
+ * SHA-256 hash of arbitrary content. Used to hash the fully-assembled prompt
+ * (preamble + rubric + template + artifact) so the audit log can detect
+ * prompt drift. A reviewer comparing two `judge_runs` rows with different
+ * `input_hash` values knows the prompt changed between calls.
  */
-function hashInput(content: string): string {
+function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
@@ -233,6 +175,8 @@ type JudgeResult = {
   costUsd: number;
   durationMs: number;
   rawOutput: unknown;
+  /** SHA-256 of the fully-assembled prompt this judge received. */
+  promptHash: string;
 };
 
 async function runSingleJudge(
@@ -248,9 +192,10 @@ async function runSingleJudge(
     artifactId,
     judgeIndex,
   );
+  const promptHash = hashContent(prompt);
 
   const startTime = Date.now();
-  const { text, cost } = await callClaudeCli(prompt, model);
+  const { text, cost } = await callClaude(prompt, model);
   const durationMs = Date.now() - startTime;
 
   const parsed = extractJson(text) as { scores?: Record<string, AxisScore> };
@@ -265,6 +210,7 @@ async function runSingleJudge(
     costUsd: cost ?? 0,
     durationMs,
     rawOutput: parsed,
+    promptHash,
   };
 }
 
@@ -288,8 +234,6 @@ export async function evaluateArtifact(
   model: string,
   costTracker: CostMonitor,
 ): Promise<ArtifactEvaluation> {
-  const inputHashValue = hashInput(artifactContent);
-
   // Pre-flight cost check: 2 calls per artifact
   costTracker.assertCanSpend(ESTIMATED_COST_PER_CALL_USD * 2);
 
@@ -341,7 +285,10 @@ export async function evaluateArtifact(
         judgeIndex,
         promptVersion: PROMPT_VERSION,
         model,
-        inputHash: inputHashValue,
+        // Hash of the fully-assembled prompt this judge saw (preamble +
+        // rubric + template + artifact). Per-judge so a preamble change
+        // produces different hashes for Judge A vs Judge B.
+        inputHash: jr.promptHash,
         rawOutput: jr.rawOutput,
         score,
         confidence,
