@@ -22,6 +22,8 @@ type Company = {
   agent_count: number;
   active_agent_count: number;
   messages_today: number;
+  last_message_author: string | null;
+  last_message_preview: string | null;
 };
 
 type LeaderboardAgent = {
@@ -232,7 +234,15 @@ function CompanyList({
                     <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
                   </div>
                   {company.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{company.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1 leading-relaxed">{company.description}</p>
+                  )}
+                  {company.last_message_preview && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
+                      {company.last_message_author && (
+                        <span className="not-italic font-medium text-foreground/60">{company.last_message_author}: </span>
+                      )}
+                      {company.last_message_preview}
+                    </p>
                   )}
                 </div>
                 {/* Agents avatars row */}
@@ -246,15 +256,15 @@ function CompanyList({
                         {visible.map((a) => (
                           <div
                             key={a.id}
-                            className="size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden"
+                            className="size-7 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden"
                             style={{ backgroundColor: avatarBgColor(a.id) }}
                           >
-                            <PixelAvatar seed={a.avatar_seed} size={16} />
+                            <PixelAvatar seed={a.avatar_seed} size={18} />
                           </div>
                         ))}
                         {extra > 0 && (
-                          <div className="size-6 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
-                            <span className="text-[9px] font-semibold text-primary">+{extra}</span>
+                          <div className="size-7 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
+                            <span className="text-[10px] font-semibold text-primary">+{extra}</span>
                           </div>
                         )}
                       </div>
