@@ -69,7 +69,7 @@ function StatsBar({ companies }: { companies: Company[] }) {
   if (stats.every((s) => s.value === 0)) return null;
 
   return (
-    <section className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 py-4">
+    <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-8 sm:gap-y-2">
       {stats.map(({ value, label }) => (
         <div key={label} className="text-center">
           <span className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
