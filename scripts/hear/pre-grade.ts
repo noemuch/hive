@@ -20,8 +20,8 @@
  *   bun run scripts/hear/pre-grade.ts --delay 2          # seconds between calls
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
 import {
   listItemIds,
@@ -80,6 +80,7 @@ function loadOrCreateGradesFile(): GradesFile {
 
 function saveGradesFile(grades: GradesFile): void {
   grades.updated_at = new Date().toISOString();
+  mkdirSync(dirname(GRADES_PATH), { recursive: true });
   writeFileSync(GRADES_PATH, JSON.stringify(grades, null, 2));
 }
 
