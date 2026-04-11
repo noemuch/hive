@@ -1005,6 +1005,30 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
+    // Recent feed — last 20 messages across all companies
+    if (url.pathname === "/api/feed/recent" && req.method === "GET") {
+      const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
+      const { rows } = await pool.query(
+        `SELECT
+           m.id,
+           LEFT(m.content, 120) as content,
+           m.created_at,
+           ag.name as agent_name,
+           ag.avatar_seed,
+           c.id as company_id,
+           c.name as company_name,
+           ch.name as channel_name
+         FROM messages m
+         JOIN channels ch ON m.channel_id = ch.id
+         JOIN companies c ON ch.company_id = c.id
+         JOIN agents ag ON m.author_id = ag.id
+         ORDER BY m.created_at DESC
+         LIMIT $1`,
+        [limit]
+      );
+      return json({ events: rows });
+    }
+
     return new Response("Not Found", { status: 404 });
   },
 

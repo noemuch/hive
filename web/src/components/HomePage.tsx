@@ -35,6 +35,17 @@ type LeaderboardAgent = {
   reputation_score: number;
 };
 
+type FeedEvent = {
+  id: string;
+  content: string;
+  created_at: string;
+  agent_name: string;
+  avatar_seed: string;
+  company_id: string;
+  company_name: string;
+  channel_name: string;
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const GRADIENTS = [
@@ -289,9 +300,13 @@ function CompanyList({
 
 // ─── LiveActivity ───────────────────────────────────────────────────────────
 
-function LiveActivity({ companies }: { companies: Company[] }) {
-  const active = companies.filter((c) => c.active_agent_count > 0);
-
+function LiveActivity({
+  events,
+  loading,
+}: {
+  events: FeedEvent[];
+  loading: boolean;
+}) {
   return (
     <div className="rounded-xl border bg-card p-4">
       <div className="flex items-center gap-1.5 mb-3">
@@ -299,27 +314,44 @@ function LiveActivity({ companies }: { companies: Company[] }) {
         <h3 className="text-sm font-semibold">Activity</h3>
       </div>
 
-      <div className="flex flex-col gap-2.5">
-        {active.map((c) => (
-          <Link
-            key={c.id}
-            href={`/company/${c.id}`}
-            className="flex items-center justify-between text-xs hover:bg-muted/50 rounded-md px-2 py-1.5 -mx-2 transition-colors"
-          >
-            <span className="text-muted-foreground">
-              <span className="text-foreground font-medium">{c.name}</span>
-              {" \u00B7 "}{c.active_agent_count} agents working
-            </span>
-            <span className="text-muted-foreground/50">{c.messages_today} msgs</span>
-          </Link>
-        ))}
-
-        {active.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-2">
-            No agents active right now.
-          </p>
-        )}
-      </div>
+      {loading ? (
+        <div className="flex flex-col gap-2.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-2 items-start">
+              <Skeleton className="size-5 rounded-full shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : events.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-2">
+          No activity yet.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {events.map((e) => (
+            <Link
+              key={e.id}
+              href={`/company/${e.company_id}`}
+              className="flex gap-2 items-start hover:bg-muted/50 rounded-md px-2 py-1.5 -mx-2 transition-colors"
+            >
+              <PixelAvatar seed={e.avatar_seed} size={20} className="rounded-full shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground/70 truncate">
+                  {e.agent_name}
+                  <span className="text-muted-foreground font-normal"> in {e.company_name}</span>
+                </p>
+                <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
+                  {e.content}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -380,6 +412,9 @@ export function HomePage() {
   const [leaderboardAgents, setLeaderboardAgents] = useState<LeaderboardAgent[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
+  const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
 
   // ── Fetch companies on mount ──
@@ -421,6 +456,24 @@ export function HomePage() {
     return () => ac.abort();
   }, []);
 
+  // ── Fetch recent feed on mount ──
+  useEffect(() => {
+    const ac = new AbortController();
+    fetch(`${API_URL}/api/feed/recent?limit=10`, { signal: ac.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json() as Promise<{ events: FeedEvent[] }>;
+      })
+      .then((data) => {
+        setFeedEvents(data.events ?? []);
+        setFeedLoading(false);
+      })
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") setFeedLoading(false);
+      });
+    return () => ac.abort();
+  }, []);
+
   const openProfile = useCallback((id: string) => {
     setProfileAgentId(id);
   }, []);
@@ -443,7 +496,7 @@ export function HomePage() {
           <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
             {!companiesLoading && !companiesError && (
               <>
-                <LiveActivity companies={companies} />
+                <LiveActivity events={feedEvents} loading={feedLoading} />
                 <CompactCompanyList companies={companies} />
               </>
             )}
