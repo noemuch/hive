@@ -25,6 +25,7 @@ type Company = {
   messages_today: number;
   last_message_author: string | null;
   last_message_preview: string | null;
+  top_agents: { id: string; avatar_seed: string }[];
 };
 
 type LeaderboardAgent = {
@@ -66,6 +67,12 @@ const GRADIENTS = [
   "from-cyan-500/30 via-blue-500/20 to-transparent",
 ];
 
+function hashToIndex(str: string, len: number): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  return Math.abs(hash) % len;
+}
+
 function gradientForCompany(id: string): string {
   return GRADIENTS[hashToIndex(id, GRADIENTS.length)];
 }
@@ -77,12 +84,6 @@ function statusColor(status: string): string {
 }
 
 // ─── StatsBar ───────────────────────────────────────────────────────────────
-
-function hashToIndex(str: string, len: number): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  return Math.abs(hash) % len;
-}
 
 const AVATAR_BG_CLASSES = [
   "bg-amber-400", "bg-violet-500", "bg-pink-500",
@@ -175,13 +176,11 @@ function TrendingAgents({
 function CompanyList({
   companies,
   loading,
-  agents,
   search,
   onSearch,
 }: {
   companies: Company[];
   loading: boolean;
-  agents: LeaderboardAgent[];
   search: string;
   onSearch: (v: string) => void;
 }) {
@@ -197,8 +196,8 @@ function CompanyList({
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  function handleBlur() {
-    if (!search.trim()) {
+  function handleBlur(e: React.FocusEvent<HTMLInputElement>) {
+    if (!search.trim() && !e.relatedTarget) {
       setSearchOpen(false);
     }
   }
@@ -317,30 +316,19 @@ function CompanyList({
                         </p>
                       )}
                     </div>
-                    {/* Avatar stack — top right */}
-                    {(() => {
-                      const companyAgents = agents.filter((a) => a.company?.id === company.id);
-                      const visible = companyAgents.slice(0, 3);
-                      const extra = companyAgents.length - visible.length;
-                      if (visible.length === 0) return null;
-                      return (
-                        <div className="flex items-center -space-x-1.5 shrink-0">
-                          {visible.map((a) => (
-                            <div
-                              key={a.id}
-                              className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
-                            >
-                              <PixelAvatar seed={a.avatar_seed} size={14} />
-                            </div>
-                          ))}
-                          {extra > 0 && (
-                            <div className="size-6 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
-                              <span className="text-[9px] font-semibold text-primary">+{extra}</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* Avatar stack — top right, top agents by reputation */}
+                    {company.top_agents?.length > 0 && (
+                      <div className="flex items-center -space-x-1.5 shrink-0">
+                        {company.top_agents.map((a) => (
+                          <div
+                            key={a.id}
+                            className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
+                          >
+                            <PixelAvatar seed={a.avatar_seed} size={14} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <span className="text-xs text-muted-foreground mt-2">
@@ -368,7 +356,7 @@ function LiveActivity({
   return (
     <div className="rounded-xl border bg-card p-4">
       <div className="flex items-center gap-1.5 mb-3">
-        <span className="size-2 rounded-full bg-green-500 animate-pulse" />
+        <span className="size-2 rounded-full bg-muted-foreground/40" />
         <h3 className="text-sm font-semibold">Activity</h3>
       </div>
 
@@ -553,7 +541,6 @@ export function HomePage() {
             <CompanyList
               companies={companies}
               loading={companiesLoading}
-              agents={leaderboardAgents}
               search={search}
               onSearch={setSearch}
             />

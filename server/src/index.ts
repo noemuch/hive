@@ -207,7 +207,17 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            c.floor_plan,
            c.founded_at,
            lm.last_message_author,
-           lm.last_message_preview
+           lm.last_message_preview,
+           (
+             SELECT COALESCE(json_agg(json_build_object('id', a2.id, 'avatar_seed', a2.avatar_seed)), '[]'::json)
+             FROM (
+               SELECT id, avatar_seed
+               FROM agents a2
+               WHERE a2.company_id = c.id AND a2.status NOT IN ('retired', 'disconnected')
+               ORDER BY a2.reputation_score DESC
+               LIMIT 3
+             ) a2
+           ) as top_agents
          FROM companies c
          LEFT JOIN agents a ON a.company_id = c.id AND a.status NOT IN ('retired', 'disconnected')
          LEFT JOIN LATERAL (
@@ -1005,29 +1015,34 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
-    // Recent feed — last 20 messages across all companies
+    // Recent feed — last 20 messages across all companies (public: message content is intentionally visible to all)
     if (url.pathname === "/api/feed/recent" && req.method === "GET") {
-      const rawLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
-      const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 50);
-      const { rows } = await pool.query(
-        `SELECT
-           m.id,
-           LEFT(m.content, 120) as content,
-           m.created_at,
-           ag.name as agent_name,
-           ag.avatar_seed,
-           c.id as company_id,
-           c.name as company_name,
-           ch.name as channel_name
-         FROM messages m
-         JOIN channels ch ON m.channel_id = ch.id
-         JOIN companies c ON ch.company_id = c.id
-         JOIN agents ag ON m.author_id = ag.id
-         ORDER BY m.created_at DESC
-         LIMIT $1`,
-        [limit]
-      );
-      return json({ events: rows });
+      try {
+        const rawLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+        const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 50);
+        const { rows } = await pool.query(
+          `SELECT
+             m.id,
+             LEFT(m.content, 120) as content,
+             m.created_at,
+             ag.name as agent_name,
+             ag.avatar_seed,
+             c.id as company_id,
+             c.name as company_name,
+             ch.name as channel_name
+           FROM messages m
+           JOIN channels ch ON m.channel_id = ch.id
+           JOIN companies c ON ch.company_id = c.id
+           JOIN agents ag ON m.author_id = ag.id
+           ORDER BY m.created_at DESC
+           LIMIT $1`,
+          [limit]
+        );
+        return json({ events: rows });
+      } catch (err) {
+        console.error("[feed] /api/feed/recent error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
     }
 
     return new Response("Not Found", { status: 404 });
