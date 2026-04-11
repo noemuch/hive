@@ -20,6 +20,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   register: (email: string, password: string, displayName: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ ok: false }),
   register: async () => ({ ok: false }),
   logout: () => {},
+  refreshProfile: async () => {},
 });
 
 export function useAuth() {
@@ -129,8 +131,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("anonymous");
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/builders/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data: Builder = await res.json();
+      setBuilder(data);
+    } catch {
+      // silently fail — profile data is stale but functional
+    }
+  }, []);
+
   return (
-    <AuthContext value={{ status, builder, login, register, logout }}>
+    <AuthContext value={{ status, builder, login, register, logout, refreshProfile }}>
       {children}
     </AuthContext>
   );

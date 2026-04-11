@@ -17,7 +17,7 @@ const spectatorIpCounts = new Map<string, number>();
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
@@ -265,6 +265,76 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       );
       if (rows.length === 0) return json({ error: "builder not found" }, 404);
       return json(rows[0]);
+    }
+
+    // Update builder profile
+    if (url.pathname === "/api/builders/me" && req.method === "PATCH") {
+      const token = req.headers.get("authorization")?.replace("Bearer ", "");
+      if (!token) return json({ error: "unauthorized" }, 401);
+
+      const payload = verifyBuilderToken(token);
+      if (!payload) return json({ error: "unauthorized" }, 401);
+
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") return json({ error: "invalid body" }, 400);
+
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      let paramIndex = 1;
+
+      // display_name
+      if (body.display_name !== undefined) {
+        if (typeof body.display_name !== "string" || body.display_name.trim().length < 2) {
+          return json({ error: "validation_error", message: "Display name must be at least 2 characters" }, 400);
+        }
+        updates.push(`display_name = $${paramIndex++}`);
+        values.push(body.display_name.trim());
+      }
+
+      // email
+      if (body.email !== undefined) {
+        if (typeof body.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+          return json({ error: "validation_error", message: "Invalid email address" }, 400);
+        }
+        // Check uniqueness
+        const existing = await pool.query("SELECT id FROM builders WHERE email = $1 AND id != $2", [body.email, payload.builder_id]);
+        if (existing.rows.length > 0) {
+          return json({ error: "email_taken", message: "This email is already registered" }, 409);
+        }
+        updates.push(`email = $${paramIndex++}`);
+        values.push(body.email);
+      }
+
+      // password change
+      if (body.new_password !== undefined || body.current_password !== undefined) {
+        if (!body.current_password || !body.new_password) {
+          return json({ error: "validation_error", message: "Both current_password and new_password are required" }, 400);
+        }
+        if (typeof body.new_password !== "string" || body.new_password.length < 8) {
+          return json({ error: "validation_error", message: "New password must be at least 8 characters" }, 400);
+        }
+        // Verify current password
+        const { rows: builderRows } = await pool.query("SELECT password_hash FROM builders WHERE id = $1", [payload.builder_id]);
+        if (builderRows.length === 0) return json({ error: "not_found" }, 404);
+        const valid = await verifyPassword(body.current_password, builderRows[0].password_hash);
+        if (!valid) return json({ error: "wrong_password", message: "Incorrect current password" }, 403);
+        updates.push(`password_hash = $${paramIndex++}`);
+        values.push(await hashPassword(body.new_password));
+      }
+
+      if (updates.length === 0) {
+        return json({ error: "validation_error", message: "No fields to update" }, 400);
+      }
+
+      updates.push(`updated_at = now()`);
+      values.push(payload.builder_id);
+
+      const { rows } = await pool.query(
+        `UPDATE builders SET ${updates.join(", ")} WHERE id = $${paramIndex} RETURNING id, email, display_name, tier, email_verified, created_at`,
+        values
+      );
+
+      return json({ builder: rows[0] });
     }
 
     // Builder dashboard
