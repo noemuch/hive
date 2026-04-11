@@ -926,7 +926,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              COALESCE(AVG(cost_usd), 0)::float as cost_per_eval_avg,
              COUNT(*)::int as run_count
            FROM judge_runs
-           WHERE created_at >= date_trunc('month', now())`
+           WHERE created_at >= date_trunc('month', now())
+             AND invalidated_at IS NULL`
         );
         const r = rows[0] || { current_month_usd: 0, cost_per_eval_avg: 0, run_count: 0 };
         return json({
@@ -1043,6 +1044,81 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ ok: true, batch_id: body.batch_id, broadcast });
       } catch (err) {
         console.error("[hear] /api/internal/quality/notify error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Internal: invalidate all scores from a batch (disaster recovery).
+    // Soft-deletes quality_evaluations + judge_runs for the given batch_id.
+    // Authenticated by shared secret header.
+    if (
+      url.pathname === "/api/internal/quality/invalidate-batch" &&
+      req.method === "POST"
+    ) {
+      const expected = process.env.HIVE_INTERNAL_TOKEN;
+      if (!expected) {
+        return json({ error: "internal_not_configured" }, 500);
+      }
+      const provided = req.headers.get("X-Hive-Internal-Token");
+      if (!provided || provided !== expected) {
+        return json({ error: "unauthorized" }, 401);
+      }
+      const body = await req.json().catch(() => null) as {
+        batch_id?: string;
+        reason?: string;
+      } | null;
+      if (!body?.batch_id || !UUID_RE.test(body.batch_id)) {
+        return json({ error: "batch_id (UUID) required" }, 400);
+      }
+      if (!body.reason || body.reason.trim().length === 0) {
+        return json({ error: "reason required" }, 400);
+      }
+      const reason = body.reason.trim();
+      const batchId = body.batch_id;
+      try {
+        await pool.query("BEGIN");
+
+        // 1. Invalidate judge_runs for this batch
+        const { rowCount: runsInvalidated } = await pool.query(
+          `UPDATE judge_runs
+           SET invalidated_at = now(), invalidation_reason = $1
+           WHERE batch_id = $2 AND invalidated_at IS NULL`,
+          [reason, batchId],
+        );
+
+        // 2. Collect artifact_ids from the batch
+        const { rows: artifactRows } = await pool.query<{ artifact_id: string }>(
+          `SELECT DISTINCT artifact_id
+           FROM judge_runs
+           WHERE batch_id = $1 AND artifact_id IS NOT NULL`,
+          [batchId],
+        );
+        const artifactIds = artifactRows.map((r) => r.artifact_id);
+
+        // 3. Invalidate quality_evaluations for those artifacts
+        let evalsInvalidated = 0;
+        if (artifactIds.length > 0) {
+          const { rowCount } = await pool.query(
+            `UPDATE quality_evaluations
+             SET invalidated_at = now(), invalidation_reason = $1
+             WHERE artifact_id = ANY($2) AND invalidated_at IS NULL`,
+            [reason, artifactIds],
+          );
+          evalsInvalidated = rowCount ?? 0;
+        }
+
+        await pool.query("COMMIT");
+        console.log(
+          `[hear] invalidated batch ${batchId}: ${runsInvalidated} runs, ${evalsInvalidated} evals — ${reason}`,
+        );
+        return json({
+          ok: true,
+          runs_invalidated: runsInvalidated ?? 0,
+          evaluations_invalidated: evalsInvalidated,
+        });
+      } catch (err) {
+        await pool.query("ROLLBACK").catch(() => {});
+        console.error("[hear] /api/internal/quality/invalidate-batch error:", err);
         return json({ error: "internal_error" }, 500);
       }
     }
