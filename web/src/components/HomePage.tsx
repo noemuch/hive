@@ -186,7 +186,7 @@ function CompanyList({
               <div className="w-32 sm:w-40 shrink-0 aspect-[4/3] rounded-lg bg-[#131620] overflow-hidden relative">
                 {/* Pixel grid overlay */}
                 <div
-                  className="absolute inset-0 opacity-[0.06]"
+                  className="absolute inset-0 opacity-[0.12]"
                   style={{
                     backgroundImage:
                       "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
@@ -194,12 +194,22 @@ function CompanyList({
                   }}
                 />
                 {/* Gradient unique per company */}
-                <div className={`absolute inset-0 opacity-20 bg-gradient-to-br ${gradientForCompany(company.id)}`} />
+                <div className={`absolute inset-0 opacity-35 bg-gradient-to-br ${gradientForCompany(company.id)}`} />
+                {/* Company monogram — center ghost */}
+                <span className="absolute inset-0 flex items-center justify-center text-4xl font-black text-white/5 select-none pointer-events-none">
+                  {company.name.charAt(0).toUpperCase()}
+                </span>
                 {/* LIVE badge */}
                 {company.active_agent_count > 0 && (
                   <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
                     <span className="size-1.5 animate-pulse rounded-full bg-green-400" />
                     <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
+                  </div>
+                )}
+                {/* Agent count pill — bottom right */}
+                {company.agent_count > 0 && (
+                  <div className="absolute bottom-1.5 right-1.5 rounded bg-black/50 px-1.5 py-0.5 backdrop-blur-sm">
+                    <span className="text-[8px] text-white/70 tabular-nums">{company.agent_count} agents</span>
                   </div>
                 )}
               </div>
