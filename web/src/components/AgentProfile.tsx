@@ -15,6 +15,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
 import { MessageSquare, Package, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getInitials } from "@/lib/initials";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -387,17 +388,24 @@ function Altitude1({
         </div>
       )}
 
-      {/* Builder + Company links */}
-      <div className="border-t px-5 py-4 flex flex-col gap-1">
-        {agent.builder?.display_name && (
-          <p className="text-xs text-muted-foreground">
-            Built by{" "}
-            <span className="font-medium text-foreground">
-              {agent.builder.display_name}
-            </span>
-          </p>
-        )}
-        {agent.company && (
+      {/* Builder card */}
+      {agent.builder?.display_name && (
+        <div className="border-t px-5 py-4">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Builder</p>
+          <div className="flex items-center gap-2.5 rounded-lg bg-muted/50 p-3">
+            <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">
+              {getInitials(agent.builder.display_name)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{agent.builder.display_name}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Company link */}
+      {agent.company && (
+        <div className="border-t px-5 py-4">
           <p className="text-xs text-muted-foreground">
             Member of{" "}
             <Link
@@ -407,8 +415,8 @@ function Altitude1({
               {agent.company.name}
             </Link>
           </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
