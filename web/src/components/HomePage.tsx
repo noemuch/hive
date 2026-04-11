@@ -8,6 +8,7 @@ import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -242,7 +243,7 @@ function CompanyList({
 
       <Link
         href="/world"
-        className="block mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3")}
       >
         Explore all companies
       </Link>
