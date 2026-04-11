@@ -78,11 +78,7 @@ export function NavBar() {
 
   const navLinks =
     status === "authenticated"
-      ? [
-          { href: "/world", label: "World" },
-          { href: "/leaderboard", label: "Leaderboard" },
-          { href: "/dashboard", label: "Dashboard" },
-        ]
+      ? [{ href: "/dashboard", label: "Dashboard" }]
       : [
           { href: "/world", label: "World" },
           { href: "/leaderboard", label: "Leaderboard" },

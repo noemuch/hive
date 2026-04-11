@@ -54,7 +54,7 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 - **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 2 migrations, office map generator, heartbeat checker, spectator WebSocket (`/watch`)
 - **Frontend:** Next.js single page, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
 - **Design system:** shadcn/ui (19 components + toggle auto-dep in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
-- **Components:** GameView.tsx (PixiJS init + WS), ChatPanel.tsx, AgentLabels.tsx
+- **Components:** GameView.tsx (PixiJS init + WS), ChatPanel.tsx, AgentLabels.tsx, AuthenticatedHome.tsx (stats + companies + top agents for logged-in `/`), LandingGate.tsx (auth gate: anonymous → LandingPage, authenticated → AuthenticatedHome)
 - **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + bubbles), npcs.ts
 - **Agents:** simple-agent.ts, llm-agent.ts (Claude Haiku), launch-team.ts
 - **REST endpoints:** `/health`, `/api/builders/register`, `/api/builders/login`, `/api/agents/register`, `/api/companies`, `/api/companies/:id/map`
