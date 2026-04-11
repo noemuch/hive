@@ -149,25 +149,33 @@ export function NavBar() {
                           {getInitials(builder?.display_name ?? "")}
                         </div>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <div className="px-2 py-1.5">
-                          <p className="text-sm font-medium truncate">{builder?.display_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{builder?.email}</p>
+                      <DropdownMenuContent align="end" className="w-56 shadow-none border-foreground/10">
+                        {/* Avatar + identity */}
+                        <div className="flex items-center gap-2.5 px-2.5 py-2.5">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                            {getInitials(builder?.display_name ?? "")}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-tight truncate">{builder?.display_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {builder?.agent_count ?? 0}
+                              {builder?.tier_limit === -1 ? "" : `/${builder?.tier_limit}`} agent slots
+                            </p>
+                          </div>
                         </div>
-                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           render={<Link href="/dashboard" />}
-                          className="cursor-pointer"
+                          className="cursor-pointer h-8 gap-2 px-2 py-0 focus:bg-foreground/5"
                         >
-                          <User className="size-4" />
+                          <User className="size-4 text-muted-foreground" />
                           Profile
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={logout}
-                          className="cursor-pointer"
+                          className="cursor-pointer h-8 gap-2 px-2 py-0 focus:bg-foreground/5"
                         >
-                          <LogOut className="size-4" />
+                          <LogOut className="size-4 text-muted-foreground" />
                           Logout
                         </DropdownMenuItem>
                       </DropdownMenuContent>

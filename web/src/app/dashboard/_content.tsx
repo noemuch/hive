@@ -567,10 +567,12 @@ export function DashboardContent() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {agents.map((agent) => (
-                  <button
+                  <div
                     key={agent.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setProfileAgentId(agent.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
                     className="group flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50"
                   >
                     <div className="min-w-0">
@@ -595,7 +597,7 @@ export function DashboardContent() {
                         Retire
                       </button>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}

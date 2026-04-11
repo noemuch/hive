@@ -10,6 +10,7 @@ import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
 import { runObserver, runDailyRollup } from "./engine/observer";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
+import { VALID_ROLES, TIER_LIMITS } from "./constants";
 
 /** Server port, configurable via PORT env var. */
 const PORT = Number(process.env.PORT) || 3000;
@@ -73,12 +74,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       if (!decoded) return json({ error: "invalid token" }, 401);
       const body = await req.json().catch(() => null);
       if (!body?.name || !body?.role) return json({ error: "name and role required" }, 400);
-      const validRoles = ["pm", "designer", "developer", "qa", "ops", "generalist"];
-      if (!validRoles.includes(body.role)) return json({ error: `role must be: ${validRoles.join(", ")}` }, 400);
+      if (!VALID_ROLES.includes(body.role)) return json({ error: `role must be: ${VALID_ROLES.join(", ")}` }, 400);
       const { rows: builderRows } = await pool.query(`SELECT tier FROM builders WHERE id = $1`, [decoded.builder_id]);
       const tier = builderRows[0]?.tier || "free";
-      const tierLimits: Record<string, number> = { free: 3, verified: 10, trusted: Infinity };
-      const maxSlots = tierLimits[tier] ?? 3;
+      const maxSlots = TIER_LIMITS[tier] ?? 3;
       const { rows: counts } = await pool.query(`SELECT COUNT(*)::int as c FROM agents WHERE builder_id = $1 AND status != 'retired'`, [decoded.builder_id]);
       if (counts[0].c >= maxSlots) return json({ error: "slots_full", message: `${tier} tier limit reached (${maxSlots} agents)`, tier, max_slots: maxSlots }, 403);
       const apiKey = generateApiKey();
@@ -262,11 +261,18 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const decoded = verifyBuilderToken(auth.slice(7));
       if (!decoded) return json({ error: "invalid token" }, 401);
       const { rows } = await pool.query(
-        `SELECT id, email, display_name, tier, email_verified, created_at, socials FROM builders WHERE id = $1`,
+        `SELECT b.id, b.email, b.display_name, b.tier, b.email_verified, b.created_at, b.socials,
+          COUNT(a.id) FILTER (WHERE a.status NOT IN ('retired','disconnected'))::int AS agent_count,
+          COUNT(a.id) FILTER (WHERE a.status = 'active')::int AS active_agent_count
+         FROM builders b
+         LEFT JOIN agents a ON a.builder_id = b.id
+         WHERE b.id = $1
+         GROUP BY b.id`,
         [decoded.builder_id]
       );
       if (rows.length === 0) return json({ error: "builder not found" }, 404);
-      return json(rows[0]);
+      const row = rows[0];
+      return json({ ...row, tier_limit: TIER_LIMITS[row.tier] === Infinity ? -1 : (TIER_LIMITS[row.tier] ?? 3) });
     }
 
     // Update builder profile
@@ -360,8 +366,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       );
       if (builderRows.length === 0) return json({ error: "builder not found" }, 404);
       const builder = builderRows[0];
-      const tierLimits: Record<string, number> = { free: 3, verified: 10, trusted: Infinity };
-      const maxSlots = tierLimits[builder.tier] ?? 3;
+      const maxSlots = TIER_LIMITS[builder.tier] ?? 3;
 
       const { rows: agentRows } = await pool.query(
         `SELECT
@@ -829,8 +834,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       if (axisParam && !HEAR_AXES.includes(axisParam as typeof HEAR_AXES[number])) {
         return json({ error: "invalid axis" }, 400);
       }
-      const validRoles = ["pm", "designer", "developer", "qa", "ops", "generalist"];
-      if (roleParam && !validRoles.includes(roleParam)) {
+      if (roleParam && !VALID_ROLES.includes(roleParam as typeof VALID_ROLES[number])) {
         return json({ error: "invalid role" }, 400);
       }
       try {

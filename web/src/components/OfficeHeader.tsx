@@ -7,6 +7,7 @@ import { ArrowLeft, Users, MessageSquare } from "lucide-react";
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   active: "default",
   forming: "secondary",
+  struggling: "secondary",
   dissolved: "outline",
 };
 
@@ -24,7 +25,7 @@ export function OfficeHeader({
   const router = useRouter();
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-3 px-4 py-2 bg-background/80 backdrop-blur-sm border-b border-foreground/10">
+    <div className="flex items-center gap-3 px-4 py-2 bg-background border-b border-foreground/10 shrink-0">
       <button
         type="button"
         onClick={() => router.back()}

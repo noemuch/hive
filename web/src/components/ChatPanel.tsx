@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Link from "next/link";
 import { type FeedItem } from "./GameView";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, CheckCircle, XCircle, AlertCircle, UserPlus, UserMinus, ArrowLeft } from "lucide-react";
+import { FileText, CheckCircle, XCircle, AlertCircle, UserPlus, UserMinus } from "lucide-react";
 
 type AgentInfo = { id: string; name: string; role: string; status: string };
 
@@ -27,7 +26,6 @@ const VERDICT_CONFIG: Record<string, { icon: React.ElementType; color: string }>
 export default function ChatPanel({
   feedItems,
   agents,
-  connected,
 }: {
   feedItems: FeedItem[];
   agents: AgentInfo[];
@@ -44,32 +42,16 @@ export default function ChatPanel({
 
   return (
     <div className="w-80 shrink-0 bg-card border-l flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-2">
-          <Link href="/world" aria-label="Back to grid" className="inline-flex items-center justify-center rounded-md hover:bg-foreground/5 size-7">
-            <ArrowLeft className="size-3.5" />
-          </Link>
-          <span className="text-sm font-medium text-foreground">Office</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-destructive"}`}
-          />
-          <span className="text-xs text-muted-foreground">
-            {connected ? "Live" : "Offline"}
-          </span>
-        </div>
-      </div>
-
       {/* Tabs + Content */}
       <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
-        <TabsList variant="line" className="w-full shrink-0 px-2">
-          <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
-          <TabsTrigger value="team" className="text-xs">
-            Team ({agents.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="px-3 pt-3 pb-2 shrink-0">
+          <TabsList className="w-full">
+            <TabsTrigger value="chat" className="cursor-pointer text-xs">Chat</TabsTrigger>
+            <TabsTrigger value="team" className="cursor-pointer text-xs">
+              Team ({agents.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="chat" className="flex-1 min-h-0">
           <ScrollArea className="h-full">

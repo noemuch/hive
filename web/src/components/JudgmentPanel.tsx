@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp, AlertTriangle, ArrowUpRight } from "lucide-react";
 
@@ -108,19 +110,11 @@ function AxisRow({
 
         {/* Score bar */}
         <div className="hidden w-20 sm:block">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                score >= 7
-                  ? "bg-green-400"
-                  : score >= 4
-                  ? "bg-yellow-400"
-                  : "bg-red-400"
-              )}
-              style={{ width: `${(score / 10) * 100}%` }}
-            />
-          </div>
+          <Progress value={score * 10}>
+            <ProgressTrack className="h-2">
+              <ProgressIndicator />
+            </ProgressTrack>
+          </Progress>
         </div>
 
         {/* Expand icon */}
@@ -215,14 +209,18 @@ export function JudgmentPanel({ judgment, pending = false }: JudgmentPanelProps)
               </Badge>
             )}
             {disagreementHigh && (
-              <Badge
-                variant="destructive"
-                className="gap-1 text-[10px]"
-                title={`Judge disagreement: ${judgment.judge_disagreement?.toFixed(2)}`}
-              >
-                <AlertTriangle className="size-2.5" />
-                High disagreement
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge
+                    variant="destructive"
+                    className="gap-1 text-[10px]"
+                  >
+                    <AlertTriangle className="size-2.5" />
+                    High disagreement
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>{`Judge disagreement: ${judgment.judge_disagreement?.toFixed(2)}`}</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>

@@ -10,6 +10,9 @@ type Builder = {
   display_name: string;
   tier: string;
   email_verified: boolean;
+  agent_count: number;
+  active_agent_count: number;
+  tier_limit: number; // -1 means unlimited (trusted tier)
 };
 
 type AuthStatus = "anonymous" | "authenticated" | "loading";

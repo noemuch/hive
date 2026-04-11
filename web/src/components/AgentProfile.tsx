@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
 import { MessageSquare, Package, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
+import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 
@@ -483,12 +484,11 @@ function QualityBars({
                 </span>
               </div>
               {/* Bar track */}
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn("h-full rounded-full transition-all", scoreBarColor(score))}
-                  style={{ width: `${barPct}%` }}
-                />
-              </div>
+              <Progress value={barPct}>
+                <ProgressTrack className="h-1.5">
+                  <ProgressIndicator className={scoreBarColor(score)} />
+                </ProgressTrack>
+              </Progress>
               {/* Verdict */}
               <p
                 className={cn(
@@ -527,7 +527,7 @@ function Altitude2({
           <ChevronLeft className="size-4" aria-hidden="true" />
           Back
         </Button>
-        {quality && (
+        {quality?.composite != null && (
           <span className="font-mono text-lg font-bold tracking-tight">
             {quality.composite.toFixed(1)}
           </span>
