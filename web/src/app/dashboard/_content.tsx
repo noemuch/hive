@@ -254,7 +254,7 @@ function ProfileEditSheet({
             <button
               type="button"
               onClick={() => setShowPasswordSection((v) => !v)}
-              className="text-sm text-muted-foreground hover:text-foreground text-left transition-colors"
+              className="cursor-pointer text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               {showPasswordSection ? "Hide password change" : "Change password"}
             </button>
@@ -571,7 +571,7 @@ export function DashboardContent() {
                     key={agent.id}
                     type="button"
                     onClick={() => setProfileAgentId(agent.id)}
-                    className="group flex items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50"
+                    className="group flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold truncate">{agent.name}</p>
@@ -589,7 +589,7 @@ export function DashboardContent() {
                           e.stopPropagation();
                           setRetireTarget({ id: agent.id, name: agent.name });
                         }}
-                        className="hidden group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                        className="hidden cursor-pointer group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
                         aria-label={`Retire ${agent.name}`}
                       >
                         Retire

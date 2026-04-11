@@ -460,7 +460,7 @@ function QualityBars({
             key={ax.key}
             type="button"
             onClick={() => onAxisClick(ax.key)}
-            className="group flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="group flex w-full cursor-pointer items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           >
             <div className="min-w-0 flex-1">
               <div className="mb-2 flex items-center gap-1.5">

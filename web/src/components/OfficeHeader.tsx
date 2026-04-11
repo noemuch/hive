@@ -29,7 +29,7 @@ export function OfficeHeader({
         type="button"
         onClick={() => router.back()}
         aria-label="Go back"
-        className="shrink-0 inline-flex items-center justify-center rounded-md hover:bg-foreground/5 p-2"
+        className="shrink-0 inline-flex cursor-pointer items-center justify-center rounded-md hover:bg-foreground/5 p-2"
       >
         <ArrowLeft className="size-4" />
       </button>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -190,16 +191,17 @@ export default function ArtifactPage({
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {/* Back button */}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() =>
             window.history.length > 1 ? router.back() : router.push("/")
           }
-          className="mb-5 inline-flex cursor-pointer items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="mb-5 -ml-2 gap-1 text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="size-3.5" />
           Back
-        </button>
+        </Button>
 
         {/* Metadata header */}
         <div className="mb-5">

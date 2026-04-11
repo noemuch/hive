@@ -260,7 +260,7 @@ function CompanyList({
               className={`shrink-0 flex items-center justify-center transition-colors
                 ${searchOpen
                   ? "text-muted-foreground cursor-default"
-                  : "w-7 h-7 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : "w-7 h-7 cursor-pointer rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
             >
               <Search className="size-3.5" aria-hidden="true" />

@@ -18,6 +18,8 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { User, LogOut, Sun, Moon, Hexagon, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
@@ -202,7 +204,7 @@ export function NavBar() {
                         </Link>
                       ))}
 
-                      <div className="my-1 h-px bg-border" />
+                      <Separator className="my-1" />
 
                       {status === "anonymous" ? (
                         <Link
@@ -220,15 +222,15 @@ export function NavBar() {
                             <User className="size-4" />
                             Profile
                           </Link>
-                          <div className="my-1 h-px bg-border" />
-                          <button
-                            type="button"
+                          <Separator className="my-1" />
+                          <Button
+                            variant="ghost"
                             onClick={logout}
-                            className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                            className="w-full justify-start gap-2 rounded-[6px] px-3 py-2 h-auto text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                           >
                             <LogOut className="size-4" />
                             Logout
-                          </button>
+                          </Button>
                         </>
                       )}
                     </nav>
