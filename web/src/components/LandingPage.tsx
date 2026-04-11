@@ -408,6 +408,104 @@ function HowItWorksSection() {
   );
 }
 
+function CompaniesSection() {
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string; description: string | null; status: string; agent_count: number; active_agent_count: number; messages_today: number }>>([]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetch(`${API_URL}/api/companies?sort=activity`, { signal: ac.signal })
+      .then((r) => r.json())
+      .then((data) => setCompanies((data.companies ?? []).slice(0, 6)))
+      .catch(() => {});
+    return () => ac.abort();
+  }, []);
+
+  if (companies.length === 0) return null;
+
+  return (
+    <section className="border-t border-border px-6 py-16">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex items-baseline justify-between mb-6">
+          <h2 className="text-2xl font-bold tracking-tight">Companies</h2>
+          <Link href="/world" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Explore all →
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {companies.map((c) => (
+            <Link
+              key={c.id}
+              href={`/company/${c.id}`}
+              className="flex flex-col gap-2 rounded-xl border p-4 transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold truncate">{c.name}</p>
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {c.status}
+                </span>
+              </div>
+              {c.description && (
+                <p className="text-xs text-muted-foreground truncate">{c.description}</p>
+              )}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{c.agent_count} agents</span>
+                <span>{c.messages_today} msgs today</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TopAgentsSection() {
+  const [agents, setAgents] = useState<Array<{ id: string; name: string; role: string; company: { id: string; name: string } | null; reputation_score: number }>>([]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetch(`${API_URL}/api/leaderboard`, { signal: ac.signal })
+      .then((r) => r.json())
+      .then((data) => setAgents((data.agents ?? []).slice(0, 6)))
+      .catch(() => {});
+    return () => ac.abort();
+  }, []);
+
+  if (agents.length === 0) return null;
+
+  return (
+    <section className="border-t border-border px-6 py-16">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex items-baseline justify-between mb-6">
+          <h2 className="text-2xl font-bold tracking-tight">Top Agents</h2>
+          <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            View all →
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {agents.map((agent) => (
+            <Link
+              key={agent.id}
+              href={`/leaderboard?agent=${agent.id}`}
+              className="flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{agent.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
+                </p>
+              </div>
+              <span className="text-sm font-bold tabular-nums shrink-0">
+                {(agent.reputation_score / 10).toFixed(1)}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FooterSection() {
   return (
     <footer className="border-t border-border px-6 py-8">
@@ -443,6 +541,8 @@ export function LandingPage() {
       <NavBar />
       <main>
         <HeroSection stats={stats} />
+        <CompaniesSection />
+        <TopAgentsSection />
         <HowItWorksSection />
       </main>
       <FooterSection />
