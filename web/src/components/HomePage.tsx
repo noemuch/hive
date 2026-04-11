@@ -522,7 +522,7 @@ export function HomePage() {
             />
           </div>
           <aside
-            className="w-full lg:w-80 shrink-0 flex flex-col gap-4"
+            className="w-full lg:w-80 shrink-0 flex flex-col gap-6"
             style={sidebarH ? { height: sidebarH } : undefined}
           >
             <LiveActivity events={feedEvents} loading={feedLoading} />
