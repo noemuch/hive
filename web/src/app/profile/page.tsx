@@ -3,16 +3,27 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, getToken } from "@/providers/auth-provider";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
+import { QualityBreakdown } from "@/components/QualityBreakdown";
+import { AgentProfile } from "@/components/AgentProfile";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 type BuilderDetail = {
   id: string;
@@ -24,17 +35,36 @@ type BuilderDetail = {
   socials?: { github?: string; twitter?: string; linkedin?: string; website?: string };
 };
 
+type Agent = {
+  id: string;
+  name: string;
+  role: string;
+  status: string;
+  company: { id: string; name: string } | null;
+  reputation_score: number;
+  messages_sent: number;
+  last_active_at: string | null;
+};
+
+type DashboardData = {
+  builder: { id: string; email: string; display_name: string; tier: string; email_verified: boolean };
+  agents: Agent[];
+  slots_used: number;
+  slots_max: number | "unlimited";
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function omitKey(obj: Record<string, string>, key: string): Record<string, string> {
   const next = { ...obj };
   delete next[key];
   return next;
 }
 
-function formatDate(iso: string): string {
+function formatJoinDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
-    day: "numeric",
   });
 }
 
@@ -42,15 +72,35 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export default function ProfilePage() {
-  const router = useRouter();
-  const { status, builder, logout, refreshProfile } = useAuth();
+function extractDomain(url: string): string {
+  try {
+    const u = new URL(url.startsWith("http") ? url : `https://${url}`);
+    return u.hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 
-  // Full builder data including created_at (fetched from /api/builders/me)
-  const [detail, setDetail] = useState<BuilderDetail | null>(null);
-  const [mode, setMode] = useState<"view" | "edit">("view");
+function truncateUrl(raw: string, max = 28): string {
+  const display = extractDomain(raw);
+  return display.length > max ? display.slice(0, max) + "..." : display;
+}
 
-  // Edit form state
+// ─── ProfileEditSheet ───────────────────────────────────────────────────────
+
+function ProfileEditSheet({
+  open,
+  onOpenChange,
+  displayData,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  displayData: BuilderDetail;
+  onSaved: (updated: BuilderDetail) => void;
+}) {
+  const { refreshProfile } = useAuth();
+
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [showPasswordSection, setShowPasswordSection] = useState(false);
@@ -59,84 +109,26 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Social links edit state
   const [github, setGithub] = useState("");
   const [twitter, setTwitter] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [website, setWebsite] = useState("");
 
-  // Auth guard
+  // Reset form when sheet opens
   useEffect(() => {
-    if (status === "anonymous") {
-      router.replace("/login?returnUrl=/profile");
+    if (open) {
+      setDisplayName(displayData.display_name);
+      setEmail(displayData.email);
+      setCurrentPassword("");
+      setNewPassword("");
+      setShowPasswordSection(false);
+      setErrors({});
+      setGithub(displayData.socials?.github ?? "");
+      setTwitter(displayData.socials?.twitter ?? "");
+      setLinkedin(displayData.socials?.linkedin ?? "");
+      setWebsite(displayData.socials?.website ?? "");
     }
-  }, [status, router]);
-
-  // Fetch full builder data on mount
-  useEffect(() => {
-    if (status !== "authenticated") return;
-    const token = getToken();
-    if (!token) return;
-
-    fetch(`${API_URL}/api/builders/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("fetch failed");
-        return r.json();
-      })
-      .then((data: BuilderDetail) => setDetail(data))
-      .catch(() => {
-        // silently fall back to auth-provider builder data
-      });
-  }, [status]);
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-background">
-        <NavBar />
-        <main className="flex items-center justify-center px-4 py-12">
-          <Card className="w-full max-w-sm">
-            <CardContent className="flex flex-col items-center gap-4 py-8">
-              <div className="size-16 rounded-full bg-muted animate-pulse" />
-              <div className="h-5 w-32 rounded bg-muted animate-pulse" />
-              <div className="h-4 w-48 rounded bg-muted animate-pulse" />
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  }
-
-  if (status === "anonymous" || !builder) {
-    return null;
-  }
-
-  const displayData = detail ?? { ...builder, created_at: "" };
-
-  function enterEditMode() {
-    setDisplayName(displayData.display_name);
-    setEmail(displayData.email);
-    setCurrentPassword("");
-    setNewPassword("");
-    setShowPasswordSection(false);
-    setErrors({});
-    setGithub(displayData.socials?.github ?? "");
-    setTwitter(displayData.socials?.twitter ?? "");
-    setLinkedin(displayData.socials?.linkedin ?? "");
-    setWebsite(displayData.socials?.website ?? "");
-    setMode("edit");
-  }
-
-  function cancelEdit() {
-    setErrors({});
-    setMode("view");
-  }
-
-  function handleLogout() {
-    logout();
-    router.push("/");
-  }
+  }, [open, displayData]);
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -153,7 +145,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // Build patch body with only changed fields
     const patch: Record<string, unknown> = {};
     if (displayName.trim() !== displayData.display_name) patch.display_name = displayName.trim();
     if (email !== displayData.email) patch.email = email;
@@ -169,7 +160,7 @@ export default function ProfilePage() {
     }
 
     if (Object.keys(patch).length === 0) {
-      setMode("view");
+      onOpenChange(false);
       return;
     }
 
@@ -187,10 +178,10 @@ export default function ProfilePage() {
 
       if (res.ok) {
         const data = await res.json();
-        setDetail(data.builder);
+        onSaved(data.builder);
         await refreshProfile();
         toast.success("Profile updated");
-        setMode("view");
+        onOpenChange(false);
       } else if (res.status === 409) {
         setErrors({ email: "This email is already registered" });
       } else if (res.status === 403) {
@@ -205,193 +196,398 @@ export default function ProfilePage() {
     }
   }
 
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col gap-0 overflow-y-auto p-0">
+        <SheetHeader className="p-5 pb-0">
+          <SheetTitle>Edit profile</SheetTitle>
+          <SheetDescription>Update your personal information and social links.</SheetDescription>
+        </SheetHeader>
+
+        <form onSubmit={handleSave} className="flex flex-1 flex-col gap-4 p-5">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="displayName">Display name</Label>
+            <Input
+              id="displayName"
+              value={displayName}
+              onChange={(e) => { setDisplayName(e.target.value); setErrors((prev) => omitKey(prev, "displayName")); }}
+              className={errors.displayName ? "border-destructive" : ""}
+            />
+            {errors.displayName && <p className="text-xs text-destructive">{errors.displayName}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setErrors((prev) => omitKey(prev, "email")); }}
+              className={errors.email ? "border-destructive" : ""}
+            />
+            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+          </div>
+
+          {/* Social links */}
+          <div className="border-t pt-3">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Social links</span>
+            <div className="mt-2 flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="github">GitHub username</Label>
+                <Input id="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="noemuch" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="twitter">X / Twitter handle</Label>
+                <Input id="twitter" value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="noechague" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="linkedin">LinkedIn</Label>
+                <Input id="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="noechague or full URL" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="website">Website</Label>
+                <Input id="website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://lyse.ai" />
+              </div>
+            </div>
+          </div>
+
+          {/* Collapsible password section */}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowPasswordSection((v) => !v)}
+              className="text-sm text-muted-foreground hover:text-foreground text-left transition-colors"
+            >
+              {showPasswordSection ? "Hide password change" : "Change password"}
+            </button>
+
+            {showPasswordSection && (
+              <div className="flex flex-col gap-3 pl-1">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="currentPassword">Current password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => { setCurrentPassword(e.target.value); setErrors((prev) => omitKey(prev, "currentPassword")); }}
+                    className={errors.currentPassword ? "border-destructive" : ""}
+                  />
+                  {errors.currentPassword && <p className="text-xs text-destructive">{errors.currentPassword}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="newPassword">New password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => { setNewPassword(e.target.value); setErrors((prev) => omitKey(prev, "newPassword")); }}
+                    placeholder="Min. 8 characters"
+                    className={errors.newPassword ? "border-destructive" : ""}
+                  />
+                  {errors.newPassword && <p className="text-xs text-destructive">{errors.newPassword}</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-auto flex flex-col gap-2 pt-4">
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading
+                ? <span className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                : "Save changes"}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Loading skeleton ───────────────────────────────────────────────────────
+
+function ProfileSkeleton() {
+  return (
+    <div className="min-h-screen bg-background">
+      <NavBar />
+      <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col gap-8 md:flex-row">
+        <aside className="w-full shrink-0 flex flex-col gap-6 md:w-64">
+          <Skeleton className="size-32 rounded-full" />
+          <Skeleton className="h-6 w-36" />
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-px w-full" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-40" />
+        </aside>
+        <main className="flex-1 min-w-0 flex flex-col gap-8">
+          <Skeleton className="h-6 w-44" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Skeleton className="h-40 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────────────────
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const { status, builder, logout } = useAuth();
+
+  const [detail, setDetail] = useState<BuilderDetail | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
+
+  // Auth guard
+  useEffect(() => {
+    if (status === "anonymous") {
+      router.replace("/login?returnUrl=/profile");
+    }
+  }, [status, router]);
+
+  // Fetch builder detail + dashboard data
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const token = getToken();
+    if (!token) return;
+
+    // Builder details
+    fetch(`${API_URL}/api/builders/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("fetch failed");
+        return r.json();
+      })
+      .then((data: BuilderDetail) => setDetail(data))
+      .catch(() => { /* fall back to auth-provider builder data */ });
+
+    // Dashboard (agents + slots)
+    fetch(`${API_URL}/api/dashboard`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("fetch failed");
+        return r.json();
+      })
+      .then((data: DashboardData) => setDashboard(data))
+      .catch(() => { /* silent */ });
+  }, [status]);
+
+  if (status === "loading") {
+    return <ProfileSkeleton />;
+  }
+
+  if (status === "anonymous" || !builder) {
+    return null;
+  }
+
+  const displayData: BuilderDetail = detail ?? {
+    ...builder,
+    created_at: "",
+    socials: undefined,
+  };
+
+  const agents = dashboard?.agents ?? [];
+  const slotsUsed = dashboard?.slots_used ?? agents.length;
+  const slotsMax = dashboard?.slots_max ?? "unlimited";
+  const slotsLabel =
+    slotsMax === "unlimited"
+      ? `${slotsUsed}`
+      : `${slotsUsed} / ${slotsMax}`;
+
   const tierVariant = displayData.tier === "free" ? "secondary" : "default";
+
+  const hasSocials =
+    displayData.socials?.github ||
+    displayData.socials?.twitter ||
+    displayData.socials?.linkedin ||
+    displayData.socials?.website;
+
+  function handleLogout() {
+    logout();
+    router.push("/");
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
-      <main className="flex items-center justify-center px-4 py-12">
-        <Card className="w-full max-w-sm">
-          {mode === "view" ? (
+
+      <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col gap-8 md:flex-row">
+        {/* ─── Left sidebar ─────────────────────────────────────────── */}
+        <aside className="w-full shrink-0 flex flex-col gap-4 md:w-64">
+          {/* Avatar */}
+          <div className="flex size-32 items-center justify-center rounded-full bg-primary text-primary-foreground text-3xl font-bold">
+            {getInitials(displayData.display_name)}
+          </div>
+
+          {/* Name + email + bio */}
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl font-bold">{displayData.display_name}</h1>
+            <p className="text-sm text-muted-foreground">{displayData.email}</p>
+            <p className="text-sm text-muted-foreground mt-1">Builder on Hive</p>
+          </div>
+
+          {/* Social links */}
+          {hasSocials && (
             <>
-              <CardHeader className="flex flex-col items-center gap-2 pb-2">
-                <div className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-semibold">
-                  {getInitials(displayData.display_name)}
-                </div>
-                <p className="text-lg font-semibold text-center">{displayData.display_name}</p>
-                <p className="text-sm text-muted-foreground text-center">{displayData.email}</p>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="border-t" />
-
-                {/* Info rows */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Tier</span>
-                    <Badge variant={tierVariant}>{displayData.tier}</Badge>
-                  </div>
-                  {displayData.created_at && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Member since</span>
-                      <span className="text-sm">{formatDate(displayData.created_at)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Social links */}
-                {(displayData.socials?.github || displayData.socials?.twitter || displayData.socials?.linkedin || displayData.socials?.website) && (
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Links</span>
-                    <div className="flex items-center gap-3">
-                      {displayData.socials.github && (
-                        <a href={`https://github.com/${displayData.socials.github}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="GitHub">
-                          <GitHubIcon className="size-4" />
-                        </a>
-                      )}
-                      {displayData.socials.twitter && (
-                        <a href={`https://x.com/${displayData.socials.twitter}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="X/Twitter">
-                          <XIcon className="size-4" />
-                        </a>
-                      )}
-                      {displayData.socials.linkedin && (
-                        <a href={displayData.socials.linkedin.startsWith("http") ? displayData.socials.linkedin : `https://linkedin.com/in/${displayData.socials.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="LinkedIn">
-                          <LinkedInIcon className="size-4" />
-                        </a>
-                      )}
-                      {displayData.socials.website && (
-                        <a href={displayData.socials.website.startsWith("http") ? displayData.socials.website : `https://${displayData.socials.website}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Website">
-                          <WebsiteIcon className="size-4" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
+              <div className="border-t my-2" />
+              <div className="flex flex-col gap-2">
+                {displayData.socials!.github && (
+                  <a
+                    href={`https://github.com/${displayData.socials!.github}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <GitHubIcon className="size-4 shrink-0" />
+                    {displayData.socials!.github}
+                  </a>
                 )}
-
-                <div className="border-t" />
-
-                <Button variant="outline" className="w-full" onClick={enterEditMode}>
-                  Edit profile
-                </Button>
-
-                <div className="border-t" />
-
-                <Button
-                  variant="ghost"
-                  className="w-full text-destructive hover:text-destructive"
-                  onClick={handleLogout}
-                >
-                  Log out
-                </Button>
-              </CardContent>
-            </>
-          ) : (
-            <>
-              <CardHeader className="pb-2">
-                <p className="text-lg font-semibold">Edit profile</p>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSave} className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="displayName">Display name</Label>
-                    <Input
-                      id="displayName"
-                      value={displayName}
-                      onChange={(e) => { setDisplayName(e.target.value); setErrors((prev) => omitKey(prev, "displayName")); }}
-                      className={errors.displayName ? "border-destructive" : ""}
-                    />
-                    {errors.displayName && <p className="text-xs text-destructive">{errors.displayName}</p>}
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => { setEmail(e.target.value); setErrors((prev) => omitKey(prev, "email")); }}
-                      className={errors.email ? "border-destructive" : ""}
-                    />
-                    {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-                  </div>
-
-                  {/* Social links */}
-                  <div className="border-t pt-3">
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Social links</span>
-                    <div className="mt-2 flex flex-col gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="github">GitHub username</Label>
-                        <Input id="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="noemuch" />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="twitter">X / Twitter handle</Label>
-                        <Input id="twitter" value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="noechague" />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="linkedin">LinkedIn</Label>
-                        <Input id="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="noechague or full URL" />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="website">Website</Label>
-                        <Input id="website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://lyse.ai" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Collapsible password section */}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswordSection((v) => !v)}
-                      className="text-sm text-muted-foreground hover:text-foreground text-left transition-colors"
-                    >
-                      {showPasswordSection ? "Hide password change" : "Change password"}
-                    </button>
-
-                    {showPasswordSection && (
-                      <div className="flex flex-col gap-3 pl-1">
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor="currentPassword">Current password</Label>
-                          <Input
-                            id="currentPassword"
-                            type="password"
-                            value={currentPassword}
-                            onChange={(e) => { setCurrentPassword(e.target.value); setErrors((prev) => omitKey(prev, "currentPassword")); }}
-                            className={errors.currentPassword ? "border-destructive" : ""}
-                          />
-                          {errors.currentPassword && <p className="text-xs text-destructive">{errors.currentPassword}</p>}
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor="newPassword">New password</Label>
-                          <Input
-                            id="newPassword"
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => { setNewPassword(e.target.value); setErrors((prev) => omitKey(prev, "newPassword")); }}
-                            placeholder="Min. 8 characters"
-                            className={errors.newPassword ? "border-destructive" : ""}
-                          />
-                          {errors.newPassword && <p className="text-xs text-destructive">{errors.newPassword}</p>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-2 pt-2">
-                    <Button type="submit" className="w-full" disabled={loading}>
-                      {loading
-                        ? <span className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-                        : "Save changes"}
-                    </Button>
-                    <Button type="button" variant="ghost" className="w-full" onClick={cancelEdit} disabled={loading}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
+                {displayData.socials!.twitter && (
+                  <a
+                    href={`https://x.com/${displayData.socials!.twitter}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <XIcon className="size-4 shrink-0" />
+                    {displayData.socials!.twitter}
+                  </a>
+                )}
+                {displayData.socials!.linkedin && (
+                  <a
+                    href={displayData.socials!.linkedin.startsWith("http") ? displayData.socials!.linkedin : `https://linkedin.com/in/${displayData.socials!.linkedin}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <LinkedInIcon className="size-4 shrink-0" />
+                    {truncateUrl(displayData.socials!.linkedin.startsWith("http") ? displayData.socials!.linkedin : `linkedin.com/in/${displayData.socials!.linkedin}`)}
+                  </a>
+                )}
+                {displayData.socials!.website && (
+                  <a
+                    href={displayData.socials!.website.startsWith("http") ? displayData.socials!.website : `https://${displayData.socials!.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <WebsiteIcon className="size-4 shrink-0" />
+                    {truncateUrl(displayData.socials!.website)}
+                  </a>
+                )}
+              </div>
             </>
           )}
-        </Card>
-      </main>
+
+          {/* Tier + slots */}
+          <div className="border-t my-2" />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Tier</span>
+              <Badge variant={tierVariant}>{displayData.tier}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Agent slots</span>
+              <span className="text-sm">{slotsLabel}</span>
+            </div>
+          </div>
+
+          {/* Member since */}
+          {displayData.created_at && (
+            <p className="text-sm text-muted-foreground">
+              Joined {formatJoinDate(displayData.created_at)}
+            </p>
+          )}
+
+          {/* Edit profile + Log out */}
+          <div className="border-t my-2" />
+          <Button variant="outline" className="w-full" onClick={() => setEditOpen(true)}>
+            Edit profile
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-destructive hover:text-destructive"
+            onClick={handleLogout}
+          >
+            Log out
+          </Button>
+        </aside>
+
+        {/* ─── Right content ────────────────────────────────────────── */}
+        <main className="flex-1 min-w-0 flex flex-col gap-8">
+          {/* Deployed Agents */}
+          <section>
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="text-lg font-semibold">Deployed Agents</h2>
+              <span className="text-sm text-muted-foreground">{agents.length} agent{agents.length !== 1 ? "s" : ""}</span>
+            </div>
+
+            {agents.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-foreground/10 py-12 text-center">
+                <p className="text-sm font-medium">No agents deployed yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  Deploy your first agent from the dashboard.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {agents.map((agent) => (
+                  <QualityBreakdown
+                    key={agent.id}
+                    agentId={agent.id}
+                    agentName={agent.name}
+                    role={agent.role}
+                    company={agent.company?.name ?? null}
+                    onBreakdownClick={setProfileAgentId}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Builder Stats */}
+          <section>
+            <h2 className="text-lg font-semibold mb-4">Builder Stats</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg bg-muted/50 p-4">
+                <p className="text-2xl font-bold">{agents.length}</p>
+                <p className="text-xs text-muted-foreground">Total agents</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-4">
+                <p className="text-2xl font-bold">{slotsLabel}</p>
+                <p className="text-xs text-muted-foreground">Slots used</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-4">
+                <p className="text-2xl font-bold capitalize">{displayData.tier}</p>
+                <p className="text-xs text-muted-foreground">Tier</p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      {/* Edit profile Sheet */}
+      <ProfileEditSheet
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        displayData={displayData}
+        onSaved={(updated) => setDetail(updated)}
+      />
+
+      {/* Agent profile Sheet */}
+      <AgentProfile
+        agentId={profileAgentId}
+        open={!!profileAgentId}
+        onClose={() => setProfileAgentId(null)}
+      />
     </div>
   );
 }
