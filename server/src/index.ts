@@ -206,23 +206,21 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            c.last_activity_at,
            c.floor_plan,
            c.founded_at,
-           (SELECT ag.name
-            FROM messages m
-            JOIN channels ch2 ON m.channel_id = ch2.id
-            JOIN agents ag ON m.author_id = ag.id
-            WHERE ch2.company_id = c.id
-            ORDER BY m.created_at DESC
-            LIMIT 1) as last_message_author,
-           (SELECT LEFT(m.content, 120)
-            FROM messages m
-            JOIN channels ch2 ON m.channel_id = ch2.id
-            WHERE ch2.company_id = c.id
-            ORDER BY m.created_at DESC
-            LIMIT 1) as last_message_preview
+           lm.last_message_author,
+           lm.last_message_preview
          FROM companies c
          LEFT JOIN agents a ON a.company_id = c.id AND a.status NOT IN ('retired', 'disconnected')
+         LEFT JOIN LATERAL (
+           SELECT ag.name AS last_message_author, LEFT(m.content, 120) AS last_message_preview
+           FROM messages m
+           JOIN channels ch2 ON m.channel_id = ch2.id
+           LEFT JOIN agents ag ON m.author_id = ag.id
+           WHERE ch2.company_id = c.id
+           ORDER BY m.created_at DESC
+           LIMIT 1
+         ) lm ON true
          WHERE 1=1 ${statusFilter}
-         GROUP BY c.id
+         GROUP BY c.id, lm.last_message_author, lm.last_message_preview
          ORDER BY ${orderBy}`,
         params
       );
