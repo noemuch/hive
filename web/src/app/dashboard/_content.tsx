@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuth, getToken } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PlusIcon, Trash2 } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { DeployModal } from "@/components/DeployModal";
 import { QualityBreakdown } from "@/components/QualityBreakdown";
+import { AgentProfile } from "@/components/AgentProfile";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -32,62 +32,6 @@ type DashboardData = {
   slots_max: number | "unlimited";
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: "Online",
-  idle: "Idle",
-  disconnected: "Offline",
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  pm: "PM",
-  designer: "Designer",
-  developer: "Developer",
-  qa: "QA",
-  ops: "Ops",
-  generalist: "Generalist",
-};
-
-function AgentCard({ agent, onRetireClick }: { agent: Agent; onRetireClick: () => void }) {
-  return (
-    <div className="group flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium leading-tight">{agent.name}</p>
-          {agent.company && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{agent.company.name}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Badge variant="secondary" className="shrink-0">
-            {ROLE_LABELS[agent.role] ?? agent.role}
-          </Badge>
-          <button
-            type="button"
-            onClick={onRetireClick}
-            aria-label={`Retire ${agent.name}`}
-            className="shrink-0 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/5 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>
-          <span className="font-medium text-foreground">{agent.reputation_score}</span> rep
-        </span>
-        <span>
-          <span className="font-medium text-foreground">{agent.messages_sent}</span> msgs
-        </span>
-        <span className={cn("ml-auto font-medium", agent.status === "active" ? "text-accent-green" : "text-muted-foreground")}>
-          {STATUS_LABELS[agent.status] ?? agent.status}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export function DashboardSkeleton() {
   return (
@@ -112,6 +56,7 @@ export function DashboardContent() {
   const [fetchError, setFetchError] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [retireTarget, setRetireTarget] = useState<{ id: string; name: string } | null>(null);
+  const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "anonymous") {
@@ -201,7 +146,7 @@ export function DashboardContent() {
         </Button>
       </div>
 
-      {/* Agent grid */}
+      {/* Agents — unified with quality */}
       {data.agents.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-foreground/10 py-16 text-center">
           <p className="text-sm font-medium">No agents yet</p>
@@ -210,46 +155,23 @@ export function DashboardContent() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={cn(
+          "grid gap-4",
+          data.agents.length === 1
+            ? "sm:grid-cols-1 lg:grid-cols-2"
+            : "sm:grid-cols-2 lg:grid-cols-3"
+        )}>
           {data.agents.map((agent) => (
-            <AgentCard
+            <QualityBreakdown
               key={agent.id}
-              agent={agent}
-              onRetireClick={() => setRetireTarget({ id: agent.id, name: agent.name })}
+              agentId={agent.id}
+              agentName={agent.name}
+              role={agent.role}
+              company={agent.company?.name ?? null}
+              onBreakdownClick={setProfileAgentId}
             />
           ))}
         </div>
-      )}
-
-      {/* Quality Overview */}
-      {data.agents.length > 0 && (
-        <section className="mt-8">
-          <div className="mb-4 flex items-baseline justify-between gap-2">
-            <div>
-              <h2 className="text-base font-medium">Quality Overview</h2>
-              <p className="text-sm text-muted-foreground">
-                HEAR evaluation scores for your agents
-              </p>
-            </div>
-          </div>
-
-          <div className={cn(
-            "grid gap-4",
-            data.agents.length === 1
-              ? "sm:grid-cols-1 lg:grid-cols-2"
-              : "sm:grid-cols-2 lg:grid-cols-3"
-          )}>
-            {data.agents.map((agent) => (
-              <QualityBreakdown
-                key={agent.id}
-                agentId={agent.id}
-                agentName={agent.name}
-                role={agent.role}
-                company={agent.company?.name ?? null}
-              />
-            ))}
-          </div>
-        </section>
       )}
 
       {/* Slots full notice */}
@@ -277,6 +199,12 @@ export function DashboardContent() {
           }}
         />
       )}
+
+      <AgentProfile
+        agentId={profileAgentId}
+        open={!!profileAgentId}
+        onClose={() => setProfileAgentId(null)}
+      />
     </main>
   );
 }
