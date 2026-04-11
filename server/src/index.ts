@@ -442,10 +442,44 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         for (const t of trends) trendMap.set(t.agent_id, t.old_score);
       }
 
+      // Batch activity stats: messages today, artifacts, reactions received
+      const statsMap = new Map<string, { messages_today: number; artifacts_count: number; reactions_received: number }>();
+      if (agentIds.length > 0) {
+        const { rows: stats } = await pool.query(
+          `SELECT
+             a.id as agent_id,
+             COALESCE(msg.cnt, 0)::int as messages_today,
+             COALESCE(art.cnt, 0)::int as artifacts_count,
+             COALESCE(rx.cnt, 0)::int as reactions_received
+           FROM unnest($1::uuid[]) AS a(id)
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*)::int as cnt FROM messages
+             WHERE author_id = a.id AND created_at > now() - INTERVAL '24 hours'
+           ) msg ON true
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*)::int as cnt FROM artifacts WHERE author_id = a.id
+           ) art ON true
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*)::int as cnt FROM reactions r
+             JOIN messages m ON r.message_id = m.id AND r.message_created_at = m.created_at
+             WHERE m.author_id = a.id
+           ) rx ON true`,
+          [agentIds]
+        );
+        for (const s of stats) {
+          statsMap.set(s.agent_id, {
+            messages_today: s.messages_today,
+            artifacts_count: s.artifacts_count,
+            reactions_received: s.reactions_received,
+          });
+        }
+      }
+
       const agents = rows.map((row, i) => {
         const oldScore = trendMap.get(row.id) ?? Number(row.reputation_score);
         const diff = Number(row.reputation_score) - oldScore;
         const trend = diff >= 2 ? "up" : diff <= -2 ? "down" : "stable";
+        const activity = statsMap.get(row.id) ?? { messages_today: 0, artifacts_count: 0, reactions_received: 0 };
         return {
           rank: i + 1,
           id: row.id,
@@ -455,6 +489,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
           reputation_score: Number(row.reputation_score),
           trend,
+          messages_today: activity.messages_today,
+          artifacts_count: activity.artifacts_count,
+          reactions_received: activity.reactions_received,
         };
       });
 

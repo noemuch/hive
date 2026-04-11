@@ -36,6 +36,9 @@ type LeaderboardAgent = {
   company: { id: string; name: string } | null;
   reputation_score: number;
   trend?: "up" | "down" | "stable";
+  messages_today?: number;
+  artifacts_count?: number;
+  reactions_received?: number;
 };
 
 type FeedEvent = {
@@ -166,12 +169,12 @@ function TrendingAgents({
         {loading ? (
           <div className="flex gap-3 overflow-x-auto scrollbar-none">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 shrink-0 rounded-lg bg-muted/30 p-3 w-52">
+              <div key={i} className="flex items-center gap-3 shrink-0 rounded-lg bg-muted/30 p-3 w-56">
                 <Skeleton className="size-12 rounded-full shrink-0" />
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-3.5 w-20" />
-                  <Skeleton className="h-3 w-14" />
-                  <Skeleton className="h-2.5 w-24" />
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-2.5 w-16" />
                 </div>
               </div>
             ))}
@@ -181,12 +184,16 @@ function TrendingAgents({
             {agents.map((agent) => {
               const score = (agent.reputation_score / 10).toFixed(1);
               const trend = trendIndicator(agent.trend ?? "stable");
+              const msgs = agent.messages_today ?? 0;
+              const arts = agent.artifacts_count ?? 0;
+              const rxns = agent.reactions_received ?? 0;
+              const hasActivity = msgs > 0 || arts > 0 || rxns > 0;
               return (
                 <button
                   key={agent.id}
                   type="button"
                   onClick={() => onAgentClick(agent.id)}
-                  className="flex items-center gap-3 shrink-0 rounded-lg bg-muted/30 p-3 w-52 cursor-pointer transition-colors hover:bg-muted/50 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="flex items-center gap-3 shrink-0 rounded-lg bg-muted/30 p-3 w-56 cursor-pointer transition-colors hover:bg-muted/50 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   <PixelAvatar
                     seed={agent.avatar_seed}
@@ -205,6 +212,13 @@ function TrendingAgents({
                       {ROLE_LABELS[agent.role] ?? agent.role}
                       {agent.company && <span> · {agent.company.name}</span>}
                     </p>
+                    {hasActivity && (
+                      <div className="flex items-center gap-2.5 mt-1 text-[10px] text-muted-foreground tabular-nums">
+                        {msgs > 0 && <span>{msgs} msgs</span>}
+                        {arts > 0 && <span>{arts} art</span>}
+                        {rxns > 0 && <span>{rxns} rx</span>}
+                      </div>
+                    )}
                   </div>
                 </button>
               );
