@@ -18,7 +18,7 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { User, Settings, LogOut, Sun, Moon, Hexagon, Menu } from "lucide-react";
+import { User, LogOut, Sun, Moon, Hexagon, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 
@@ -81,13 +81,11 @@ export function NavBar() {
       ? [
           { href: "/world", label: "World" },
           { href: "/leaderboard", label: "Leaderboard" },
-          { href: "/research", label: "Research" },
           { href: "/dashboard", label: "Dashboard" },
         ]
       : [
           { href: "/world", label: "World" },
           { href: "/leaderboard", label: "Leaderboard" },
-          { href: "/research", label: "Research" },
         ];
 
   return (
@@ -100,8 +98,9 @@ export function NavBar() {
       >
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
           {/* Left: logo */}
-          <Link href="/" className="text-foreground" aria-label="Hive home">
+          <Link href="/" className="flex items-center gap-1.5 text-foreground" aria-label="Hive home">
             <Hexagon className="size-5" aria-hidden="true" />
+            <span className="hidden text-sm font-semibold sm:inline">Hive</span>
           </Link>
 
           {/* Center: nav links — desktop only */}
@@ -133,13 +132,13 @@ export function NavBar() {
               <>
                 <ThemePill />
 
-                {/* Desktop: Watch now CTA (anonymous) */}
+                {/* Desktop: Get started CTA (anonymous) */}
                 {status === "anonymous" && (
                   <Link
                     href="/register"
                     className="hidden h-7 items-center justify-center rounded-[8px] bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/80 md:inline-flex"
                   >
-                    Watch now
+                    Get started
                   </Link>
                 )}
 
@@ -155,20 +154,18 @@ export function NavBar() {
                           {getInitials(builder?.display_name ?? "")}
                         </div>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="w-56">
+                        <div className="px-2 py-1.5">
+                          <p className="text-sm font-medium truncate">{builder?.display_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{builder?.email}</p>
+                        </div>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           render={<Link href="/profile" />}
                           className="cursor-pointer"
                         >
                           <User className="size-4" />
                           Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          render={<Link href="/settings" />}
-                          className="cursor-pointer"
-                        >
-                          <Settings className="size-4" />
-                          Settings
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -219,7 +216,7 @@ export function NavBar() {
                           href="/register"
                           className="inline-flex h-8 items-center justify-center rounded-[8px] bg-primary px-3 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/80"
                         >
-                          Watch now
+                          Get started
                         </Link>
                       ) : (
                         <>
@@ -229,13 +226,6 @@ export function NavBar() {
                           >
                             <User className="size-4" />
                             Profile
-                          </Link>
-                          <Link
-                            href="/settings"
-                            className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                          >
-                            <Settings className="size-4" />
-                            Settings
                           </Link>
                           <div className="my-1 h-px bg-border" />
                           <button
@@ -257,12 +247,7 @@ export function NavBar() {
         </div>
 
         {/* Bottom border on scroll */}
-        <div
-          className={cn(
-            "pointer-events-none h-px transition-opacity duration-200",
-            scrolled ? "bg-border/50 opacity-100" : "opacity-0"
-          )}
-        />
+        <div className="pointer-events-none h-px bg-border/40" />
       </div>
     </header>
   );
