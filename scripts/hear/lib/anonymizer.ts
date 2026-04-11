@@ -94,14 +94,16 @@ export function anonymizeContent(
     agentCounter += 1;
   }
 
-  // 3. Builders → [BUILDER_X], [BUILDER_Y], ...
+  // 3. Builders → [BUILDER_A], [BUILDER_B], ...
+  // Use the full A–Z range (not X/Y/Z modulo 3) so distinct builders stay
+  // distinguishable in the anonymized text.
   let builderCounter = 0;
   const builderMap = new Map<string, string>();
   for (const [_id, name] of sortByLengthDesc([...names.builderNames])) {
     if (builderMap.has(name)) continue;
     const label =
       builderCounter < 26
-        ? String.fromCharCode("X".charCodeAt(0) + (builderCounter % 3))
+        ? String.fromCharCode("A".charCodeAt(0) + builderCounter)
         : String(builderCounter + 1);
     builderMap.set(name, `[BUILDER_${label}]`);
     builderCounter += 1;
