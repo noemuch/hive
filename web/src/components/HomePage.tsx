@@ -49,6 +49,15 @@ type FeedEvent = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+const RING_HIGH = 700;
+const RING_MID = 350;
+
+function ringColor(score: number): string {
+  if (score >= RING_HIGH) return "ring-green-500";
+  if (score >= RING_MID) return "ring-amber-500";
+  return "ring-red-500/50";
+}
+
 const GRADIENTS = [
   "from-indigo-500/30 via-purple-500/20 to-transparent",
   "from-emerald-500/30 via-teal-500/20 to-transparent",
@@ -95,7 +104,7 @@ function StatsBar({ companies }: { companies: Company[] }) {
   if (stats.every((s) => s.value === 0)) return null;
 
   return (
-    <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-end sm:justify-center sm:gap-x-12">
+    <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-8 sm:gap-y-2">
       {stats.map(({ value, label }) => (
         <div key={label} className="text-center">
           <div className="text-3xl sm:text-4xl font-bold tracking-tight text-primary">
@@ -148,7 +157,7 @@ function TrendingAgents({
               onClick={() => onAgentClick(agent.id)}
               className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              <PixelAvatar seed={agent.avatar_seed} size={48} className="rounded-full ring-2 ring-primary/30" />
+              <PixelAvatar seed={agent.avatar_seed} size={48} className={`rounded-full ring-2 ${ringColor(agent.reputation_score)}`} />
               <span className="text-xs font-medium truncate max-w-[64px]">{agent.name}</span>
               <span className="text-[10px] font-bold text-primary tabular-nums">
                 {(agent.reputation_score / 10).toFixed(1)}
@@ -199,18 +208,23 @@ function CompanyList({
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold">Companies</h2>
         <div className="flex items-center gap-2">
-          {/* Morphing search pill — icon stays anchored, container expands right */}
-          <button
-            type="button"
-            onClick={!searchOpen ? openSearch : undefined}
-            aria-label="Search companies"
-            className={`flex items-center gap-1.5 h-7 rounded-lg transition-all duration-200 ease-out overflow-hidden
-              ${searchOpen
-                ? "w-44 bg-muted px-2 cursor-default"
-                : "w-7 justify-center text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
-              }`}
+          {/* Morphing search pill — div expands, button is icon trigger */}
+          <div
+            className={`flex items-center h-7 rounded-lg transition-all duration-200 ease-out overflow-hidden
+              ${searchOpen ? "w-44 bg-muted px-2 gap-1.5" : "w-7 justify-center"}`}
           >
-            <Search className="size-3.5 shrink-0" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={!searchOpen ? openSearch : undefined}
+              aria-label="Search companies"
+              className={`shrink-0 flex items-center justify-center transition-colors
+                ${searchOpen
+                  ? "text-muted-foreground cursor-default"
+                  : "w-7 h-7 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+            >
+              <Search className="size-3.5" aria-hidden="true" />
+            </button>
             <input
               ref={inputRef}
               type="text"
@@ -222,7 +236,7 @@ function CompanyList({
               className={`bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none transition-all duration-200 ease-out
                 ${searchOpen ? "w-full opacity-100" : "w-0 opacity-0 pointer-events-none"}`}
             />
-          </button>
+          </div>
           <Link href="/world" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Explore all
           </Link>
@@ -314,14 +328,14 @@ function CompanyList({
                           {visible.map((a) => (
                             <div
                               key={a.id}
-                              className={`size-7 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
+                              className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
                             >
-                              <PixelAvatar seed={a.avatar_seed} size={18} />
+                              <PixelAvatar seed={a.avatar_seed} size={14} />
                             </div>
                           ))}
                           {extra > 0 && (
-                            <div className="size-7 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
-                              <span className="text-[10px] font-semibold text-primary">+{extra}</span>
+                            <div className="size-6 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
+                              <span className="text-[9px] font-semibold text-primary">+{extra}</span>
                             </div>
                           )}
                         </div>
