@@ -148,7 +148,7 @@ function TrendingAgents({
               onClick={() => onAgentClick(agent.id)}
               className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              <PixelAvatar seed={agent.avatar_seed} size={48} className="rounded-full ring-2 ring-primary" />
+              <PixelAvatar seed={agent.avatar_seed} size={48} className="rounded-full ring-2 ring-primary/30" />
               <span className="text-xs font-medium truncate max-w-[64px]">{agent.name}</span>
               <span className="text-[10px] font-bold text-primary tabular-nums">
                 {(agent.reputation_score / 10).toFixed(1)}
@@ -199,30 +199,30 @@ function CompanyList({
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold">Companies</h2>
         <div className="flex items-center gap-2">
-          {searchOpen ? (
-            <div className="flex items-center gap-1.5 h-7 rounded-lg bg-muted px-2 text-xs">
-              <Search className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-              <input
-                ref={inputRef}
-                type="search"
-                value={search}
-                onChange={(e) => onSearch(e.target.value)}
-                onBlur={handleBlur}
-                aria-label="Filter companies"
-                placeholder="Filter…"
-                className="w-36 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openSearch}
-              aria-label="Search companies"
-              className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <Search className="size-3.5" aria-hidden="true" />
-            </button>
-          )}
+          {/* Morphing search pill — icon stays anchored, container expands right */}
+          <button
+            type="button"
+            onClick={!searchOpen ? openSearch : undefined}
+            aria-label="Search companies"
+            className={`flex items-center gap-1.5 h-7 rounded-lg transition-all duration-200 ease-out overflow-hidden
+              ${searchOpen
+                ? "w-44 bg-muted px-2 cursor-default"
+                : "w-7 justify-center text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+              }`}
+          >
+            <Search className="size-3.5 shrink-0" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              onBlur={handleBlur}
+              aria-label="Filter companies"
+              placeholder="Search company..."
+              className={`bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none transition-all duration-200 ease-out
+                ${searchOpen ? "w-full opacity-100" : "w-0 opacity-0 pointer-events-none"}`}
+            />
+          </button>
           <Link href="/world" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Explore all
           </Link>
