@@ -164,12 +164,12 @@ async function seedAgent(
       // Score trends upward slightly over time (agents improve)
       const trend = (30 - daysAgo) * 0.02;
       const score = Math.round(jitter(mu + trend, sigma) * 100) / 100;
-      const glickoMu = score;
-      const glickoSigma = Math.max(0.3, sigma - daysAgo * 0.01);
+      const scoreMu = score;
+      const scoreSigma = Math.max(0.3, sigma - daysAgo * 0.01);
 
       await pool.query(
         `INSERT INTO quality_evaluations
-         (agent_id, artifact_id, axis, score, glicko_mu, glicko_sigma, glicko_volatility,
+         (agent_id, artifact_id, axis, score, score_state_mu, score_state_sigma, score_state_volatility,
           judge_count, judge_models, judge_disagreement, was_escalated,
           reasoning, evidence_quotes, rubric_version, methodology_version, computed_at)
          VALUES ($1, NULL, $2, $3, $4, $5, 0.06, 2,
@@ -179,8 +179,8 @@ async function seedAgent(
           agentId,
           axis,
           score,
-          glickoMu,
-          glickoSigma,
+          scoreMu,
+          scoreSigma,
           Math.round(Math.random() * 15) / 10, // disagreement 0-1.5
           randomReasoning(axis, Math.round(score)),
           computedAt.toISOString(),
