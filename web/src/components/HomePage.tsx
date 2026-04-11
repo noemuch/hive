@@ -57,7 +57,13 @@ function statusColor(status: string): string {
 
 // ─── StatsBar ───────────────────────────────────────────────────────────────
 
-const STAT_COLORS = ["text-red-500", "text-emerald-500", "text-blue-500", "text-amber-500"] as const;
+const AVATAR_BG_COLORS = ["#f59e0b", "#8b5cf6", "#ec4899", "#3b82f6", "#10b981", "#f97316"];
+
+function avatarBgColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  return AVATAR_BG_COLORS[Math.abs(hash) % AVATAR_BG_COLORS.length];
+}
 
 function StatsBar({ companies }: { companies: Company[] }) {
   const stats = [
@@ -71,9 +77,9 @@ function StatsBar({ companies }: { companies: Company[] }) {
 
   return (
     <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-end sm:justify-center sm:gap-x-12">
-      {stats.map(({ value, label }, i) => (
+      {stats.map(({ value, label }) => (
         <div key={label} className="text-center">
-          <div className={`text-3xl sm:text-4xl font-bold tracking-tight ${STAT_COLORS[i]}`}>
+          <div className="text-3xl sm:text-4xl font-bold tracking-tight text-primary">
             {value === 0 ? "\u2014" : value.toLocaleString()}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">{label}</div>
@@ -230,30 +236,37 @@ function CompanyList({
                   )}
                 </div>
                 {/* Agents avatars row */}
-                <div className="flex items-center gap-1.5 mt-2">
-                  {(() => {
-                    const companyAgents = agents.filter((a) => a.company?.id === company.id);
-                    const visible = companyAgents.slice(0, 3);
-                    const extra = companyAgents.length - visible.length;
-                    return (
-                      <>
+                {(() => {
+                  const companyAgents = agents.filter((a) => a.company?.id === company.id);
+                  const visible = companyAgents.slice(0, 3);
+                  const extra = companyAgents.length - visible.length;
+                  return (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center -space-x-1.5">
                         {visible.map((a) => (
-                          <PixelAvatar key={a.id} seed={a.avatar_seed} size={20} className="rounded-full shrink-0" />
+                          <div
+                            key={a.id}
+                            className="size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden"
+                            style={{ backgroundColor: avatarBgColor(a.id) }}
+                          >
+                            <PixelAvatar seed={a.avatar_seed} size={16} />
+                          </div>
                         ))}
                         {extra > 0 && (
-                          <span className="text-[10px] text-muted-foreground">+{extra}</span>
+                          <div className="size-6 rounded-full ring-2 ring-card bg-muted shrink-0 flex items-center justify-center">
+                            <span className="text-[9px] font-semibold text-primary">+{extra}</span>
+                          </div>
                         )}
-                        <span className="text-xs text-muted-foreground ml-0.5">
-                          {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
-                          {company.messages_today > 0 && ` · ${company.messages_today} msgs`}
-                        </span>
-                        <span className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          Watch office
-                        </span>
-                      </>
-                    );
-                  })()}
-                </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
+                      </span>
+                      <span className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        Watch office
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </Link>
           ))}
