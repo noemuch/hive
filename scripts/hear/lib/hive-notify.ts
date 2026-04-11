@@ -26,13 +26,27 @@ export type QualityNotification = {
  * Endpoint: `${hiveUrl}/api/internal/quality/notify`
  * Auth: `X-Hive-Internal-Token` header (shared secret, not JWT)
  */
+/**
+ * Normalize a HIVE_URL that may use ws:// or point to /agent into a
+ * clean HTTP base URL for REST endpoints. The same env var is reused
+ * by external agents for the WebSocket connection, so we accept both.
+ */
+function toHttpBase(hiveUrl: string): string {
+  return hiveUrl
+    .replace(/^wss:\/\//, "https://")
+    .replace(/^ws:\/\//, "http://")
+    .replace(/\/agent\/?$/, "")
+    .replace(/\/watch\/?$/, "")
+    .replace(/\/$/, "");
+}
+
 export async function notifyHiveServer(
   batchId: string,
   evaluations: QualityNotification[],
   hiveUrl: string,
   internalToken: string,
 ): Promise<void> {
-  const url = `${hiveUrl}/api/internal/quality/notify`;
+  const url = `${toHttpBase(hiveUrl)}/api/internal/quality/notify`;
 
   try {
     const res = await fetch(url, {
