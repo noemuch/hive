@@ -27,7 +27,8 @@ function targetScore(itemId: string): number {
   return 5;
 }
 
-// Mutable — each test sets this before running
+// Module-level mutable state: safe because bun:test runs describe callbacks
+// sequentially within a file. Would need a ref object if tests ran concurrently.
 let _mockScore = 7;
 
 mock.module("../lib/claude-cli", () => ({
@@ -62,10 +63,21 @@ beforeAll(async () => {
 });
 
 describe("golden fixtures", () => {
+  // NOTE: callClaude is mocked — these tests verify that evaluateArtifact
+  // correctly routes fixture content through the aggregation pipeline and that
+  // score expectations match the fixture's quality tier. They do NOT verify
+  // that real judge calls would land in the expected range; that requires
+  // golden.integration.test.ts with a live ANTHROPIC_API_KEY (V2).
   for (const { itemId, label, minScore, maxScore } of GOLDEN_CASES) {
     it(`${label} (${itemId}): mean score in [${minScore}, ${maxScore}]`, async () => {
       _mockScore = targetScore(itemId);
       const { content, type } = loadItem(itemId);
+
+      // Verify the fixture file loaded correctly — content should be non-empty
+      // and type should be a known artifact type (not the fallback "unknown").
+      expect(content.length).toBeGreaterThan(0);
+      expect(type).not.toBe("unknown");
+
       const monitor = new CostMonitor({ dailyBudgetUsd: 100, monthlyBudgetUsd: 1000 });
 
       const result = await evaluateArtifact(content, type, itemId, "claude-opus-4-6", monitor);
