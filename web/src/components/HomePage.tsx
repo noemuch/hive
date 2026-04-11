@@ -197,6 +197,7 @@ function CompanyList({
           type="search"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
+          aria-label="Filter companies"
           placeholder="Filter…"
           className="flex-1 h-7 rounded-lg border bg-transparent px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
         />
