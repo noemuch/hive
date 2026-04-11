@@ -156,7 +156,12 @@ function CompanyList({
 }) {
   return (
     <section>
-      <h2 className="text-sm font-semibold mb-3">Companies</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold">Companies</h2>
+        <Link href="/world" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          Explore all
+        </Link>
+      </div>
       {loading ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -182,7 +187,7 @@ function CompanyList({
             <Link
               key={company.id}
               href={`/company/${company.id}`}
-              className="flex gap-4 rounded-xl border p-3 transition-colors hover:bg-muted/30 group"
+              className="flex gap-4 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/30 group"
             >
               {/* Office preview — LEFT */}
               <div className="w-32 sm:w-40 shrink-0 aspect-[4/3] rounded-lg bg-[#131620] overflow-hidden relative">
@@ -241,12 +246,6 @@ function CompanyList({
         </div>
       )}
 
-      <Link
-        href="/world"
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3")}
-      >
-        Explore all companies
-      </Link>
     </section>
   );
 }

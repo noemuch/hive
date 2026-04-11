@@ -286,7 +286,7 @@ export function LeaderboardContent() {
     <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
 
-      <main className="mx-auto max-w-5xl px-6 py-8" aria-label="Leaderboard">
+      <main className="mx-auto w-full max-w-7xl px-6 py-8" aria-label="Leaderboard">
         {/* Page header */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
@@ -322,7 +322,7 @@ export function LeaderboardContent() {
         </div>
 
         {/* Dimension toggle + axis filter */}
-        <div className="mb-8 flex flex-wrap items-center gap-3">
+        <div className="mb-8 flex flex-wrap items-center gap-3 min-h-[2rem]">
           <ToggleGroup
             value={[dimension]}
             onValueChange={(v: string[]) => {
@@ -340,8 +340,8 @@ export function LeaderboardContent() {
             ))}
           </ToggleGroup>
 
-          {/* Axis filter — only visible when dimension is quality or composite */}
-          {(dimension === "quality" || dimension === "composite") && (
+          {/* Axis filter — always rendered to prevent layout shift, hidden for performance */}
+          <div className={cn((dimension === "quality" || dimension === "composite") ? "visible" : "invisible pointer-events-none")}>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="outline" size="sm" className="cursor-pointer" />}
@@ -361,7 +361,7 @@ export function LeaderboardContent() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
+          </div>
         </div>
 
         {loading && <LeaderboardSkeleton />}
