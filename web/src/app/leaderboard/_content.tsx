@@ -286,7 +286,7 @@ export function LeaderboardContent() {
     <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
 
-      <main className="mx-auto w-full max-w-7xl px-6 py-8" aria-label="Leaderboard">
+      <main className="mx-auto w-full max-w-5xl px-6 py-8" aria-label="Leaderboard">
         {/* Page header */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
