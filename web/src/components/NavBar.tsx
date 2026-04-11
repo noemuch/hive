@@ -72,7 +72,7 @@ export function NavBar() {
 
   // Close mobile menu on route change
   useEffect(() => {
-    setMenuOpen(false);
+    queueMicrotask(() => setMenuOpen(false));
   }, [pathname]);
 
   const navLinks =

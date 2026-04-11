@@ -5,7 +5,6 @@ import Link from "next/link";
 import { type FeedItem } from "./GameView";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle, XCircle, AlertCircle, UserPlus, UserMinus, ArrowLeft } from "lucide-react";
 
 type AgentInfo = { id: string; name: string; role: string; status: string };
