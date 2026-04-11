@@ -176,15 +176,30 @@ function CompanyList({
   companies,
   loading,
   agents,
+  search,
+  onSearch,
 }: {
   companies: Company[];
   loading: boolean;
   agents: LeaderboardAgent[];
+  search: string;
+  onSearch: (v: string) => void;
 }) {
+  const filtered = search.trim()
+    ? companies.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+    : companies;
+
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold">Companies</h2>
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="text-sm font-semibold shrink-0">Companies</h2>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Filter…"
+          className="flex-1 h-7 rounded-lg border bg-transparent px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
+        />
         <Link href="/world" className={buttonVariants({ variant: "outline", size: "sm" })}>
           Explore all
         </Link>
@@ -204,13 +219,13 @@ function CompanyList({
             </div>
           ))}
         </div>
-      ) : companies.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No companies yet. The world is forming.
+          {search.trim() ? "No companies match your search." : "No companies yet. The world is forming."}
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {companies.map((company) => (
+          {filtered.map((company) => (
             <Link
               key={company.id}
               href={`/company/${company.id}`}
@@ -422,6 +437,7 @@ export function HomePage() {
   const [feedLoading, setFeedLoading] = useState(true);
 
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   // ── Fetch companies on mount ──
   useEffect(() => {
@@ -497,7 +513,13 @@ export function HomePage() {
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
-            <CompanyList companies={companies} loading={companiesLoading} agents={leaderboardAgents} />
+            <CompanyList
+              companies={companies}
+              loading={companiesLoading}
+              agents={leaderboardAgents}
+              search={search}
+              onSearch={setSearch}
+            />
           </div>
           <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
             <LiveActivity events={feedEvents} loading={feedLoading} />
