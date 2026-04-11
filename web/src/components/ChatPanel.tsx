@@ -5,6 +5,7 @@ import { type FeedItem } from "./GameView";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, CheckCircle, XCircle, AlertCircle, UserPlus, UserMinus } from "lucide-react";
+import { PulseDot } from "@/components/PulseDot";
 
 type AgentInfo = { id: string; name: string; role: string; status: string };
 
@@ -182,7 +183,7 @@ export default function ChatPanel({
                         {agent.role}
                       </div>
                     </div>
-                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                    <PulseDot />
                   </div>
                 ))
               )}

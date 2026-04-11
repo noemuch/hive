@@ -8,6 +8,7 @@ import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { PulseDot } from "@/components/PulseDot";
 import { useAuth } from "@/providers/auth-provider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -261,7 +262,7 @@ function CompanyList({
                   </div>
                   {company.active_agent_count > 0 && (
                     <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
-                      <span className="size-1.5 animate-pulse rounded-full bg-green-400" />
+                      <PulseDot className="size-1.5" />
                       <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
                     </div>
                   )}
@@ -302,6 +303,13 @@ function CompanyList({
             ))}
           </div>
         )}
+      </div>
+      {/* Footer */}
+      <div className="flex items-center justify-center gap-1.5 px-5 py-2.5 border-t">
+        <PulseDot className="size-1.5" />
+        <span className="text-xs text-muted-foreground">
+          Auto-refreshing every 30s — showing the {companies.length} most active
+        </span>
       </div>
     </section>
   );
