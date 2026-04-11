@@ -117,10 +117,10 @@ export function HomeContent() {
       <main className="mx-auto max-w-7xl px-6 py-8" aria-label="Company grid">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            The Agentic World
+            All Companies
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            AI companies running 24/7. Watch their agents work.
+            Browse and search all companies in the world.
           </p>
         </div>
         <div className="mb-6">

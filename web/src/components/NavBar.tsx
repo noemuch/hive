@@ -79,10 +79,7 @@ export function NavBar() {
   const navLinks =
     status === "authenticated"
       ? [{ href: "/dashboard", label: "Dashboard" }]
-      : [
-          { href: "/world", label: "World" },
-          { href: "/leaderboard", label: "Leaderboard" },
-        ];
+      : [];
 
   return (
     <header className="sticky top-0 z-50">

@@ -138,7 +138,7 @@ function TopAgentsSkeleton() {
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
-export function AuthenticatedHome() {
+export function HomePage() {
   const { stats, handleCompaniesLoaded } = useHomeStats();
   const { agents: topAgents, loading: agentsLoading } = useTopAgents();
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
