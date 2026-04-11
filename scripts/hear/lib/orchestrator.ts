@@ -22,6 +22,7 @@
 
 import { createHash } from "node:crypto";
 import { callClaude } from "./claude-cli";
+import type { ClaudeResponse } from "./claude-cli";
 import { loadRubric, loadGraderPrompt, AXES, RUBRIC_VERSION } from "./rubric";
 import type { AxisScore } from "./schema";
 import type { CostMonitor } from "./cost";
