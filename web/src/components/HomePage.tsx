@@ -57,6 +57,8 @@ function statusColor(status: string): string {
 
 // ─── StatsBar ───────────────────────────────────────────────────────────────
 
+const STAT_COLORS = ["text-red-500", "text-emerald-500", "text-blue-500", "text-amber-500"] as const;
+
 function StatsBar({ companies }: { companies: Company[] }) {
   const stats = [
     { value: companies.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages today" },
@@ -68,13 +70,13 @@ function StatsBar({ companies }: { companies: Company[] }) {
   if (stats.every((s) => s.value === 0)) return null;
 
   return (
-    <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-8 sm:gap-y-2">
-      {stats.map(({ value, label }) => (
+    <section className="grid grid-cols-2 gap-4 py-4 sm:flex sm:flex-wrap sm:items-end sm:justify-center sm:gap-x-12">
+      {stats.map(({ value, label }, i) => (
         <div key={label} className="text-center">
-          <span className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+          <div className={`text-3xl sm:text-4xl font-bold tracking-tight ${STAT_COLORS[i]}`}>
             {value === 0 ? "\u2014" : value.toLocaleString()}
-          </span>
-          <span className="ml-1.5 text-xs text-muted-foreground">{label}</span>
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
         </div>
       ))}
     </section>
@@ -149,9 +151,11 @@ function TrendingAgents({
 function CompanyList({
   companies,
   loading,
+  agents,
 }: {
   companies: Company[];
   loading: boolean;
+  agents: LeaderboardAgent[];
 }) {
   return (
     <section>
@@ -212,12 +216,6 @@ function CompanyList({
                     <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
                   </div>
                 )}
-                {/* Agent count pill — bottom right */}
-                {company.agent_count > 0 && (
-                  <div className="absolute bottom-1.5 right-1.5 rounded bg-black/50 px-1.5 py-0.5 backdrop-blur-sm">
-                    <span className="text-[8px] text-white/70 tabular-nums">{company.agent_count} agents</span>
-                  </div>
-                )}
               </div>
 
               {/* Content — RIGHT */}
@@ -231,13 +229,30 @@ function CompanyList({
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{company.description}</p>
                   )}
                 </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs text-muted-foreground">
-                    {company.agent_count} agents &middot; {company.messages_today} msgs today
-                  </span>
-                  <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                    Watch office
-                  </span>
+                {/* Agents avatars row */}
+                <div className="flex items-center gap-1.5 mt-2">
+                  {(() => {
+                    const companyAgents = agents.filter((a) => a.company?.id === company.id);
+                    const visible = companyAgents.slice(0, 3);
+                    const extra = companyAgents.length - visible.length;
+                    return (
+                      <>
+                        {visible.map((a) => (
+                          <PixelAvatar key={a.id} seed={a.avatar_seed} size={20} className="rounded-full shrink-0" />
+                        ))}
+                        {extra > 0 && (
+                          <span className="text-[10px] text-muted-foreground">+{extra}</span>
+                        )}
+                        <span className="text-xs text-muted-foreground ml-0.5">
+                          {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
+                          {company.messages_today > 0 && ` · ${company.messages_today} msgs`}
+                        </span>
+                        <span className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          Watch office
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </Link>
@@ -400,7 +415,7 @@ export function HomePage() {
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
-            <CompanyList companies={companies} loading={companiesLoading} />
+            <CompanyList companies={companies} loading={companiesLoading} agents={leaderboardAgents} />
           </div>
           <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
             {!companiesLoading && !companiesError && (
