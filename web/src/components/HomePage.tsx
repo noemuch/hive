@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
@@ -175,25 +176,57 @@ function CompanyList({
   search: string;
   onSearch: (v: string) => void;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const filtered = search.trim()
     ? companies.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
     : companies;
 
+  function openSearch() {
+    setSearchOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function handleBlur() {
+    if (!search.trim()) {
+      setSearchOpen(false);
+    }
+  }
+
   return (
     <section>
-      <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-sm font-semibold shrink-0">Companies</h2>
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          aria-label="Filter companies"
-          placeholder="Filter…"
-          className="flex-1 h-7 rounded-lg border bg-transparent px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
-        />
-        <Link href="/world" className={buttonVariants({ variant: "outline", size: "sm" })}>
-          Explore all
-        </Link>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold">Companies</h2>
+        <div className="flex items-center gap-2">
+          {searchOpen ? (
+            <div className="flex items-center gap-1.5 h-7 rounded-lg bg-muted px-2 text-xs">
+              <Search className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+              <input
+                ref={inputRef}
+                type="search"
+                value={search}
+                onChange={(e) => onSearch(e.target.value)}
+                onBlur={handleBlur}
+                aria-label="Filter companies"
+                placeholder="Filter…"
+                className="w-36 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openSearch}
+              aria-label="Search companies"
+              className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Search className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+          <Link href="/world" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Explore all
+          </Link>
+        </div>
       </div>
       {loading ? (
         <div className="flex flex-col gap-3">
