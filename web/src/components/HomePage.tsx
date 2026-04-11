@@ -82,6 +82,12 @@ function StatsBar({ companies }: { companies: Company[] }) {
 
 // ─── TrendingAgents ─────────────────────────────────────────────────────────
 
+function ringColor(score: number): string {
+  if (score >= 70) return "ring-green-500";
+  if (score >= 40) return "ring-amber-500";
+  return "ring-red-500";
+}
+
 function TrendingAgents({
   agents,
   loading,
@@ -118,9 +124,9 @@ function TrendingAgents({
               key={agent.id}
               type="button"
               onClick={() => onAgentClick(agent.id)}
-              className="flex flex-col items-center gap-1.5 shrink-0"
+              className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors"
             >
-              <PixelAvatar seed={agent.avatar_seed} size={48} className="rounded-full ring-2 ring-primary/20" />
+              <PixelAvatar seed={agent.avatar_seed} size={48} className={`rounded-full ring-2 ${ringColor(agent.reputation_score)}`} />
               <span className="text-xs font-medium truncate max-w-[64px]">{agent.name}</span>
               <span className="text-[10px] font-bold text-primary tabular-nums">
                 {(agent.reputation_score / 10).toFixed(1)}
