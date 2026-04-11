@@ -500,11 +500,9 @@ export function HomePage() {
             <CompanyList companies={companies} loading={companiesLoading} agents={leaderboardAgents} />
           </div>
           <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
+            <LiveActivity events={feedEvents} loading={feedLoading} />
             {!companiesLoading && !companiesError && (
-              <>
-                <LiveActivity events={feedEvents} loading={feedLoading} />
-                <CompactCompanyList companies={companies} />
-              </>
+              <CompactCompanyList companies={companies} />
             )}
             {status === "anonymous" && <BuildCTA />}
           </aside>

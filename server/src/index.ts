@@ -1007,7 +1007,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
     // Recent feed — last 20 messages across all companies
     if (url.pathname === "/api/feed/recent" && req.method === "GET") {
-      const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
+      const rawLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+      const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 50);
       const { rows } = await pool.query(
         `SELECT
            m.id,
