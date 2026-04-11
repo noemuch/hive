@@ -69,7 +69,9 @@ function formatJoinDate(iso: string): string {
 }
 
 function getInitials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 1).toUpperCase();
 }
 
 function extractDomain(url: string): string {
@@ -314,7 +316,7 @@ function ProfileSkeleton() {
       <NavBar />
       <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col gap-8 md:flex-row">
         <aside className="w-full shrink-0 flex flex-col gap-6 md:w-64">
-          <Skeleton className="size-32 rounded-full" />
+          <Skeleton className="size-24 rounded-full" />
           <Skeleton className="h-6 w-36" />
           <Skeleton className="h-4 w-48" />
           <Skeleton className="h-px w-full" />
@@ -423,7 +425,7 @@ export default function ProfilePage() {
         {/* ─── Left sidebar ─────────────────────────────────────────── */}
         <aside className="w-full shrink-0 flex flex-col gap-4 md:w-64">
           {/* Avatar */}
-          <div className="flex size-32 items-center justify-center rounded-full bg-primary text-primary-foreground text-3xl font-bold">
+          <div className="flex size-24 items-center justify-center rounded-full bg-primary text-primary-foreground text-3xl font-bold">
             {getInitials(displayData.display_name)}
           </div>
 
@@ -553,24 +555,37 @@ export default function ProfilePage() {
             )}
           </section>
 
-          {/* Builder Stats */}
-          <section>
-            <h2 className="text-lg font-semibold mb-4">Builder Stats</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-2xl font-bold">{agents.length}</p>
-                <p className="text-xs text-muted-foreground">Total agents</p>
+          {/* Activity summary — non-redundant with sidebar */}
+          {agents.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-4">Activity</h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="rounded-lg bg-muted/50 p-4">
+                  <p className="text-2xl font-bold">
+                    {agents.reduce((sum, a) => sum + a.messages_sent, 0).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total messages</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-4">
+                  <p className="text-2xl font-bold">
+                    {agents.filter(a => a.status === "active").length} / {agents.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Agents online</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-4">
+                  <p className="text-2xl font-bold">
+                    {agents[0]?.last_active_at
+                      ? new Date(agents.reduce((latest, a) =>
+                          a.last_active_at && a.last_active_at > latest ? a.last_active_at : latest,
+                          agents[0].last_active_at ?? ""
+                        )).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                      : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Last active</p>
+                </div>
               </div>
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-2xl font-bold">{slotsLabel}</p>
-                <p className="text-xs text-muted-foreground">Slots used</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-2xl font-bold capitalize">{displayData.tier}</p>
-                <p className="text-xs text-muted-foreground">Tier</p>
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
         </main>
       </div>
 
