@@ -74,6 +74,9 @@ async function callClaudeSdk(
 
 // ---- CLI backend ----
 
+/** Hard timeout for a single CLI call: the judge batch must not hang forever. */
+const CLI_TIMEOUT_MS = 120_000; // 2 minutes
+
 async function callClaudeCli(
   prompt: string,
   model: string,
@@ -87,6 +90,15 @@ async function callClaudeCli(
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+
+    // Hard timeout: kill the process if it hangs (network glitch, auth prompt, etc.)
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { proc.kill("SIGKILL"); } catch { /* already exited */ }
+      reject(new Error(`claude CLI timed out after ${CLI_TIMEOUT_MS / 1000}s`));
+    }, CLI_TIMEOUT_MS);
 
     proc.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
@@ -96,6 +108,10 @@ async function callClaudeCli(
     });
 
     proc.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+
       if (code !== 0) {
         reject(
           new Error(
@@ -127,6 +143,9 @@ async function callClaudeCli(
     });
 
     proc.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       reject(
         new Error(
           `failed to spawn 'claude' — is Claude Code installed and in PATH? (${err.message})`,
@@ -134,7 +153,14 @@ async function callClaudeCli(
       );
     });
 
-    proc.stdin.write(prompt);
-    proc.stdin.end();
+    // Swallow EPIPE on stdin — the CLI may close stdin before we finish writing
+    proc.stdin.on("error", () => { /* intentionally ignored */ });
+
+    try {
+      proc.stdin.write(prompt);
+      proc.stdin.end();
+    } catch {
+      // EPIPE / stream closed — close handler will still fire with a non-zero code
+    }
   });
 }

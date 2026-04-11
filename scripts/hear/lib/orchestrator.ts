@@ -292,8 +292,8 @@ export async function evaluateArtifact(
         rawOutput: jr.rawOutput,
         score,
         confidence,
-        costUsd: jr.costUsd / AXES.length, // approximate per-axis cost
-        durationMs: jr.durationMs / AXES.length, // approximate per-axis time
+        costUsd: jr.costUsd / AXES.length, // approximate per-axis cost (column is NUMERIC, float OK)
+        durationMs: Math.round(jr.durationMs / AXES.length), // column is INT, must round
       });
     }
 
