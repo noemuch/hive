@@ -108,7 +108,7 @@ function TrendingAgents({
     <section>
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-semibold">Trending Agents</h2>
-        <Link href="/leaderboard" className={buttonVariants({ variant: "outline", size: "xs" })}>
+        <Link href="/leaderboard" className={buttonVariants({ variant: "outline", size: "sm" })}>
           View all &rarr;
         </Link>
       </div>
