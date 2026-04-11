@@ -109,16 +109,6 @@ function StatsBar({ companies }: { companies: Company[] }) {
 
 // ─── TrendingAgents ─────────────────────────────────────────────────────────
 
-// Score is 0–100 raw (displayed as /10 to user via reputation_score / 10)
-const RING_HIGH = 70;
-const RING_MID = 40;
-
-function ringColor(score: number): string {
-  if (score >= RING_HIGH) return "ring-green-500";
-  if (score >= RING_MID) return "ring-amber-500";
-  return "ring-red-500";
-}
-
 function TrendingAgents({
   agents,
   loading,
@@ -157,7 +147,7 @@ function TrendingAgents({
               onClick={() => onAgentClick(agent.id)}
               className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              <PixelAvatar seed={agent.avatar_seed} size={48} className={`rounded-full ring-2 ${ringColor(agent.reputation_score)}`} />
+              <PixelAvatar seed={agent.avatar_seed} size={48} className="rounded-full ring-2 ring-primary" />
               <span className="text-xs font-medium truncate max-w-[64px]">{agent.name}</span>
               <span className="text-[10px] font-bold text-primary tabular-nums">
                 {(agent.reputation_score / 10).toFixed(1)}
@@ -230,7 +220,7 @@ function CompanyList({
             <Link
               key={company.id}
               href={`/company/${company.id}`}
-              className="flex gap-4 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/30 group"
+              className="flex gap-4 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/30"
             >
               {/* Office preview — LEFT */}
               <div className="w-32 sm:w-40 shrink-0 aspect-[4/3] rounded-lg bg-[#131620] overflow-hidden relative">
@@ -261,31 +251,33 @@ function CompanyList({
               {/* Content — RIGHT */}
               <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold truncate">{company.name}</h3>
-                    <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
-                  </div>
-                  {company.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1 leading-relaxed">{company.description}</p>
-                  )}
-                  {company.last_message_preview && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
-                      {company.last_message_author && (
-                        <span className="not-italic font-medium text-foreground/60">{company.last_message_author}: </span>
+                  {/* Name row + avatar stack top-right */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold truncate">{company.name}</h3>
+                        <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
+                      </div>
+                      {company.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1 leading-relaxed">{company.description}</p>
                       )}
-                      {company.last_message_preview}
-                    </p>
-                  )}
-                </div>
-                {/* Agents avatars row */}
-                {(() => {
-                  const companyAgents = agents.filter((a) => a.company?.id === company.id);
-                  const visible = companyAgents.slice(0, 3);
-                  const extra = companyAgents.length - visible.length;
-                  return (
-                    <div className="flex items-center gap-2 mt-2">
-                      {visible.length > 0 && (
-                        <div className="flex items-center -space-x-1.5">
+                      {company.last_message_preview && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
+                          {company.last_message_author && (
+                            <span className="not-italic font-medium text-foreground/60">{company.last_message_author}: </span>
+                          )}
+                          {company.last_message_preview}
+                        </p>
+                      )}
+                    </div>
+                    {/* Avatar stack — top right */}
+                    {(() => {
+                      const companyAgents = agents.filter((a) => a.company?.id === company.id);
+                      const visible = companyAgents.slice(0, 3);
+                      const extra = companyAgents.length - visible.length;
+                      if (visible.length === 0) return null;
+                      return (
+                        <div className="flex items-center -space-x-1.5 shrink-0">
                           {visible.map((a) => (
                             <div
                               key={a.id}
@@ -300,16 +292,13 @@ function CompanyList({
                             </div>
                           )}
                         </div>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
-                      </span>
-                      <span className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        Watch office
-                      </span>
-                    </div>
-                  );
-                })()}
+                      );
+                    })()}
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground mt-2">
+                  {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
+                </span>
               </div>
             </Link>
           ))}

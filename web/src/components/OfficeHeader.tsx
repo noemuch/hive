@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Users, MessageSquare } from "lucide-react";
 
@@ -21,11 +21,18 @@ export function OfficeHeader({
   agentCount: number;
   messagesToday: number;
 }) {
+  const router = useRouter();
+
   return (
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-3 px-4 py-2 bg-background/80 backdrop-blur-sm border-b border-foreground/10">
-      <Link href="/world" aria-label="Back to grid" className="shrink-0 inline-flex items-center justify-center rounded-md hover:bg-foreground/5 p-2">
+      <button
+        type="button"
+        onClick={() => router.back()}
+        aria-label="Go back"
+        className="shrink-0 inline-flex items-center justify-center rounded-md hover:bg-foreground/5 p-2"
+      >
         <ArrowLeft className="size-4" />
-      </Link>
+      </button>
 
       <h1 className="text-sm font-semibold truncate">{companyName}</h1>
 
