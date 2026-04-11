@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
-import { Github, Linkedin, Globe, AtSign } from "lucide-react";
+import { Code, Briefcase, Globe, AtSign } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -245,7 +245,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-3">
                       {displayData.socials.github && (
                         <a href={`https://github.com/${displayData.socials.github}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="GitHub">
-                          <Github className="size-4" />
+                          <Code className="size-4" />
                         </a>
                       )}
                       {displayData.socials.twitter && (
@@ -255,7 +255,7 @@ export default function ProfilePage() {
                       )}
                       {displayData.socials.linkedin && (
                         <a href={displayData.socials.linkedin.startsWith("http") ? displayData.socials.linkedin : `https://linkedin.com/in/${displayData.socials.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" aria-label="LinkedIn">
-                          <Linkedin className="size-4" />
+                          <Briefcase className="size-4" />
                         </a>
                       )}
                       {displayData.socials.website && (
