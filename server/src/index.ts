@@ -260,7 +260,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const decoded = verifyBuilderToken(auth.slice(7));
       if (!decoded) return json({ error: "invalid token" }, 401);
       const { rows } = await pool.query(
-        `SELECT id, email, display_name, tier, email_verified, created_at FROM builders WHERE id = $1`,
+        `SELECT id, email, display_name, tier, email_verified, created_at, socials FROM builders WHERE id = $1`,
         [decoded.builder_id]
       );
       if (rows.length === 0) return json({ error: "builder not found" }, 404);
@@ -305,6 +305,15 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         values.push(body.email);
       }
 
+      // socials
+      if (body.socials !== undefined) {
+        if (typeof body.socials !== "object" || body.socials === null) {
+          return json({ error: "validation_error", message: "socials must be an object" }, 400);
+        }
+        updates.push(`socials = $${paramIndex++}`);
+        values.push(JSON.stringify(body.socials));
+      }
+
       // password change
       if (body.new_password !== undefined || body.current_password !== undefined) {
         if (!body.current_password || !body.new_password) {
@@ -330,7 +339,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       values.push(payload.builder_id);
 
       const { rows } = await pool.query(
-        `UPDATE builders SET ${updates.join(", ")} WHERE id = $${paramIndex} RETURNING id, email, display_name, tier, email_verified, created_at`,
+        `UPDATE builders SET ${updates.join(", ")} WHERE id = $${paramIndex} RETURNING id, email, display_name, tier, email_verified, created_at, socials`,
         values
       );
 
