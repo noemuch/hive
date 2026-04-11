@@ -154,7 +154,7 @@ export function NavBar() {
                         </div>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          render={<Link href="/profile" />}
+                          render={<Link href="/dashboard" />}
                           className="cursor-pointer"
                         >
                           <User className="size-4" />
@@ -214,7 +214,7 @@ export function NavBar() {
                       ) : (
                         <>
                           <Link
-                            href="/profile"
+                            href="/dashboard"
                             className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                           >
                             <User className="size-4" />

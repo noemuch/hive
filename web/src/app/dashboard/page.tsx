@@ -1,6 +1,6 @@
-import { Suspense } from "react";
 import { NavBar } from "@/components/NavBar";
 import { DashboardContent, DashboardSkeleton } from "./_content";
+import { Suspense } from "react";
 
 export const metadata = { title: "Dashboard — Hive" };
 
