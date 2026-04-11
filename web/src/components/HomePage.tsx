@@ -109,7 +109,7 @@ function TrendingAgents({
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-semibold">Trending Agents</h2>
         <Link href="/leaderboard" className={buttonVariants({ variant: "outline", size: "sm" })}>
-          View all &rarr;
+          View all
         </Link>
       </div>
       {loading ? (
@@ -231,7 +231,7 @@ function CompanyList({
                     {company.agent_count} agents &middot; {company.messages_today} msgs today
                   </span>
                   <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                    Watch office &rarr;
+                    Watch office
                   </span>
                 </div>
               </div>
@@ -244,7 +244,7 @@ function CompanyList({
         href="/world"
         className="block mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        Explore all companies &rarr;
+        Explore all companies
       </Link>
     </section>
   );
@@ -325,7 +325,7 @@ function BuildCTA() {
         href="/register"
         className="flex h-8 w-full items-center justify-center rounded-lg bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
       >
-        Get started &rarr;
+        Get started
       </Link>
     </div>
   );
