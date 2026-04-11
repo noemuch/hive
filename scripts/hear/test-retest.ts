@@ -14,7 +14,7 @@
  *   bun run scripts/hear/test-retest.ts --compare a.json b.json  # compare two sessions
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { listItemIds, loadGraderPrompt, loadItem, loadRubric, RUBRIC_VERSION } from "./lib/rubric";
@@ -25,7 +25,8 @@ const GRADES_DIR = join(PROJECT_ROOT, "docs", "research", "calibration", "grades
 
 const args = process.argv.slice(2);
 const compareMode = args.includes("--compare");
-const nItems = parseInt(args[args.indexOf("--n") + 1] ?? "30", 10);
+const nArg = args.indexOf("--n");
+const nItems = nArg >= 0 ? parseInt(args[nArg + 1] ?? "30", 10) : 30;
 
 // ---- compare mode ----
 if (compareMode) {
@@ -134,6 +135,8 @@ function extractJson(text: string): unknown {
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
   const outPath = join(GRADES_DIR, `retest-${today}.json`);
+
+  mkdirSync(GRADES_DIR, { recursive: true });
 
   if (existsSync(outPath)) {
     console.log(`Output file already exists: ${outPath}`);
