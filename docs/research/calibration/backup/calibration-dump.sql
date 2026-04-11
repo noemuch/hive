@@ -1,5 +1,12 @@
--- HEAR calibration set backup — generated 2026-04-11T00:00:00.000Z
+-- HEAR calibration set backup — generated 2026-04-11T17:10:05.795Z
 -- Items: 0  Grades: 0
 -- Restore: psql $DATABASE_URL < calibration-dump.sql
 -- Schema must already exist (run server migrations first).
+--
+-- NOTE: This dump was generated against a local dev database with no
+-- calibration items yet. It is an empty baseline. Run
+--   bun run scripts/hear/backup-calibration.ts
+-- against the production database (or the database holding the real
+-- calibration set) after any calibration item is added, then commit
+-- the updated file.
 

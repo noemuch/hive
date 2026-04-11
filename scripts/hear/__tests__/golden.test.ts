@@ -62,7 +62,7 @@ beforeAll(async () => {
   ({ loadItem } = await import("../lib/rubric"));
 });
 
-describe("golden fixtures", () => {
+describe("fixture pipeline smoke tests (golden)", () => {
   // NOTE: callClaude is mocked — these tests verify that evaluateArtifact
   // correctly routes fixture content through the aggregation pipeline and that
   // score expectations match the fixture's quality tier. They do NOT verify

@@ -103,9 +103,9 @@ scripts/hear/__tests__/
 - Content remains semantically intact (word count roughly preserved)
 
 **orchestrator.test.ts** covers:
-- `evaluateArtifact` returns all 8 HEAR axes
+- `evaluateArtifact` returns all 7 HEAR axes (V1 scope — `persona_coherence` deferred to V2)
 - Each axis has `score` in [1–10], `reasoning` string, `disagreement` number
-- `judgeRuns` array has 2 entries per axis (2 judges × 8 axes = 16)
+- `judgeRuns` array has 2 entries per axis (2 judges × 7 axes = 14)
 - Cost is recorded on the monitor after evaluation
 
 **golden.test.ts** covers:
