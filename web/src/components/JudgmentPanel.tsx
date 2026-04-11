@@ -22,6 +22,7 @@ export interface Judgment {
   methodology_version?: string;
 }
 
+// V1: 7 axes. persona_coherence deferred to V2 (longitudinal grading).
 export type HearAxis =
   | "reasoning_depth"
   | "decision_wisdom"
@@ -29,7 +30,6 @@ export type HearAxis =
   | "initiative_quality"
   | "collaborative_intelligence"
   | "self_awareness_calibration"
-  | "persona_coherence"
   | "contextual_judgment";
 
 // --- Constants ---
@@ -41,7 +41,6 @@ const AXIS_LABELS: Record<HearAxis, string> = {
   initiative_quality: "Initiative",
   collaborative_intelligence: "Collaboration",
   self_awareness_calibration: "Self-Awareness",
-  persona_coherence: "Persona Coherence",
   contextual_judgment: "Contextual Judgment",
 };
 

@@ -193,15 +193,15 @@ export function ResearchContent() {
               id="axes-heading"
               className="text-2xl font-semibold tracking-tight text-foreground"
             >
-              The 8 Quality Axes
+              The 7 Quality Axes (V1)
             </h2>
             <p className="mt-4 leading-7 text-muted-foreground">
               Each axis is derived deductively from an established scientific
-              framework — not from intuition. The eight axes are designed to be
-              orthogonal (a high score on one does not imply a high score on
-              another) and observable (each can be graded from artifacts,
-              conversations, or behavior windows alone, without proprietary
-              metadata).
+              framework — not from intuition. V1 ships with 7 axes designed to
+              be orthogonal (a high score on one does not imply a high score on
+              another) and observable from a single artifact. An eighth axis
+              (Persona Coherence) requires longitudinal grading across multiple
+              artifacts and is deferred to V2.
             </p>
 
             <div className="mt-8 overflow-hidden rounded-xl ring-1 ring-border">
@@ -261,12 +261,6 @@ export function ResearchContent() {
                         "Calibrated confidence, asks for help, distinguishes uncertainty from unknowability",
                     },
                     {
-                      name: "Persona Coherence",
-                      framework: "Behavioral consistency theory",
-                      description:
-                        "Stable voice and values across time; growth without drift",
-                    },
-                    {
                       name: "Contextual Judgment",
                       framework: "SPACE Communication",
                       description:
@@ -305,7 +299,7 @@ export function ResearchContent() {
               Theoretical Foundation
             </h2>
             <p className="mt-4 leading-7 text-muted-foreground">
-              The eight axes are derived deductively from six scientific
+              The seven axes are derived deductively from six scientific
               frameworks. The derivation is deductive, not inductive: we start
               from the frameworks and ask what dimensions of agent quality follow
               from these theories, rather than starting from intuitions about
@@ -448,15 +442,13 @@ export function ResearchContent() {
             </div>
 
             <p className="mt-8 leading-7 text-muted-foreground">
-              The eighth axis, <em>Persona Coherence</em>, is grounded in trait
-              theory (Allport, McCrae &amp; Costa), behavioral consistency
-              research in industrial-organizational psychology (Wernimont &amp;
-              Campbell, 1968), and empirical LLM persona drift research (Wang et
-              al., 2024). An agent with persona coherence maintains a
-              recognizable voice, consistent expertise level, and stable values
-              across time and contexts. Growth is distinguished from drift: an
-              agent can become more skilled over time without changing its core
-              voice or values.
+              A planned eighth axis, <em>Persona Coherence</em> (grounded in
+              trait theory and LLM persona drift research), is deferred to V2.
+              It requires longitudinal grading across multiple artifacts to
+              distinguish genuine growth from unwanted drift, and cannot be
+              evaluated from a single artifact — so it does not fit the V1
+              pipeline. V2 will add a dedicated longitudinal sampler for this
+              axis.
             </p>
           </section>
 

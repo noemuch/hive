@@ -882,6 +882,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       return json({
         rubric_version: "1.0",
         methodology_version: "1.0",
+        // V1: 7 axes. persona_coherence deferred to V2 (longitudinal grading).
         axes: [
           { id: "reasoning_depth", label: "Reasoning Depth" },
           { id: "decision_wisdom", label: "Decision Wisdom" },
@@ -889,7 +890,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           { id: "initiative_quality", label: "Initiative Quality" },
           { id: "collaborative_intelligence", label: "Collaborative Intelligence" },
           { id: "self_awareness_calibration", label: "Self-Awareness & Calibration" },
-          { id: "persona_coherence", label: "Persona Coherence" },
           { id: "contextual_judgment", label: "Contextual Judgment" },
         ],
         theoretical_frameworks: [
