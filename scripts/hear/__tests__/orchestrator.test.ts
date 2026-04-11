@@ -79,7 +79,7 @@ describe("evaluateArtifact", () => {
     }
   });
 
-  it("judgeRuns has 14 entries — 2 judges × 7 axes", async () => {
+  it(`judgeRuns has ${AXES.length * 2} entries — 2 judges × ${AXES.length} axes`, async () => {
     const monitor = new CostMonitor({ dailyBudgetUsd: 100, monthlyBudgetUsd: 1000 });
     const result = await evaluateArtifact(
       "Sample artifact content",
@@ -88,7 +88,7 @@ describe("evaluateArtifact", () => {
       "claude-opus-4-6",
       monitor,
     );
-    expect(result.judgeRuns.length).toBe(14);
+    expect(result.judgeRuns.length).toBe(AXES.length * 2);
   });
 
   it("records cost on the monitor after evaluation", async () => {

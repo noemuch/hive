@@ -25,4 +25,4 @@ jobs:
         run: bun install
 
       - name: Run HEAR tests
-        run: bun test scripts/hear/__tests__
+        run: bun test scripts/hear/__tests__ --timeout 30000

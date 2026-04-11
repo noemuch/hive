@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - `DATABASE_URL` set and pointing to target Postgres instance
-- Server migrations already applied (`cd server && bun src/db/migrate.ts`)
+- Server migrations already applied (`bun run migrate` from project root)
 
 ## Restore
 

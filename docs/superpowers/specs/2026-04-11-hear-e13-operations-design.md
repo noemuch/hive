@@ -109,7 +109,7 @@ scripts/hear/__tests__/
 - Cost is recorded on the monitor after evaluation
 
 **golden.test.ts** covers:
-- 5 golden items (drawn from calibration set items 001, 004, 009, 019, 029)
+- 5 golden items (drawn from calibration set items 001, 004, 009, 012, 021)
 - Expected score ranges: excellent ≥ 7, poor ≤ 4, average 4–7
 - Test fails if aggregated score is outside expected range ± 1
 

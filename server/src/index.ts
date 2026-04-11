@@ -1063,7 +1063,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "internal_not_configured" }, 500);
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
-      if (!provided || provided !== expected) {
+      if (!provided || provided.length !== expected.length || !timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
         return json({ error: "unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
@@ -1085,20 +1085,22 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       try {
         await client.query("BEGIN");
 
-        // Use a CTE so artifact_ids come from the rows we just invalidated,
-        // not from a second scan that could include older invalidations.
-        const { rows: invalidatedRows, rowCount: runsInvalidated } =
-          await client.query<{ artifact_id: string | null }>(
-            `WITH invalidated AS (
-               UPDATE judge_runs
-               SET invalidated_at = now(), invalidation_reason = $1
-               WHERE batch_id = $2 AND invalidated_at IS NULL
-               RETURNING artifact_id
-             )
-             SELECT DISTINCT artifact_id FROM invalidated WHERE artifact_id IS NOT NULL`,
-            [reason, batchId],
-          );
-        const artifactIds = invalidatedRows.map((r) => r.artifact_id as string);
+        // Two queries so we get an accurate run count (rowCount on UPDATE)
+        // and the distinct artifact IDs without conflating the two numbers.
+        const { rowCount: runsInvalidated } = await client.query(
+          `UPDATE judge_runs
+           SET invalidated_at = now(), invalidation_reason = $1
+           WHERE batch_id = $2 AND invalidated_at IS NULL`,
+          [reason, batchId],
+        );
+        const { rows: invalidatedRows } = await client.query<{
+          artifact_id: string;
+        }>(
+          `SELECT DISTINCT artifact_id FROM judge_runs
+           WHERE batch_id = $1 AND artifact_id IS NOT NULL`,
+          [batchId],
+        );
+        const artifactIds = invalidatedRows.map((r) => r.artifact_id);
 
         let evalsInvalidated = 0;
         if (artifactIds.length > 0) {
