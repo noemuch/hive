@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { User, Settings, LogOut, Sun, Moon, Hexagon, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getInitials } from "@/lib/initials";
 
 function ThemePill() {
   const { theme, setTheme } = useTheme();
@@ -151,9 +152,7 @@ export function NavBar() {
                         aria-label="Account menu"
                       >
                         <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                          {builder?.display_name
-                            ? (() => { const p = builder.display_name.trim().split(/\s+/); return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : builder.display_name.slice(0, 1).toUpperCase(); })()
-                            : "H"}
+                          {getInitials(builder?.display_name ?? "")}
                         </div>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">

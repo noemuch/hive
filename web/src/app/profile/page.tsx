@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { AgentProfile } from "@/components/AgentProfile";
+import { getInitials } from "@/lib/initials";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -67,11 +68,6 @@ function formatJoinDate(iso: string): string {
   });
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 1).toUpperCase();
-}
 
 function extractDomain(url: string): string {
   try {
