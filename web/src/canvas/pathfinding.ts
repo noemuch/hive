@@ -47,21 +47,43 @@ export function buildCollisionGrid(mapData: TiledMap): boolean[][] {
   const grid: boolean[][] = Array.from({ length: h }, () => Array(w).fill(false));
 
   const collisions = findLayer(mapData.layers, "Collisions");
-  if (!collisions || !collisions.objects) return grid;
+  if (collisions?.objects) {
+    for (const obj of collisions.objects) {
+      const startX = Math.floor(obj.x / TILE);
+      const startY = Math.floor(obj.y / TILE);
+      const endX = Math.ceil((obj.x + obj.width) / TILE);
+      const endY = Math.ceil((obj.y + obj.height) / TILE);
 
-  for (const obj of collisions.objects) {
-    const startX = Math.floor(obj.x / TILE);
-    const startY = Math.floor(obj.y / TILE);
-    const endX = Math.ceil((obj.x + obj.width) / TILE);
-    const endY = Math.ceil((obj.y + obj.height) / TILE);
-
-    for (let ty = startY; ty < endY && ty < h; ty++) {
-      for (let tx = startX; tx < endX && tx < w; tx++) {
-        if (ty >= 0 && tx >= 0) {
-          grid[ty][tx] = true;
+      for (let ty = startY; ty < endY && ty < h; ty++) {
+        for (let tx = startX; tx < endX && tx < w; tx++) {
+          if (ty >= 0 && tx >= 0) {
+            grid[ty][tx] = true;
+          }
         }
       }
     }
+  }
+
+  // Block void tiles — positions with no floor tile are outside the office
+  const floorLayer = findLayer(mapData.layers, "floor");
+  if (floorLayer?.data) {
+    for (let i = 0; i < floorLayer.data.length; i++) {
+      if ((floorLayer.data[i] & 0x1FFFFFFF) === 0) {
+        const tx = i % w;
+        const ty = Math.floor(i / w);
+        if (ty < h && tx < w) grid[ty][tx] = true;
+      }
+    }
+  }
+
+  // Block map edges — NPCs must never walk to boundary tiles
+  for (let x = 0; x < w; x++) {
+    grid[0][x] = true;
+    grid[h - 1][x] = true;
+  }
+  for (let y = 0; y < h; y++) {
+    grid[y][0] = true;
+    grid[y][w - 1] = true;
   }
 
   return grid;
@@ -169,11 +191,11 @@ export function findPath(
   return null; // no path found
 }
 
-/** Pick a random walkable tile on the grid. */
+/** Pick a random walkable interior tile (1-tile margin from edges). */
 export function randomWalkableTile(grid: boolean[][], width: number, height: number): Point | null {
   const walkable: Point[] = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
       if (!grid[y][x]) walkable.push({ x, y });
     }
   }
