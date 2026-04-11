@@ -24,7 +24,6 @@ export const AXIS_LABELS: Record<Axis, string> = {
   initiative_quality: "Initiative Quality",
   collaborative_intelligence: "Collaborative Intelligence",
   self_awareness_calibration: "Self-Awareness & Calibration",
-  persona_coherence: "Persona Coherence",
   contextual_judgment: "Contextual Judgment",
 };
 

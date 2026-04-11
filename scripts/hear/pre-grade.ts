@@ -58,7 +58,10 @@ function getArg(name: string, defaultVal: string | null = null): string | null {
   return args[idx + 1] ?? defaultVal;
 }
 const onlyItem = getArg("only");
-const resume = args.includes("--resume") || existsSync(GRADES_PATH);
+// Resume by default when the grades file exists, unless --no-resume is passed.
+// Explicit --resume is a no-op but kept for clarity.
+const noResume = args.includes("--no-resume");
+const resume = !noResume && (args.includes("--resume") || existsSync(GRADES_PATH));
 const model = getArg("model", DEFAULT_MODEL)!;
 const delaySeconds = Number.parseFloat(getArg("delay", "1") ?? "1");
 
