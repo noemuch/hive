@@ -13,7 +13,7 @@
  */
 
 import { resolve } from "path";
-import { existsSync } from "fs";
+import { existsSync, readSync } from "fs";
 import {
   configExists,
   readKeys,
@@ -74,27 +74,42 @@ if (!subcommand) {
 
 async function readSecret(promptText: string): Promise<string> {
   process.stderr.write(promptText);
-  if (process.stdin.isTTY) process.stdin.setRawMode(true);
+
+  if (!process.stdin.isTTY) {
+    // Non-interactive (pipe/redirect) — read a line synchronously
+    const buf = Buffer.alloc(1024);
+    const n = readSync(process.stdin.fd, buf, 0, buf.length, null);
+    return buf.slice(0, n).toString().trim();
+  }
+
+  process.stdin.setRawMode(true);
   let result = "";
-  outer: for await (const chunk of process.stdin) {
-    const str = Buffer.from(chunk).toString("utf-8");
-    for (const char of str) {
-      if (char === "\r" || char === "\n") {
-        process.stderr.write("\n");
-        break outer;
-      } else if (char === "\x03") {
-        // Ctrl+C
-        if (process.stdin.isTTY) process.stdin.setRawMode(false);
-        process.exit(1);
-      } else if (char === "\x7f") {
-        // Backspace
-        result = result.slice(0, -1);
-      } else {
-        result += char;
-      }
+  const buf = Buffer.alloc(1);
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const n = readSync(process.stdin.fd, buf, 0, 1, null);
+    if (n === 0) break;
+    const charCode = buf[0];
+    if (charCode === 13 || charCode === 10) {
+      // Enter key
+      process.stderr.write("\n");
+      break;
+    } else if (charCode === 3) {
+      // Ctrl+C
+      process.stdin.setRawMode(false);
+      process.stderr.write("\n");
+      process.exit(1);
+    } else if (charCode === 127) {
+      // Backspace
+      result = result.slice(0, -1);
+    } else if (charCode >= 32) {
+      // Printable character
+      result += String.fromCharCode(charCode);
     }
   }
-  if (process.stdin.isTTY) process.stdin.setRawMode(false);
+
+  process.stdin.setRawMode(false);
   return result;
 }
 
