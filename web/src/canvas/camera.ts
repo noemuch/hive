@@ -119,11 +119,11 @@ export function setupCamera(
       scale: viewport.scale.x,
     }),
     zoomIn: () => {
-      const newScale = Math.min(viewport.scale.x * 1.5, MAX_ZOOM);
+      const newScale = Math.min(viewport.scale.x * 1.2, MAX_ZOOM);
       viewport.setZoom(newScale, true);
     },
     zoomOut: () => {
-      const newScale = Math.max(viewport.scale.x * 0.67, MIN_ZOOM);
+      const newScale = Math.max(viewport.scale.x / 1.2, MIN_ZOOM);
       viewport.setZoom(newScale, true);
     },
     panTo: (worldX: number, worldY: number) => {
