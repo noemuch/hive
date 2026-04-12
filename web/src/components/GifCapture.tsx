@@ -53,13 +53,22 @@ function isZeroFrame(pixels: Uint8ClampedArray): boolean {
 export default function GifCapture({
   app,
   companyName,
+  onStateChange,
+  triggerRef,
 }: {
   app: Application | null;
   companyName: string;
+  onStateChange?: (state: CaptureState) => void;
+  triggerRef?: React.MutableRefObject<(() => void) | null>;
 }) {
-  const [state, setState] = useState<CaptureState>("idle");
+  const [state, setStateInner] = useState<CaptureState>("idle");
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [gifBlob, setGifBlob] = useState<Blob | null>(null);
+
+  const setState = useCallback((s: CaptureState) => {
+    setStateInner(s);
+    onStateChange?.(s);
+  }, [onStateChange]);
 
   const framesRef = useRef<FrameData[]>([]);
   const mountedRef = useRef(true);
@@ -183,6 +192,12 @@ export default function GifCapture({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app, state]);
 
+  // Expose trigger to parent
+  useEffect(() => {
+    if (triggerRef) triggerRef.current = startRecording;
+    return () => { if (triggerRef) triggerRef.current = null; };
+  }, [triggerRef, startRecording]);
+
   // -------------------------------------------------------------------------
   // Encoding
   // -------------------------------------------------------------------------
@@ -296,39 +311,6 @@ export default function GifCapture({
 
   return (
     <>
-      {/* Capture button — bottom-right overlay */}
-      <div className="absolute bottom-4 right-4 z-10">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={startRecording}
-          disabled={state !== "idle"}
-          className="gap-1.5"
-        >
-          {state === "idle" && (
-            <>
-              <Camera aria-hidden="true" className="size-3.5" />
-              GIF
-            </>
-          )}
-          {state === "recording" && (
-            <>
-              <span className="relative flex size-2.5">
-                <span className="absolute inset-0 animate-ping rounded-full bg-red-500 opacity-75" />
-                <span className="absolute inset-0 rounded-full bg-red-500" />
-              </span>
-              REC
-            </>
-          )}
-          {state === "encoding" && (
-            <>
-              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-              Encoding...
-            </>
-          )}
-        </Button>
-      </div>
-
       {/* Preview Dialog */}
       <Dialog
         open={state === "preview"}

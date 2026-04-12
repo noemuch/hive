@@ -47,6 +47,8 @@ export default function GameView({
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [pixiApp, setPixiApp] = useState<Application | null>(null);
+  const [gifState, setGifState] = useState<"idle" | "recording" | "encoding">("idle");
+  const gifTriggerRef = useRef<(() => void) | null>(null);
   const { connected } = useWebSocket();
 
   // Ref to latest agents for event handlers — avoids nested setState anti-pattern
@@ -278,11 +280,18 @@ export default function GameView({
     <div className="relative w-full h-full flex">
       <div className="relative flex-1 min-w-0">
         <div ref={canvasRef} className="w-full h-full bg-background" />
-        <GifCapture app={pixiApp} companyName={companyId} />
+        <GifCapture
+          app={pixiApp}
+          companyName={companyId}
+          onStateChange={(s) => setGifState(s === "preview" ? "idle" : s as "idle" | "recording" | "encoding")}
+          triggerRef={gifTriggerRef}
+        />
         {/* Canvas controls overlay */}
         <CanvasControls
           onZoomIn={() => getCameraHandle()?.zoomIn()}
           onZoomOut={() => getCameraHandle()?.zoomOut()}
+          onGifCapture={() => gifTriggerRef.current?.()}
+          gifState={gifState}
         />
       </div>
       {renderSidebar?.({ feedItems, agents, connected })}
