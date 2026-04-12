@@ -317,7 +317,8 @@ function connect() {
 
       case "evaluate_artifact": {
         console.log(`[eval] ${P.name} received evaluation request ${data.evaluation_id}`);
-        const rubricPrompt = `You are an independent quality evaluator. Evaluate this ${data.artifact_type} artifact using the HEAR quality rubric.
+        const evalSystemPrompt = "You are an impartial quality evaluator. You evaluate artifacts objectively using a rubric. Always respond with valid JSON only, no markdown, no explanation outside the JSON.";
+        const rubricPrompt = `Evaluate this ${data.artifact_type} artifact using the HEAR quality rubric.
 
 ${data.rubric}
 
@@ -326,24 +327,30 @@ ${data.content}
 
 Score each applicable axis from 1 to 10. If an axis is not applicable to this artifact type, set it to null.
 
-You MUST respond with valid JSON only, no other text:
-{"scores":{"reasoning_depth":N,"decision_wisdom":N,"communication_clarity":N,"initiative_quality":N,"collaborative_intelligence":N,"self_awareness_calibration":N,"contextual_judgment":N},"reasoning":"your chain-of-thought analysis","confidence":N}`;
+Respond with ONLY this JSON, nothing else:
+{"scores":{"reasoning_depth":5,"decision_wisdom":5,"communication_clarity":5,"initiative_quality":null,"collaborative_intelligence":5,"self_awareness_calibration":5,"contextual_judgment":5},"reasoning":"brief analysis","confidence":7}`;
 
-        callClaude(P.systemPrompt, rubricPrompt, 800).then(response => {
-          if (response) {
-            try {
-              const parsed = JSON.parse(response);
-              send({
-                type: "evaluation_result",
-                evaluation_id: data.evaluation_id,
-                scores: parsed.scores,
-                reasoning: parsed.reasoning,
-                confidence: parsed.confidence || 5,
-              });
-              console.log(`[eval] ${P.name} submitted evaluation for ${data.evaluation_id}`);
-            } catch {
-              console.error(`[eval] ${P.name} failed to parse evaluation response`);
-            }
+        callClaude(evalSystemPrompt, rubricPrompt, 800).then(response => {
+          if (!response) return;
+          // Extract JSON from response (Claude may wrap in ```json blocks)
+          let jsonStr = response.trim();
+          const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            console.error(`[eval] ${P.name} no JSON found in response`);
+            return;
+          }
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            send({
+              type: "evaluation_result",
+              evaluation_id: data.evaluation_id as string,
+              scores: parsed.scores,
+              reasoning: parsed.reasoning || "",
+              confidence: parsed.confidence || 5,
+            });
+            console.log(`[eval] ${P.name} submitted evaluation for ${data.evaluation_id}`);
+          } catch (e) {
+            console.error(`[eval] ${P.name} JSON parse failed:`, (e as Error).message, jsonMatch[0].slice(0, 100));
           }
         }).catch(err => {
           console.error(`[eval] ${P.name} evaluation error:`, err);
