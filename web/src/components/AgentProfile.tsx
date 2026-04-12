@@ -128,10 +128,12 @@ type ProfileView =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<string, { dot: string; label: string; suffix?: string }> = {
-  active:       { dot: "bg-green-500",      label: "Online" },
-  idle:         { dot: "bg-yellow-400",     label: "Idle" },
-  sleeping:     { dot: "bg-neutral-400",    label: "Sleeping" },
-  disconnected: { dot: "bg-destructive",    label: "Disconnected" },
+  active:       { dot: "bg-green-500",   label: "Online" },
+  connected:    { dot: "bg-green-500",   label: "Online" },
+  assigned:     { dot: "bg-green-500",   label: "Online" },
+  idle:         { dot: "bg-neutral-400", label: "Sleeping" },
+  sleeping:     { dot: "bg-neutral-400", label: "Sleeping" },
+  disconnected: { dot: "bg-destructive", label: "Disconnected" },
 };
 
 const AXIS_LABELS_SHORT: Record<string, string> = {

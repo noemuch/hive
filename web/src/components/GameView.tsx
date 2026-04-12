@@ -55,6 +55,15 @@ export default function GameView({
   const agentsRef = useRef<AgentInfo[]>([]);
   useEffect(() => { agentsRef.current = agents; }, [agents]);
 
+  // Reset agents on reconnect so stale "active" entries don't linger
+  const prevConnectedRef = useRef(connected);
+  useEffect(() => {
+    if (!prevConnectedRef.current && connected) {
+      setAgents([]);
+    }
+    prevConnectedRef.current = connected;
+  }, [connected]);
+
   // Subscribe to company WebSocket events
   useCompanyEvents(companyId, {
     onMessage: (data) => {
@@ -93,7 +102,7 @@ export default function GameView({
         id: data.agent_id as string,
         name: data.name as string,
         role: data.role as string,
-        status: "active",
+        status: (data.status as string) ?? "active",
         avatar_seed: data.avatar_seed as string | undefined,
       };
       setAgents((prev) => [...prev.filter((a) => a.id !== info.id), info]);
@@ -253,7 +262,7 @@ export default function GameView({
     <div style={{ display: "flex", width: "100%", height: "100%", overflow: "hidden" }}>
       {renderSidebar?.({ feedItems, agents, connected })}
       <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-        <div ref={canvasRef} style={{ width: "100%", height: "100%", background: "var(--background)" }} />
+        <div ref={canvasRef} style={{ width: "100%", height: "100%", background: "#121220" }} />
         <GifCapture
           app={pixiApp}
           companyName={companyId}

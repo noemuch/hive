@@ -8,6 +8,12 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 
 import { seedBg } from "@/components/sidebar/utils";
 
+function statusLabel(s: string): string {
+  if (s === "active" || s === "connected" || s === "assigned") return "Online";
+  if (s === "idle" || s === "sleeping") return "Sleeping";
+  return "Disconnected";
+}
+
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -24,15 +30,19 @@ export default function AgentsView({
   onAgentClick: (agentId: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [onlineExpanded, setOnlineExpanded] = useState(true);
-  const [offlineExpanded, setOfflineExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const filtered = query
     ? agents.filter((a) => a.name.toLowerCase().includes(query.toLowerCase()))
     : agents;
 
-  const online = filtered.filter((a) => a.status === "active");
-  const offline = filtered.filter((a) => a.status !== "active");
+  const online = filtered
+    .filter((a) => a.status !== "retired")
+    .sort((a, b) => {
+      const aOnline = statusLabel(a.status) === "Online" ? 0 : 1;
+      const bOnline = statusLabel(b.status) === "Online" ? 0 : 1;
+      return aOnline - bOnline;
+    });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -89,13 +99,12 @@ export default function AgentsView({
         />
       </div>
 
-      {/* Sections */}
+      {/* Agents list */}
       <div className="scrollbar-subtle" style={{ flex: 1, overflowY: "auto", padding: "6px 10px 10px" }}>
 
-        {/* Online section */}
         <button
           type="button"
-          onClick={() => setOnlineExpanded((v) => !v)}
+          onClick={() => setExpanded((v) => !v)}
           style={{
             display: "flex",
             alignItems: "center",
@@ -108,46 +117,16 @@ export default function AgentsView({
             marginBottom: 4,
           }}
         >
-          {onlineExpanded
+          {expanded
             ? <ChevronDown size={10} style={{ color: "var(--muted-foreground)" }} />
             : <ChevronRight size={10} style={{ color: "var(--muted-foreground)" }} />}
           <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Online
+            Agents
           </span>
           <span style={{ fontSize: 10, color: "var(--muted-foreground)", opacity: 0.6 }}>({online.length})</span>
         </button>
 
-        {onlineExpanded && online.map((agent) => (
-          <AgentRow key={agent.id} agent={agent} onClick={() => onAgentClick(agent.id)} />
-        ))}
-
-        {/* Offline section */}
-        <button
-          type="button"
-          onClick={() => setOfflineExpanded((v) => !v)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            padding: "4px 2px",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            width: "100%",
-            marginTop: 8,
-            marginBottom: 4,
-          }}
-        >
-          {offlineExpanded
-            ? <ChevronDown size={10} style={{ color: "var(--muted-foreground)" }} />
-            : <ChevronRight size={10} style={{ color: "var(--muted-foreground)" }} />}
-          <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Offline
-          </span>
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)", opacity: 0.6 }}>({offline.length})</span>
-        </button>
-
-        {offlineExpanded && offline.map((agent) => (
+        {expanded && online.map((agent) => (
           <AgentRow key={agent.id} agent={agent} onClick={() => onAgentClick(agent.id)} />
         ))}
 
@@ -179,8 +158,8 @@ function AgentRow({ agent, onClick }: { agent: AgentInfo; onClick: () => void })
       }}
     >
       <div style={{ position: "relative", flexShrink: 0 }}>
-        <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: seedBg(agent.name) }}>
-          <PixelAvatar seed={agent.name} size={34} className="rounded-full" />
+        <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: seedBg(agent.avatar_seed ?? agent.name) }}>
+          <PixelAvatar seed={agent.avatar_seed ?? agent.name} size={34} className="rounded-full" />
         </div>
         <span style={{
           position: "absolute",
@@ -188,7 +167,7 @@ function AgentRow({ agent, onClick }: { agent: AgentInfo; onClick: () => void })
           right: -1,
           width: 9,
           height: 9,
-          background: agent.status === "active" ? "var(--accent-green)" : "var(--muted-foreground)",
+          background: statusLabel(agent.status) === "Online" ? "var(--accent-green)" : "var(--muted-foreground)",
           borderRadius: "50%",
           border: "2px solid var(--card)",
           display: "block",
@@ -199,12 +178,8 @@ function AgentRow({ agent, onClick }: { agent: AgentInfo; onClick: () => void })
           <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{agent.name}</span>
           <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{capitalize(agent.role)}</span>
         </div>
-        <div style={{
-          fontSize: 10,
-          marginTop: 1,
-          color: "var(--muted-foreground)",
-        }}>
-          {agent.status === "active" ? "Online" : "Offline"}
+        <div style={{ fontSize: 10, marginTop: 1, color: "var(--muted-foreground)" }}>
+          {statusLabel(agent.status)}
         </div>
       </div>
     </button>
