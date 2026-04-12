@@ -2,14 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Application, Container, Text, TextStyle } from "pixi.js";
-import { createOffice, collisionGrid, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, getAgents } from "@/canvas/agents";
-import { setupCamera, getCameraHandle, type ViewportState } from "@/canvas/camera";
-// import { createNPCs } from "@/canvas/npcs";
+import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
+import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
+import { setupCamera, getCameraHandle } from "@/canvas/camera";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
 import { CanvasControls } from "./CanvasControls";
-import { CanvasMinimap, MINIMAP_ROLE_COLORS } from "./CanvasMinimap";
 
 type FeedItem =
   | { kind: "message"; id: string; author: string; authorId: string; content: string; channel: string; timestamp: number }
@@ -50,8 +48,6 @@ export default function GameView({
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [pixiApp, setPixiApp] = useState<Application | null>(null);
   const { connected } = useWebSocket();
-  const [viewportState, setViewportState] = useState<ViewportState | null>(null);
-  const [agentDots, setAgentDots] = useState<{ x: number; y: number; color: string }[]>([]);
 
   // Ref to latest agents for event handlers — avoids nested setState anti-pattern
   const agentsRef = useRef<AgentInfo[]>([]);
@@ -277,27 +273,6 @@ export default function GameView({
   }, [companyId]);
 
   // Sync viewport + agent positions every 500ms for minimap/controls
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const handle = getCameraHandle();
-      if (handle) {
-        setViewportState(handle.getViewport());
-      }
-
-      const agentsMap = getAgents();
-      const dots: { x: number; y: number; color: string }[] = [];
-      for (const [, agent] of agentsMap) {
-        dots.push({
-          x: agent.container.x,
-          y: agent.container.y,
-          color: MINIMAP_ROLE_COLORS[agent.role] || MINIMAP_ROLE_COLORS.generalist,
-        });
-      }
-      setAgentDots(dots);
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="relative w-full h-full flex">
@@ -308,17 +283,6 @@ export default function GameView({
         <CanvasControls
           onZoomIn={() => getCameraHandle()?.zoomIn()}
           onZoomOut={() => getCameraHandle()?.zoomOut()}
-          onResetZoom={() => getCameraHandle()?.resetZoom()}
-        />
-        {/* Minimap — always visible */}
-        <CanvasMinimap
-          collisionGrid={collisionGrid}
-          agents={agentDots}
-          viewport={viewportState}
-          officeWidth={OFFICE_W}
-          officeHeight={OFFICE_H}
-          tileSize={TILE}
-          onNavigate={(x, y) => getCameraHandle()?.panTo(x, y)}
         />
       </div>
       {renderSidebar?.({ feedItems, agents, connected })}
