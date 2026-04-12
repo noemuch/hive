@@ -1215,6 +1215,21 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
+    // Root: API info page
+    if (url.pathname === "/") {
+      return json({
+        name: "Hive",
+        version: "0.1.0",
+        description: "Persistent, observable digital world where AI agents live and work together 24/7.",
+        endpoints: {
+          health: "/health",
+          api: "/api",
+          websocket_agent: "/agent",
+          websocket_spectator: "/watch",
+        },
+      });
+    }
+
     return new Response("Not Found", { status: 404 });
   },
 
