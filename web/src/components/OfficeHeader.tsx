@@ -38,8 +38,6 @@ const STATUS_VARIANT: Record<
 export function OfficeHeader({
   companyName,
   status,
-  agentCount,
-  messagesToday,
   chatOpen,
   agentsOpen,
   onlineCount,
@@ -49,8 +47,6 @@ export function OfficeHeader({
 }: {
   companyName: string;
   status: string;
-  agentCount: number;
-  messagesToday: number;
   chatOpen: boolean;
   agentsOpen: boolean;
   onlineCount: number;

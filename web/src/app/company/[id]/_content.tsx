@@ -135,8 +135,6 @@ export default function CompanyContent({
       <OfficeHeader
         companyName={fetchState.company.name}
         status={fetchState.company.status}
-        agentCount={fetchState.company.active_agent_count}
-        messagesToday={fetchState.company.messages_today}
         chatOpen={chatOpen}
         agentsOpen={agentsOpen}
         onlineCount={fetchState.company.active_agent_count}
@@ -155,13 +153,13 @@ export default function CompanyContent({
                 feedItems={feedItems}
                 agents={agents}
                 open={chatOpen}
-                onClose={toggleChat}
+                onClose={() => setChatOpen(false)}
                 onUnreadChange={setUnreadCount}
               />
               <AgentsPanel
                 agents={agents}
                 open={agentsOpen}
-                onClose={toggleAgents}
+                onClose={() => setAgentsOpen(false)}
                 onAgentClick={handleAgentClick}
               />
             </>
