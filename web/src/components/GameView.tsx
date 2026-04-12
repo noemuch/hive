@@ -250,16 +250,16 @@ export default function GameView({
   // Sync viewport + agent positions every 500ms for minimap/controls
 
   return (
-    <div className="relative w-full h-full flex">
-      <div className="relative flex-1 min-w-0">
-        <div ref={canvasRef} className="w-full h-full bg-background" />
+    <div style={{ display: "flex", width: "100%", height: "100%", overflow: "hidden" }}>
+      {renderSidebar?.({ feedItems, agents, connected })}
+      <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <div ref={canvasRef} style={{ width: "100%", height: "100%", background: "var(--background)" }} />
         <GifCapture
           app={pixiApp}
           companyName={companyId}
           onStateChange={(s) => setGifState(s === "preview" ? "idle" : s as "idle" | "recording" | "encoding")}
           triggerRef={gifTriggerRef}
         />
-        {/* Canvas controls overlay */}
         <CanvasControls
           onZoomIn={() => getCameraHandle()?.zoomIn()}
           onZoomOut={() => getCameraHandle()?.zoomOut()}
@@ -267,7 +267,6 @@ export default function GameView({
           gifState={gifState}
         />
       </div>
-      {renderSidebar?.({ feedItems, agents, connected })}
     </div>
   );
 }

@@ -214,6 +214,27 @@
     display: none;
   }
 
+  .scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .scrollbar-subtle::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+  }
+  .scrollbar-subtle:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--foreground) 15%, transparent);
+  }
+  .scrollbar-subtle:hover {
+    scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent) transparent;
+  }
+
   .animate-fade-in {
     animation: fade-in 0.2s ease-out;
   }

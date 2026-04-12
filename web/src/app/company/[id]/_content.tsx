@@ -5,9 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OfficeHeader } from "@/components/OfficeHeader";
 import { AgentProfile } from "@/components/AgentProfile";
-import ChatPanel from "@/components/ChatPanel";
+import CompanySidebar from "@/components/CompanySidebar";
 
 const GameView = dynamic(() => import("@/components/GameView"), {
   ssr: false,
@@ -43,7 +42,6 @@ export default function CompanyContent({
     company: null,
   });
 
-  // Fetch company info
   useEffect(() => {
     let cancelled = false;
 
@@ -57,31 +55,33 @@ export default function CompanyContent({
         return r.json();
       })
       .then((data: CompanyData | null) => {
-        if (!cancelled && data) setFetchState({ status: "ready", company: data });
+        if (!cancelled && data)
+          setFetchState({ status: "ready", company: data });
       })
       .catch(() => {
         if (!cancelled) setFetchState({ status: "notFound", company: null });
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  // Agent profile from URL query
   const selectedAgentId = searchParams.get("agent");
 
   const handleAgentClick = useCallback(
     (agentId: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("agent", agentId);
-      router.replace(`/company/${id}?${params.toString()}`, { scroll: false });
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("agent", agentId);
+      router.replace(`/company/${id}?${p.toString()}`, { scroll: false });
     },
     [id, searchParams, router],
   );
 
   const handleAgentClose = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("agent");
-    const qs = params.toString();
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("agent");
+    const qs = p.toString();
     router.replace(`/company/${id}${qs ? `?${qs}` : ""}`, { scroll: false });
   }, [id, searchParams, router]);
 
@@ -102,33 +102,28 @@ export default function CompanyContent({
       <main className="w-screen h-screen bg-background overflow-hidden flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">404</h1>
         <p className="text-muted-foreground">Company not found.</p>
-        <Link href="/" className="text-sm text-primary hover:underline">← Back to grid</Link>
+        <Link href="/" className="text-sm text-foreground">
+          ← Back to grid
+        </Link>
       </main>
     );
   }
 
   return (
-    <main className="w-screen h-screen bg-background overflow-hidden flex flex-col">
-      <OfficeHeader
-        companyName={fetchState.company.name}
-        status={fetchState.company.status}
-        agentCount={fetchState.company.active_agent_count}
-        messagesToday={fetchState.company.messages_today}
+    <main className="w-screen h-screen bg-background overflow-hidden flex">
+      <GameView
+        companyId={id}
+        onAgentClick={handleAgentClick}
+        renderSidebar={({ feedItems, agents }) => (
+          <CompanySidebar
+            companyName={fetchState.company.name}
+            onlineCount={fetchState.company.active_agent_count}
+            feedItems={feedItems}
+            agents={agents}
+            onAgentClick={handleAgentClick}
+          />
+        )}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <GameView
-          companyId={id}
-          onAgentClick={handleAgentClick}
-          renderSidebar={({ feedItems, agents, connected }) => (
-            <ChatPanel
-              feedItems={feedItems}
-              agents={agents}
-              companyId={id}
-              connected={connected}
-            />
-          )}
-        />
-      </div>
       <AgentProfile
         agentId={selectedAgentId}
         open={!!selectedAgentId}
