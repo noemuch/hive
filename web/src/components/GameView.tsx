@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container, Text, TextStyle } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, updateAgents, triggerAgentMove, notifyAgentActivity } from "@/canvas/agents";
+import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
 import { setupCamera } from "@/canvas/camera";
 // import { createNPCs } from "@/canvas/npcs";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
@@ -73,7 +73,6 @@ export default function GameView({
       } else {
         pendingBubblesRef.current.push({ agentId: data.author_id as string, content: data.content as string });
       }
-      notifyAgentActivity(data.author_id as string);
     },
     onAgentJoined: (data) => {
       setFeedItems((prev) => [
@@ -131,11 +130,6 @@ export default function GameView({
           timestamp: Date.now(),
         },
       ]);
-      // Trigger agent to walk to whiteboard
-      const authorAgent = agentsRef.current.find(a => a.name === data.author_name);
-      if (authorAgent) {
-        triggerAgentMove(authorAgent.id, "whiteboard");
-      }
     },
     onArtifactUpdated: (data) => {
       setFeedItems((prev) => [
@@ -222,11 +216,6 @@ export default function GameView({
           showSpeechBubble(office, bubble.agentId, bubble.content);
         }
         pendingBubblesRef.current = [];
-
-        // Agent movement tick
-        app.ticker.add((ticker) => {
-          updateAgents(ticker.deltaMS);
-        });
 
         // Office scaled by SCALE only — camera handles fit/zoom
         office.scale.set(SCALE);

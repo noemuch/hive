@@ -34,25 +34,6 @@ const MAX_HISTORY = 20;
 let messagesSinceLastArtifact = 0;
 const REACTIONS = ["👍", "🔥", "💡", "⭐", "🎉"];
 
-// Silence detection — agents self-initiate when quiet
-let lastMessageTime = 0;
-let silenceTimer: ReturnType<typeof setInterval> | null = null;
-let connectedChannel: string | null = null;
-
-const SILENCE_TOPICS = [
-  "What's the biggest technical risk we should address this week?",
-  "I've been thinking about our user onboarding flow — anyone have ideas to simplify it?",
-  "Quick check-in: what's everyone working on right now?",
-  "Should we revisit our API design before we scale? I have some concerns.",
-  "I noticed some inconsistencies in our design system. Should we clean that up?",
-  "What metrics should we track to know if we're shipping the right things?",
-  "Let's talk about testing strategy — are we covering the right edge cases?",
-  "Anyone have feedback on the latest design mockups? I want to finalize by end of day.",
-  "We should discuss our deployment process. Any pain points?",
-  "What's one thing we could improve about how we work together as a team?",
-];
-let topicIndex = Math.floor(Math.random() * SILENCE_TOPICS.length);
-
 // ---------------------------------------------------------------------------
 // Rate limit buckets — stay below server caps
 // Server: 30 msg/h, 60 reactions/h, 10 artifacts/h per agent
@@ -233,40 +214,10 @@ function connect() {
       case "auth_ok":
         agentId = data.agent_id;
         reconnectAttempt = 0;
-        connectedChannel = data.channels?.[0]?.name || "#general";
-        lastMessageTime = Date.now();
         console.log(`[+] ${P.name} authenticated (${P.role}) -> ${data.company?.name || "unassigned"}`);
+        // Clear previous heartbeat before starting a new one (prevents leak on reconnect)
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         heartbeatTimer = setInterval(() => send({ type: "heartbeat" }), 30_000);
-
-        // Kickoff: PM sends initial message after 15s
-        if (P.role === "pm") {
-          setTimeout(() => {
-            if (history.length === 0 && canDo("send_message")) {
-              record("send_message");
-              send({ type: "send_message", channel: connectedChannel, content: `Hey team, ${P.name} here. What are we working on today? Let's align on priorities.` });
-              console.log(`[kickoff] ${P.name} initiated conversation`);
-            }
-          }, 15_000);
-        }
-
-        // Silence pulse: every 2 min, if no messages in last 90s, start a new topic
-        if (silenceTimer) clearInterval(silenceTimer);
-        silenceTimer = setInterval(async () => {
-          const silenceDuration = Date.now() - lastMessageTime;
-          if (silenceDuration > 90_000 && canDo("send_message") && Math.random() < 0.25) {
-            const topic = SILENCE_TOPICS[topicIndex % SILENCE_TOPICS.length];
-            topicIndex++;
-            record("send_message");
-            const reply = await callClaude(P.systemPrompt, `You haven't talked in a while. Bring up this topic naturally: "${topic}". Respond as ${P.name} in 1-2 sentences.`, 150);
-            if (reply) {
-              send({ type: "send_message", channel: connectedChannel, content: reply });
-              addToHistory({ id: "", author: P.name, content: reply, channel: connectedChannel! });
-              lastMessageTime = Date.now();
-              console.log(`[pulse] ${P.name}: ${reply.slice(0, 80)}`);
-            }
-          }
-        }, 2 * 60 * 1000);
         break;
 
       case "auth_error":
@@ -288,7 +239,6 @@ function connect() {
         }
 
         addToHistory(msg);
-        lastMessageTime = Date.now();
         messagesSinceLastArtifact++;
 
         // Maybe react (fast, no LLM)
@@ -356,7 +306,6 @@ function connect() {
 
 function shutdown() {
   console.log(`\n[~] ${P.name} shutting down...`);
-  if (silenceTimer) clearInterval(silenceTimer);
   if (ws?.readyState === WebSocket.OPEN) ws.close();
   process.exit(0);
 }

@@ -212,8 +212,6 @@ for (const p of team.agents) {
 
 console.log(`\n[launch] ${managed.size} agents running. Healthcheck every 60s.\n`);
 
-// Kickoff + pulse moved to agent.ts (separate WS caused ghost agent_left events)
-
 setInterval(healthcheck, 60_000);
 
 function shutdown() {
