@@ -23,6 +23,9 @@ export interface PlistOptions {
 }
 
 export function generatePlist({ team, bunPath, projectRoot }: PlistOptions): string {
+  if (!/^[a-z0-9-]+$/.test(team)) {
+    throw new Error(`Invalid team name: "${team}". Only lowercase letters, numbers, and hyphens allowed.`);
+  }
   const label = `sh.hive.agents.${team}`;
   const log = logPath(team);
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -65,10 +68,11 @@ export function generatePlist({ team, bunPath, projectRoot }: PlistOptions): str
 `;
 }
 
-async function getUid(): Promise<string> {
-  const proc = Bun.spawn(["id", "-u"], { stdout: "pipe" });
-  await proc.exited;
-  return (await new Response(proc.stdout).text()).trim();
+function getUid(): string {
+  if (typeof process.getuid === "function") {
+    return String(process.getuid());
+  }
+  throw new Error("process.getuid() not available — is this running on macOS/Linux?");
 }
 
 async function launchctl(...args: string[]): Promise<{ ok: boolean; output: string }> {
@@ -88,10 +92,14 @@ function requirePlist(team: string): string {
 }
 
 export async function installService(opts: PlistOptions): Promise<void> {
+  const entryPoint = resolve(opts.projectRoot, "agents", "cli.ts");
+  if (!existsSync(entryPoint)) {
+    throw new Error(`agents/cli.ts not found in ${opts.projectRoot}. Make sure you are running from the project root.`);
+  }
   mkdirSync(logDir(), { recursive: true });
   const plist = plistPath(opts.team);
   writeFileSync(plist, generatePlist(opts));
-  const uid = await getUid();
+  const uid = getUid();
   const result = await launchctl("bootstrap", `gui/${uid}`, plist);
   if (!result.ok && !result.output.includes("already bootstrapped")) {
     throw new Error(`launchctl bootstrap failed:\n${result.output}`);
@@ -100,7 +108,7 @@ export async function installService(opts: PlistOptions): Promise<void> {
 
 export async function startService(team: string): Promise<void> {
   const plist = requirePlist(team);
-  const uid = await getUid();
+  const uid = getUid();
   const result = await launchctl("bootstrap", `gui/${uid}`, plist);
   if (!result.ok && !result.output.includes("already bootstrapped")) {
     throw new Error(`launchctl bootstrap failed:\n${result.output}`);
@@ -109,9 +117,14 @@ export async function startService(team: string): Promise<void> {
 
 export async function stopService(team: string): Promise<void> {
   const plist = requirePlist(team);
-  const uid = await getUid();
+  const uid = getUid();
   const result = await launchctl("bootout", `gui/${uid}`, plist);
-  if (!result.ok && !result.output.includes("No such process")) {
+  // Already stopped — error strings vary across macOS versions
+  const alreadyStopped =
+    result.output.includes("No such process") ||
+    result.output.includes("Could not find") ||
+    result.output.includes("3: No such process");
+  if (!result.ok && !alreadyStopped) {
     throw new Error(`launchctl bootout failed:\n${result.output}`);
   }
 }
@@ -122,7 +135,7 @@ export async function restartService(team: string): Promise<void> {
 }
 
 export async function statusService(team: string): Promise<void> {
-  const uid = await getUid();
+  const uid = getUid();
   const label = `sh.hive.agents.${team}`;
   const result = await launchctl("print", `gui/${uid}/${label}`);
   if (!result.ok) {
@@ -146,8 +159,12 @@ export async function logsService(team: string): Promise<void> {
 
 export async function uninstallService(team: string): Promise<void> {
   const plist = requirePlist(team);
-  const uid = await getUid();
-  await launchctl("bootout", `gui/${uid}`, plist);
+  const uid = getUid();
+  const bootoutResult = await launchctl("bootout", `gui/${uid}`, plist);
+  if (!bootoutResult.ok) {
+    console.warn(`[hive] Warning: launchctl bootout exited non-zero: ${bootoutResult.output.trim()}`);
+    console.warn(`       The plist will still be removed.`);
+  }
   rmSync(plist);
   console.log(`[hive] Service uninstalled.`);
   console.log(`       Credentials preserved at ~/.hive/${team}/`);

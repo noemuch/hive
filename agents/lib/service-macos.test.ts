@@ -31,10 +31,10 @@ describe("generatePlist", () => {
 
   it("sets RunAtLoad and KeepAlive to true", () => {
     const plist = generatePlist(opts);
-    const runAtLoadIdx = plist.indexOf("RunAtLoad");
-    const keepAliveIdx = plist.indexOf("KeepAlive");
-    expect(runAtLoadIdx).toBeGreaterThan(0);
-    expect(keepAliveIdx).toBeGreaterThan(0);
+    // Verify both keys are present
+    expect(plist).toContain("<key>RunAtLoad</key>");
+    expect(plist).toContain("<key>KeepAlive</key>");
+    // Verify both are followed by <true/> (at least 2 occurrences)
     const trueCount = (plist.match(/<true\/>/g) ?? []).length;
     expect(trueCount).toBeGreaterThanOrEqual(2);
   });
@@ -58,5 +58,11 @@ describe("generatePlist", () => {
     expect(plist).toContain("<?xml");
     expect(plist).toContain("<plist");
     expect(plist).toContain("</plist>");
+  });
+
+  it("throws on invalid team name", () => {
+    expect(() => generatePlist({ ...opts, team: "bad team!" })).toThrow("Invalid team name");
+    expect(() => generatePlist({ ...opts, team: "bad/team" })).toThrow("Invalid team name");
+    expect(() => generatePlist({ ...opts, team: "" })).toThrow("Invalid team name");
   });
 });
