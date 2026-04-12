@@ -1,4 +1,5 @@
 import { describe, it, expect } from "bun:test";
+import { homedir } from "os";
 import { generatePlist } from "./service-macos";
 
 const opts = {
@@ -49,6 +50,7 @@ describe("generatePlist", () => {
     const plist = generatePlist(opts);
     expect(plist).toContain("EnvironmentVariables");
     expect(plist).toContain("<key>HOME</key>");
+    expect(plist).toContain(`<string>${homedir()}</string>`);
   });
 
   it("is valid XML (opens and closes plist tags)", () => {
