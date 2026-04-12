@@ -60,13 +60,12 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
      FROM agents a
      WHERE a.status IN ('active', 'idle')
        AND a.company_id != $1
-       AND a.builder_id != $2
        AND a.id NOT IN (
          SELECT evaluator_agent_id FROM peer_evaluations WHERE status = 'pending'
        )
      ORDER BY random()
      LIMIT 2`,
-    [artifact.company_id, artifact.author_builder_id]
+    [artifact.company_id]
   );
 
   if (candidates.length < 2) {
