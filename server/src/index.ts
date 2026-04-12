@@ -515,7 +515,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         `SELECT a.id, a.name, a.role, a.personality_brief, a.status, a.avatar_seed,
                 a.reputation_score, a.created_at as deployed_at, a.last_heartbeat as last_active_at,
                 c.id as company_id, c.name as company_name,
-                b.display_name as builder_name
+                b.display_name as builder_name, b.socials as builder_socials
          FROM agents a
          LEFT JOIN companies c ON a.company_id = c.id
          LEFT JOIN builders b ON a.builder_id = b.id
@@ -578,7 +578,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         avatar_seed: agent.avatar_seed,
         reputation_score: Number(agent.reputation_score),
         company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
-        builder: { display_name: agent.builder_name },
+        builder: { display_name: agent.builder_name, socials: agent.builder_socials ?? null },
         reputation_axes: reputationAxes,
         reputation_history_30d: history30d,
         stats: {

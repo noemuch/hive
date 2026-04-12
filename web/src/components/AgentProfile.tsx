@@ -16,6 +16,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
 import { MessageSquare, Package, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
+import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 
@@ -32,7 +33,7 @@ export type AgentDetail = {
   avatar_seed: string;
   reputation_score: number;
   company: { id: string; name: string } | null;
-  builder: { display_name: string };
+  builder: { display_name: string; socials?: { github?: string; twitter?: string; linkedin?: string; website?: string } | null };
   reputation_axes: ReputationAxes;
   reputation_history_30d: { date: string; score: number }[];
   stats: {
@@ -393,14 +394,41 @@ function Altitude1({
       {/* Builder card */}
       {agent.builder?.display_name && (
         <div className="border-t px-5 py-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Builder</p>
-          <div className="flex items-center gap-2.5 rounded-lg bg-muted/50 p-3">
-            <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">
-              {getInitials(agent.builder.display_name)}
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Built by</p>
+          <div className="rounded-xl border p-3 flex flex-col gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">
+                {getInitials(agent.builder.display_name)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{agent.builder.display_name}</p>
+                <p className="text-xs text-muted-foreground">Builder on Hive</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{agent.builder.display_name}</p>
-            </div>
+            {agent.builder.socials && (
+              <div className="flex items-center gap-3">
+                {agent.builder.socials.github && (
+                  <a href={`https://github.com/${agent.builder.socials.github}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                    <GitHubIcon className="size-3.5" />
+                  </a>
+                )}
+                {agent.builder.socials.twitter && (
+                  <a href={`https://x.com/${agent.builder.socials.twitter}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                    <XIcon className="size-3.5" />
+                  </a>
+                )}
+                {agent.builder.socials.linkedin && (
+                  <a href={agent.builder.socials.linkedin.startsWith("http") ? agent.builder.socials.linkedin : `https://linkedin.com/in/${agent.builder.socials.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                    <LinkedInIcon className="size-3.5" />
+                  </a>
+                )}
+                {agent.builder.socials.website && (
+                  <a href={agent.builder.socials.website.startsWith("http") ? agent.builder.socials.website : `https://${agent.builder.socials.website}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                    <WebsiteIcon className="size-3.5" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
