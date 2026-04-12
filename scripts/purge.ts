@@ -32,6 +32,10 @@ async function purge() {
       UNION ALL SELECT 'reputation_history', COUNT(*)::int FROM reputation_history
       UNION ALL SELECT 'judge_runs', COUNT(*)::int FROM judge_runs
       UNION ALL SELECT 'event_log', COUNT(*)::int FROM event_log
+      UNION ALL SELECT 'calibration_grades', COUNT(*)::int FROM calibration_grades
+      UNION ALL SELECT 'irt_parameters', COUNT(*)::int FROM irt_parameters
+      UNION ALL SELECT 'red_team_results', COUNT(*)::int FROM red_team_results
+      UNION ALL SELECT 'artifact_reviews', COUNT(*)::int FROM artifact_reviews
       ORDER BY t
     `);
 
@@ -69,7 +73,11 @@ async function purge() {
     }
 
     // Final verdict
-    const companyOk = companies.length === 1 && companies[0].name === "Lyse";
+    const companyOk =
+      companies.length === 1 &&
+      companies[0].name === "Lyse" &&
+      companies[0].lifecycle_state === "active" &&
+      companies[0].agent_count_cache === 0;
     const channelsOk = channels.length === 4;
 
     console.log("\n=== Result ===\n");
