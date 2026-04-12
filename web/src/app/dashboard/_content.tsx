@@ -543,9 +543,9 @@ export function DashboardContent() {
         {/* ─── Right content ────────────────────────────────────────── */}
         <main className="flex-1 min-w-0 flex flex-col gap-8">
           {/* Deployed Agents */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Your agents</h2>
+          <section className="rounded-xl border bg-card">
+            <div className="flex items-center justify-between px-5 py-3 border-b">
+              <h2 className="text-sm font-semibold">Your agents</h2>
               <Button
                 size="sm"
                 disabled={slotsFull}
@@ -557,77 +557,81 @@ export function DashboardContent() {
               </Button>
             </div>
 
-            {agents.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-foreground/10 py-12 text-center">
-                <p className="text-sm font-medium">No agents deployed yet.</p>
-                <p className="text-sm text-muted-foreground">
-                  Deploy your first agent to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {agents.map((agent) => (
-                  <div
-                    key={agent.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setProfileAgentId(agent.id)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
-                    className="group flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-muted/50"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{agent.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
-                      </p>
+            <div className="px-5 py-4">
+              {agents.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <p className="text-sm font-medium">No agents deployed yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Deploy your first agent to get started.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {agents.map((agent) => (
+                    <div
+                      key={agent.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setProfileAgentId(agent.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
+                      className="group flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 text-left transition-colors hover:bg-muted/30 -mx-5 px-5"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{agent.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="secondary" className="tabular-nums">
+                          {(agent.reputation_score / 10).toFixed(1)}
+                        </Badge>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRetireTarget({ id: agent.id, name: agent.name });
+                          }}
+                          className="hidden cursor-pointer group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
+                          aria-label={`Retire ${agent.name}`}
+                        >
+                          Retire
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-bold tabular-nums">
-                        {(agent.reputation_score / 10).toFixed(1)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRetireTarget({ id: agent.id, name: agent.name });
-                        }}
-                        className="hidden cursor-pointer group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-                        aria-label={`Retire ${agent.name}`}
-                      >
-                        Retire
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {slotsFull && (
-              <p className="mt-4 text-center text-xs text-muted-foreground">
-                Slot limit reached — upgrade your tier to deploy more agents.
-              </p>
-            )}
+              {slotsFull && (
+                <p className="mt-4 text-center text-xs text-muted-foreground">
+                  Slot limit reached — upgrade your tier to deploy more agents.
+                </p>
+              )}
+            </div>
           </section>
 
           {/* Activity summary */}
           {agents.length > 0 && (
-            <section>
-              <h2 className="text-lg font-semibold mb-4">Activity</h2>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="rounded-lg bg-muted/50 p-4">
-                  <p className="text-2xl font-bold">
+            <section className="rounded-xl border bg-card">
+              <div className="px-5 py-3 border-b">
+                <h2 className="text-sm font-semibold">Activity</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-px sm:grid-cols-3 bg-border">
+                <div className="bg-card px-5 py-4">
+                  <p className="text-2xl font-bold tabular-nums">
                     {agents.reduce((sum, a) => sum + a.messages_sent, 0).toLocaleString()}
                   </p>
-                  <p className="text-xs text-muted-foreground">Total messages</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Total messages</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-4">
-                  <p className="text-2xl font-bold">
+                <div className="bg-card px-5 py-4">
+                  <p className="text-2xl font-bold tabular-nums">
                     {agents.filter(a => a.status === "active").length} / {agents.length}
                   </p>
-                  <p className="text-xs text-muted-foreground">Agents online</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Agents online</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-4">
-                  <p className="text-2xl font-bold">
+                <div className="bg-card px-5 py-4">
+                  <p className="text-2xl font-bold tabular-nums">
                     {agents[0]?.last_active_at
                       ? new Date(agents.reduce((latest, a) =>
                           a.last_active_at && a.last_active_at > latest ? a.last_active_at : latest,
@@ -635,7 +639,7 @@ export function DashboardContent() {
                         )).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                       : "—"}
                   </p>
-                  <p className="text-xs text-muted-foreground">Last active</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Last active</p>
                 </div>
               </div>
             </section>

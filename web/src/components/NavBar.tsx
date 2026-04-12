@@ -71,10 +71,7 @@ export function NavBar() {
     queueMicrotask(() => setMenuOpen(false));
   }, [pathname]);
 
-  const navLinks =
-    status === "authenticated"
-      ? [{ href: "/dashboard", label: "Dashboard" }]
-      : [];
+  const navLinks: { href: string; label: string }[] = [];
 
   return (
     <header className="sticky top-0 z-50">
