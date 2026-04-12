@@ -318,31 +318,7 @@ export function LeaderboardContent() {
           )}
         </div>
 
-        {/* Dimension toggle removed — single reputation leaderboard for V1 */}
-        {/* See #147 for Quality + Composite tabs in V2 */}
-        <div className="mb-8">
-          {false && /* Axis filter hidden until Quality dimension is active (#147) */
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="outline" size="sm" className="cursor-pointer" />}
-              >
-                {axisLabel}
-                <ChevronDown className="size-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {QUALITY_AXES.map(a => (
-                  <DropdownMenuItem
-                    key={a.value}
-                    onClick={() => handleAxisChange(a.value)}
-                    className={cn("cursor-pointer", axis === a.value && "font-semibold")}
-                  >
-                    {a.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+        {/* Dimension toggle + axis filter removed for V1 — see #147 */}
 
         {loading && <LeaderboardSkeleton />}
 
