@@ -4,10 +4,10 @@ import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
+import { Footer } from "@/components/Footer";
 import { ArtifactContent } from "@/components/ArtifactContent";
 import { JudgmentPanel, type Judgment } from "@/components/JudgmentPanel";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -186,10 +186,10 @@ export default function ArtifactPage({
   const artifact = fetchState.status === "ready" ? fetchState.artifact : null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <NavBar />
 
-      <main className="mx-auto max-w-5xl px-6 py-6">
+      <main className="mx-auto w-full max-w-5xl px-6 py-6 flex flex-col gap-5">
         {/* Back button */}
         <Button
           variant="ghost"
@@ -197,83 +197,90 @@ export default function ArtifactPage({
           onClick={() =>
             window.history.length > 1 ? router.back() : router.push("/")
           }
-          className="mb-5 -ml-2 gap-1 text-muted-foreground hover:text-foreground"
+          className="-ml-2 gap-1 text-muted-foreground hover:text-foreground self-start"
         >
           <ChevronLeft className="size-3.5" />
           Back
         </Button>
 
         {/* Metadata header */}
-        <div className="mb-5">
-          {artifact ? (
-            <>
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">
-                  {ARTIFACT_TYPE_LABELS[artifact.type] ?? artifact.type}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  Created {formatDate(artifact.created_at)}
-                </span>
-                {artifact.status && (
-                  <Badge variant="outline" className="capitalize">
-                    {artifact.status}
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="px-5 py-3 border-b">
+            <h1 className="text-sm font-semibold">Artifact</h1>
+          </div>
+          <div className="px-5 py-3">
+            {artifact ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">
+                    {ARTIFACT_TYPE_LABELS[artifact.type] ?? artifact.type}
                   </Badge>
-                )}
+                  {artifact.status && (
+                    <Badge variant="outline" className="capitalize">
+                      {artifact.status}
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(artifact.created_at)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  by{" "}
+                  <span className="font-medium text-foreground">
+                    {artifact.author_name}
+                  </span>
+                  {artifact.company_name && (
+                    <span>
+                      {" "}in{" "}
+                      <Link
+                        href={`/company/${artifact.company_id}`}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {artifact.company_name}
+                      </Link>
+                    </span>
+                  )}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Author:{" "}
-                <span className="font-medium text-foreground">
-                  {artifact.author_name}
-                </span>
-                {artifact.company_name && (
-                  <>
-                    {" "}
-                    &bull;{" "}
-                    <Link
-                      href={`/company/${artifact.company_id}`}
-                      className="font-medium text-foreground hover:underline"
-                    >
-                      {artifact.company_name}
-                    </Link>
-                  </>
-                )}
-              </p>
-            </>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Skeleton className="h-5 w-16" />
-                <Skeleton className="h-5 w-32" />
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-32" />
+                </div>
+                <Skeleton className="h-4 w-48" />
               </div>
-              <Skeleton className="h-4 w-48" />
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Main two-column layout */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="flex flex-col lg:flex-row gap-5">
           {/* Left: artifact content */}
-          <Card className="overflow-hidden">
+          <div className="flex-1 min-w-0 rounded-xl border bg-card overflow-hidden">
+            <div className="px-5 py-3 border-b">
+              <h2 className="text-sm font-semibold">Content</h2>
+            </div>
             {fetchState.status === "loading" ? (
               <ContentSkeleton />
             ) : (
-              <ScrollArea className="max-h-[70vh] lg:max-h-[calc(100vh-240px)]">
-                <CardContent className="p-4 sm:p-6">
+              <ScrollArea className="max-h-[70vh] lg:max-h-[calc(100vh-300px)]">
+                <div className="px-5 py-4">
                   <ArtifactContent content={artifact!.content} />
-                </CardContent>
+                </div>
               </ScrollArea>
             )}
-          </Card>
+          </div>
 
           {/* Right: HEAR judgment */}
-          <div>
+          <div className="w-full lg:w-80 shrink-0">
             {judgmentState.status === "loading" ? (
-              <Card>
-                <CardHeader>
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="px-5 py-3 border-b">
                   <Skeleton className="h-4 w-28" />
-                </CardHeader>
+                </div>
                 <JudgmentSkeleton />
-              </Card>
+              </div>
             ) : judgmentState.status === "pending" ? (
               <JudgmentPanel judgment={null} pending />
             ) : (
@@ -282,6 +289,8 @@ export default function ArtifactPage({
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
