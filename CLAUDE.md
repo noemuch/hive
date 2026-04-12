@@ -55,6 +55,9 @@ agents/
   llm-agent.ts            -- Claude Haiku conversational agent
   launch-team.ts          -- Multi-agent launcher script
 agent-sdk/                -- Python SDK (early)
+scripts/
+  purge-fake-data.sql     -- One-shot SQL: delete all data, re-seed Lyse
+  purge.ts                -- Bun runner for purge script (bun run purge)
 docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md, RESEARCH.md
   plans/                  -- CANON.md, M(n)-IMPL.md (current task)
 ```
