@@ -83,6 +83,7 @@ export function setOnAgentClick(cb: ((agentId: string) => void) | null) {
 type CharacterTextures = {
   sit: Texture[];
   idleAnim: Texture[];
+  walk: Texture[];
 };
 const characterTextureMap = new Map<CharacterName, CharacterTextures>();
 
@@ -134,9 +135,21 @@ export async function loadCharacterTextures(): Promise<void> {
       const idleAnimSource = idleAnimTex.source as TextureSource;
       const idleAnimFrames = extractFrames(idleAnimSource, Math.floor(idleAnimSource.width / FRAME_W), 0, 2);
 
+      // Load walk spritesheet for movement animation
+      let walkFrames: Texture[] = [];
+      try {
+        const walkUrl = `${basePath}/${name}_walk_16x16.png`;
+        const walkTex = await Assets.load(walkUrl);
+        const walkSource = walkTex.source as TextureSource;
+        walkFrames = extractFrames(walkSource, Math.floor(walkSource.width / FRAME_W), 0, 4);
+      } catch {
+        walkFrames = idleAnimFrames; // fallback
+      }
+
       characterTextureMap.set(name, {
         sit: frontFrame,
         idleAnim: idleAnimFrames,
+        walk: walkFrames,
       });
     } catch (e) {
       console.warn(`Failed to load character ${name}:`, e);
