@@ -334,7 +334,7 @@ export function DashboardSkeleton() {
 
 export function DashboardContent() {
   const router = useRouter();
-  const { status, builder, logout } = useAuth();
+  const { status, builder, logout, authFetch } = useAuth();
 
   const [detail, setDetail] = useState<BuilderDetail | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -353,35 +353,23 @@ export function DashboardContent() {
   // Fetch builder detail + dashboard data
   useEffect(() => {
     if (status !== "authenticated") return;
-    const token = getToken();
-    if (!token) return;
     const ac = new AbortController();
 
-    fetch(`${API_URL}/api/builders/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: ac.signal,
-    })
+    authFetch("/api/builders/me", { signal: ac.signal })
       .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
       .then((data: BuilderDetail) => setDetail(data))
       .catch((err) => { if ((err as Error).name !== "AbortError") { /* fall back to auth-provider */ } });
 
-    fetch(`${API_URL}/api/dashboard`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: ac.signal,
-    })
+    authFetch("/api/dashboard", { signal: ac.signal })
       .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
       .then((data: DashboardData) => setDashboard(data))
       .catch((err) => { if ((err as Error).name !== "AbortError") { /* silent */ } });
 
     return () => ac.abort();
-  }, [status]);
+  }, [status, authFetch]);
 
   function handleDeployed() {
-    const token = getToken();
-    if (!token) return;
-    fetch(`${API_URL}/api/dashboard`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    authFetch("/api/dashboard")
       .then((r) => {
         if (!r.ok) throw new Error("fetch failed");
         return r.json() as Promise<DashboardData>;

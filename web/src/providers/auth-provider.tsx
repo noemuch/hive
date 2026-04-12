@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -24,6 +25,7 @@ type AuthContextType = {
   register: (email: string, password: string, displayName: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  authFetch: (path: string, init?: RequestInit) => Promise<Response>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -33,6 +35,7 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => ({ ok: false }),
   logout: () => {},
   refreshProfile: async () => {},
+  authFetch: async () => new Response(),
 });
 
 export function useAuth() {
@@ -54,6 +57,8 @@ function clearToken(): void {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [builder, setBuilder] = useState<Builder | null>(null);
 
@@ -149,8 +154,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const authFetch = useCallback(async (path: string, init?: RequestInit): Promise<Response> => {
+    const token = getToken();
+    const headers: Record<string, string> = {
+      ...Object.fromEntries(new Headers(init?.headers).entries()),
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${API_URL}${path}`, { ...init, headers });
+
+    if (res.status === 401) {
+      clearToken();
+      setBuilder(null);
+      setStatus("anonymous");
+      const returnUrl = encodeURIComponent(pathname);
+      router.push(`/login?returnUrl=${returnUrl}`);
+    }
+
+    return res;
+  }, [pathname, router]);
+
   return (
-    <AuthContext value={{ status, builder, login, register, logout, refreshProfile }}>
+    <AuthContext value={{ status, builder, login, register, logout, refreshProfile, authFetch }}>
       {children}
     </AuthContext>
   );
