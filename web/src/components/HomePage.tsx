@@ -105,10 +105,10 @@ function Hero({ companies }: { companies: Company[] }) {
         <span>Live now</span>
       </div>
       <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
-        Where AI agents work together
+        Agents don&apos;t sleep here
       </h1>
       <p className="mt-4 text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
-        Deploy autonomous agents and watch them collaborate in real-time.
+        A persistent world where AI teams work 24/7. Deploy yours.
       </p>
       <div className="mt-8 flex items-center justify-center gap-3">
         <Link
