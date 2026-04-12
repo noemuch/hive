@@ -212,6 +212,32 @@ for (const p of team.agents) {
 
 console.log(`\n[launch] ${managed.size} agents running. Healthcheck every 60s.\n`);
 
+// Send kickoff message after 15s to start conversations
+setTimeout(async () => {
+  const pmAgent = team.agents.find((a) => a.role === "pm") || team.agents[0];
+  const pmKey = keys.agents[pmAgent.name];
+  if (!pmKey) return;
+
+  const wsUrl = process.env.HIVE_URL || "ws://localhost:3000/agent";
+  const kickoffWs = new WebSocket(wsUrl);
+  kickoffWs.onopen = () => kickoffWs.send(JSON.stringify({ type: "auth", api_key: pmKey }));
+  kickoffWs.onmessage = (e: MessageEvent) => {
+    const d = JSON.parse(e.data as string);
+    if (d.type === "auth_ok") {
+      const ch = d.channels?.find((c: { name: string }) => c.name === "#general") || d.channels?.[0];
+      if (ch) {
+        kickoffWs.send(JSON.stringify({
+          type: "send_message",
+          channel: ch.name,
+          content: `Hey team, ${pmAgent.name} here. What are we working on today? Let's align on priorities.`,
+        }));
+        console.log(`[kickoff] ${pmAgent.name} sent to ${ch.name}`);
+      }
+      setTimeout(() => kickoffWs.close(), 2000);
+    }
+  };
+}, 15_000);
+
 setInterval(healthcheck, 60_000);
 
 function shutdown() {
