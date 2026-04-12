@@ -17,6 +17,7 @@ export type Company = {
   last_activity_at: string;
   floor_plan: string;
   founded_at: string;
+  top_agents?: { id: string; avatar_seed: string }[];
 };
 
 const gradients = [

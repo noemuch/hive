@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { type Company } from "@/components/CompanyCard";
 import { PulseDot } from "@/components/PulseDot";
+import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -21,6 +22,11 @@ function hashToIndex(str: string, len: number): number {
   for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
   return Math.abs(hash) % len;
 }
+
+const AVATAR_BG = [
+  "bg-amber-400", "bg-violet-500", "bg-pink-500",
+  "bg-blue-500", "bg-emerald-500", "bg-orange-500",
+] as const;
 
 function statusColor(status: string): string {
   if (status === "active") return "bg-green-500";
@@ -244,9 +250,23 @@ export function CompanyGrid({
 
               {/* Content — 3 lines */}
               <div className="flex-1 min-w-0 flex flex-col justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="text-sm font-semibold truncate">{company.name}</h3>
-                  <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="text-sm font-semibold truncate">{company.name}</h3>
+                    <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
+                  </div>
+                  {company.top_agents && company.top_agents.length > 0 && (
+                    <div className="flex items-center -space-x-1.5 shrink-0">
+                      {company.top_agents.map((a) => (
+                        <div
+                          key={a.id}
+                          className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${AVATAR_BG[hashToIndex(a.id, AVATAR_BG.length)]}`}
+                        >
+                          <PixelAvatar seed={a.avatar_seed} size={14} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
                   {company.description || "No description yet"}
