@@ -87,17 +87,21 @@ export function setupCamera(
   viewport.setZoom(fitScale, true);
   viewport.moveCenter(bounds.width / 2, bounds.height / 2);
 
-  // Resize handler
+  // Resize handler — RAF-debounced to avoid repeated clears during CSS transitions
+  let pendingResize: number | null = null;
   const resizeObserver = new ResizeObserver(() => {
-    const canvas = app.canvas as HTMLCanvasElement;
-    const parentEl = canvas.parentElement;
-    if (!parentEl) return;
-    const w = parentEl.clientWidth;
-    const h = parentEl.clientHeight;
-    if (w === 0 || h === 0) return;
-
-    app.renderer.resize(w, h);
-    viewport.resize(w, h);
+    if (pendingResize !== null) cancelAnimationFrame(pendingResize);
+    pendingResize = requestAnimationFrame(() => {
+      pendingResize = null;
+      const canvas = app.canvas as HTMLCanvasElement;
+      const parentEl = canvas.parentElement;
+      if (!parentEl) return;
+      const w = parentEl.clientWidth;
+      const h = parentEl.clientHeight;
+      if (w === 0 || h === 0) return;
+      app.renderer.resize(w, h);
+      viewport.resize(w, h);
+    });
   });
 
   const canvas = app.canvas as HTMLCanvasElement;
@@ -141,6 +145,7 @@ export function setupCamera(
   // Cleanup
   return () => {
     currentHandle = null;
+    if (pendingResize !== null) cancelAnimationFrame(pendingResize);
     resizeObserver.disconnect();
     viewport.destroy({ children: false });
     canvas.style.cursor = "";

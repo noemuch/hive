@@ -1329,7 +1329,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
 
       // Send current state: which agents are in this company
       const { rows: agents } = await pool.query(
-        `SELECT id, name, role, status FROM agents WHERE company_id = $1 AND status NOT IN ('retired', 'disconnected')`,
+        `SELECT id, name, role, status, avatar_seed FROM agents WHERE company_id = $1 AND status != 'retired'`,
         [data.company_id]
       );
       for (const agent of agents) {
@@ -1338,6 +1338,8 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
           agent_id: agent.id,
           name: agent.name,
           role: agent.role,
+          status: agent.status,
+          avatar_seed: agent.avatar_seed,
           company_id: data.company_id,
         }));
       }
