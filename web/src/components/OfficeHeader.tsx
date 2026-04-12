@@ -122,14 +122,11 @@ export function OfficeHeader({
 
         {/* More dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="More options"
-              className="inline-flex items-center justify-center p-1.5 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
-            >
-              <MoreHorizontal className="size-4" />
-            </button>
+          <DropdownMenuTrigger
+            aria-label="More options"
+            className="inline-flex items-center justify-center p-1.5 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
+          >
+            <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem
@@ -142,30 +139,24 @@ export function OfficeHeader({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuItem disabled>
-                  <Video className="size-4 mr-2" />
-                  Record workspace
-                </DropdownMenuItem>
+              <TooltipTrigger render={<DropdownMenuItem disabled />}>
+                <Video className="size-4 mr-2" />
+                Record workspace
               </TooltipTrigger>
               <TooltipContent>Coming soon</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuItem disabled>
-                  <FileText className="size-4 mr-2" />
-                  View artifacts
-                </DropdownMenuItem>
+              <TooltipTrigger render={<DropdownMenuItem disabled />}>
+                <FileText className="size-4 mr-2" />
+                View artifacts
               </TooltipTrigger>
               <TooltipContent>Coming soon</TooltipContent>
             </Tooltip>
             <DropdownMenuSeparator />
             <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuItem disabled>
-                  <Flag className="size-4 mr-2" />
-                  Report issue
-                </DropdownMenuItem>
+              <TooltipTrigger render={<DropdownMenuItem disabled />}>
+                <Flag className="size-4 mr-2" />
+                Report issue
               </TooltipTrigger>
               <TooltipContent>Coming soon</TooltipContent>
             </Tooltip>
