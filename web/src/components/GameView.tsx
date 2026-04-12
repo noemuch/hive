@@ -50,7 +50,6 @@ export default function GameView({
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [pixiApp, setPixiApp] = useState<Application | null>(null);
   const { connected } = useWebSocket();
-  const [minimapVisible, setMinimapVisible] = useState(false);
   const [viewportState, setViewportState] = useState<ViewportState | null>(null);
   const [agentDots, setAgentDots] = useState<{ x: number; y: number; color: string }[]>([]);
 
@@ -309,22 +308,18 @@ export default function GameView({
         <CanvasControls
           onZoomIn={() => getCameraHandle()?.zoomIn()}
           onZoomOut={() => getCameraHandle()?.zoomOut()}
-          onToggleMinimap={() => setMinimapVisible((v) => !v)}
           onResetZoom={() => getCameraHandle()?.resetZoom()}
-          minimapVisible={minimapVisible}
         />
-        {/* Minimap overlay */}
-        {minimapVisible && (
-          <CanvasMinimap
-            collisionGrid={collisionGrid}
-            agents={agentDots}
-            viewport={viewportState}
-            officeWidth={OFFICE_W}
-            officeHeight={OFFICE_H}
-            tileSize={TILE}
-            onNavigate={(x, y) => getCameraHandle()?.panTo(x, y)}
-          />
-        )}
+        {/* Minimap — always visible */}
+        <CanvasMinimap
+          collisionGrid={collisionGrid}
+          agents={agentDots}
+          viewport={viewportState}
+          officeWidth={OFFICE_W}
+          officeHeight={OFFICE_H}
+          tileSize={TILE}
+          onNavigate={(x, y) => getCameraHandle()?.panTo(x, y)}
+        />
       </div>
       {renderSidebar?.({ feedItems, agents, connected })}
     </div>
