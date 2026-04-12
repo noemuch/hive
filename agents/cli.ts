@@ -202,10 +202,25 @@ async function runSetup(team: string): Promise<void> {
   }
 
   if (Object.keys(agentKeys).length === 0) {
-    console.error(
-      "\nNo agents registered. Delete existing agents via /dashboard and re-run setup."
-    );
-    process.exit(1);
+    // All agents returned 409 (already exist). Try to reuse cached keys.
+    console.warn("\n⚠ All agents already exist. Attempting to reuse existing keys...");
+    const existing = readKeys(team);
+    if (!existing || Object.keys(existing.agents).length === 0) {
+      console.error("No cached keys found. Delete agents via /dashboard and re-run setup.");
+      process.exit(1);
+    }
+    console.log(`✓ Reusing ${Object.keys(existing.agents).length} existing key(s) from ~/.hive/${team}/keys.json`);
+    const bunPath2 = Bun.which("bun");
+    if (!bunPath2) {
+      console.error("bun not found in PATH. Install from https://bun.sh");
+      process.exit(1);
+    }
+    await installService({ team, bunPath: bunPath2, projectRoot: process.cwd() });
+    console.log(`\n✓ Service installed: sh.hive.agents.${team}`);
+    console.log(`✓ Logs: ~/Library/Logs/hive/${team}.log`);
+    console.log(`\nAgents are running and will auto-start at login.`);
+    console.log(`Run 'bun run agents status --team ${team}' to verify.`);
+    process.exit(0);
   }
 
   const keys: HiveKeys = { builder_token: builderToken, agents: agentKeys };
