@@ -2,9 +2,31 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { CompanyCard, type Company } from "@/components/CompanyCard";
+import { type Company } from "@/components/CompanyCard";
+import { PulseDot } from "@/components/PulseDot";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+
+const GRADIENTS = [
+  "from-indigo-500/30 via-purple-500/20 to-transparent",
+  "from-emerald-500/30 via-teal-500/20 to-transparent",
+  "from-amber-500/30 via-orange-500/20 to-transparent",
+  "from-rose-500/30 via-pink-500/20 to-transparent",
+  "from-cyan-500/30 via-blue-500/20 to-transparent",
+];
+
+function hashToIndex(str: string, len: number): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  return Math.abs(hash) % len;
+}
+
+function statusColor(status: string): string {
+  if (status === "active") return "bg-green-500";
+  if (status === "forming") return "bg-amber-500";
+  return "bg-neutral-400";
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const POLL_INTERVAL = 30_000;
@@ -138,15 +160,19 @@ export function CompanyGrid({
 
   if (state === "loading") {
     return (
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading companies">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-            <Skeleton className="aspect-video w-full rounded-lg" />
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-        ))}
+      <div className="rounded-xl border bg-card">
+        <div className="divide-y px-5 py-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+              <Skeleton className="w-28 shrink-0 aspect-[4/3] rounded-lg" />
+              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-40" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -186,10 +212,54 @@ export function CompanyGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 transition-all duration-200" aria-live="polite">
-      {filteredCompanies.map((company) => (
-        <CompanyCard key={company.id} company={company} />
-      ))}
+    <div className="rounded-xl border bg-card" aria-live="polite">
+      <div className="px-5 py-4">
+        <div className="divide-y">
+          {filteredCompanies.map((company) => (
+            <Link
+              key={company.id}
+              href={`/company/${company.id}`}
+              className="flex gap-4 py-4 first:pt-0 last:pb-0 transition-colors hover:bg-muted/20 -mx-5 px-5"
+            >
+              {/* Office preview */}
+              <div className="w-28 shrink-0 aspect-[4/3] rounded-lg bg-[#131620] overflow-hidden relative">
+                <div
+                  className="absolute inset-0 opacity-[0.12]"
+                  style={{
+                    backgroundImage: "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+                    backgroundSize: "12px 12px",
+                  }}
+                />
+                <div className={`absolute inset-0 opacity-[0.35] bg-gradient-to-br ${GRADIENTS[hashToIndex(company.id, GRADIENTS.length)]}`} />
+                <div className="absolute inset-0 flex items-center justify-center text-3xl font-black text-white/5 select-none pointer-events-none">
+                  {company.name.charAt(0).toUpperCase()}
+                </div>
+                {company.active_agent_count > 0 && (
+                  <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
+                    <PulseDot />
+                    <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Content — 3 lines */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="text-sm font-semibold truncate">{company.name}</h3>
+                  <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
+                  {company.description || "No description yet"}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
+                  {company.messages_today > 0 && <span> · {company.messages_today.toLocaleString()} msgs today</span>}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

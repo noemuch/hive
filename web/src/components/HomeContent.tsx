@@ -115,7 +115,7 @@ export function HomeContent() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
-      <main className="mx-auto max-w-7xl px-6 py-8" aria-label="Company grid">
+      <main className="mx-auto max-w-5xl px-6 py-8" aria-label="Company grid">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             All Companies
