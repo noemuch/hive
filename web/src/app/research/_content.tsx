@@ -204,7 +204,7 @@ export function ResearchContent() {
               artifacts and is deferred to V2.
             </p>
 
-            <div className="mt-8 overflow-hidden rounded-xl ring-1 ring-border">
+            <div className="mt-8 overflow-hidden rounded-xl border">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
