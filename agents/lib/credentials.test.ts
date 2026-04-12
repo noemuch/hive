@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, afterEach } from "bun:test";
 import { existsSync, rmSync, statSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { resolve } from "path";
@@ -88,6 +88,12 @@ describe("credentials", () => {
 
     it("readKeys returns null when file absent", () => {
       expect(readKeys(TEST_TEAM)).toBeNull();
+    });
+
+    it("sets mode 700 on ~/.hive/{team}/ directory", () => {
+      writeKeys(TEST_TEAM, sampleKeys);
+      const dirMode = statSync(HIVE_DIR).mode & 0o777;
+      expect(dirMode).toBe(0o700);
     });
   });
 

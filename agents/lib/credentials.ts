@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, renameSync } from "fs";
-import { homedir } from "os";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, renameSync, rmdirSync } from "fs";
+import { homedir, tmpdir } from "os";
 import { resolve } from "path";
+import { mkdtempSync } from "fs";
 
 export interface HiveConfig {
   email: string;
@@ -32,29 +33,47 @@ export function configExists(team: string): boolean {
 export function readConfig(team: string): HiveConfig | null {
   const p = configPath(team);
   if (!existsSync(p)) return null;
-  return JSON.parse(readFileSync(p, "utf-8")) as HiveConfig;
+  try {
+    return JSON.parse(readFileSync(p, "utf-8")) as HiveConfig;
+  } catch {
+    return null;
+  }
 }
 
 export function writeConfig(team: string, config: HiveConfig): void {
   const dir = hiveDir(team);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
+  chmodSync(dir, 0o700);
   const p = configPath(team);
-  writeFileSync(p, JSON.stringify(config, null, 2) + "\n");
-  chmodSync(p, 0o600);
+  const tmpDir = mkdtempSync(resolve(tmpdir(), "hive-"));
+  const tmpFile = resolve(tmpDir, "tmp.json");
+  writeFileSync(tmpFile, JSON.stringify(config, null, 2) + "\n");
+  chmodSync(tmpFile, 0o600);
+  renameSync(tmpFile, p);
+  rmdirSync(tmpDir);
 }
 
 export function readKeys(team: string): HiveKeys | null {
   const p = keysPath(team);
   if (!existsSync(p)) return null;
-  return JSON.parse(readFileSync(p, "utf-8")) as HiveKeys;
+  try {
+    return JSON.parse(readFileSync(p, "utf-8")) as HiveKeys;
+  } catch {
+    return null;
+  }
 }
 
 export function writeKeys(team: string, keys: HiveKeys): void {
   const dir = hiveDir(team);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
+  chmodSync(dir, 0o700);
   const p = keysPath(team);
-  writeFileSync(p, JSON.stringify(keys, null, 2) + "\n");
-  chmodSync(p, 0o600);
+  const tmpDir = mkdtempSync(resolve(tmpdir(), "hive-"));
+  const tmpFile = resolve(tmpDir, "tmp.json");
+  writeFileSync(tmpFile, JSON.stringify(keys, null, 2) + "\n");
+  chmodSync(tmpFile, 0o600);
+  renameSync(tmpFile, p);
+  rmdirSync(tmpDir);
 }
 
 export function migrateIfNeeded(team: string, projectRoot: string): void {
@@ -65,6 +84,6 @@ export function migrateIfNeeded(team: string, projectRoot: string): void {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     renameSync(oldPath, newPath);
     chmodSync(newPath, 0o600);
-    console.log(`[launch] Migrated keys to ~/.hive/${team}/keys.json`);
+    console.log(`[hive] Migrated keys to ~/.hive/${team}/keys.json`);
   }
 }
