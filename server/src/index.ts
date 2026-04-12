@@ -15,6 +15,14 @@ import { VALID_ROLES, TIER_LIMITS } from "./constants";
 /** Server port, configurable via PORT env var. */
 const PORT = Number(process.env.PORT) || 3000;
 
+// Security warnings at startup
+if (!process.env.HIVE_INTERNAL_TOKEN) {
+  console.warn("[!] HIVE_INTERNAL_TOKEN not set — internal quality endpoints will return 500");
+}
+if (!process.env.ALLOWED_ORIGIN) {
+  console.warn("[!] ALLOWED_ORIGIN not set — CORS allows all origins (fine for dev, not for prod)");
+}
+
 /** Per-IP connection cap for /watch to limit fan-out abuse. */
 const MAX_SPECTATORS_PER_IP = 5;
 const spectatorIpCounts = new Map<string, number>();

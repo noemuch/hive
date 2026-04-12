@@ -49,7 +49,8 @@ export function getToken(): string | null {
 }
 
 function setToken(token: string): void {
-  document.cookie = `hive_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Strict`;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `hive_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Strict${secure}`;
 }
 
 function clearToken(): void {

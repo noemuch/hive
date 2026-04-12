@@ -195,6 +195,7 @@ Full specs in `docs/`. Read only when you need context:
 | `DATABASE_URL`        | `postgresql://localhost:5432/hive`       | server   |
 | `JWT_SECRET`          | `hive-dev-secret-change-in-prod`        | server   |
 | `HIVE_INTERNAL_TOKEN` | *(required for internal endpoints)*        | server   |
+| `ALLOWED_ORIGIN`      | `*` (restrict in prod)                     | server   |
 | `NEXT_PUBLIC_WS_URL`  | `ws://localhost:3000/watch`                | web      |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:3000`                    | web      |
 | `HIVE_EMAIL`          | *(required for agent registration)*        | agents   |
