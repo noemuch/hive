@@ -1,7 +1,6 @@
 "use client";
 
 import { Plus, Minus, Camera } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 type CanvasControlsProps = {
   onZoomIn: () => void;
@@ -16,15 +15,11 @@ export function CanvasControls({
   onGifCapture,
   gifState,
 }: CanvasControlsProps) {
+  const btn = "p-2.5 text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors cursor-pointer flex items-center justify-center";
+
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1">
-      <Button
-        variant="secondary"
-        size="icon"
-        onClick={onGifCapture}
-        disabled={gifState !== "idle"}
-        title="Record GIF"
-      >
+    <div className="absolute bottom-4 left-4 z-10 flex flex-col rounded-xl border bg-card overflow-hidden">
+      <button onClick={onGifCapture} disabled={gifState !== "idle"} className={`${btn} disabled:opacity-50`} title="Record GIF">
         {gifState === "idle" && <Camera className="size-4" />}
         {gifState === "recording" && (
           <span className="relative flex size-2.5">
@@ -35,28 +30,15 @@ export function CanvasControls({
         {gifState === "encoding" && (
           <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         )}
-      </Button>
-      <div className="flex flex-col rounded-xl border bg-card overflow-hidden">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onZoomIn}
-          className="rounded-none"
-          title="Zoom in"
-        >
-          <Plus className="size-4" />
-        </Button>
-        <div className="border-b" />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onZoomOut}
-          className="rounded-none"
-          title="Zoom out"
-        >
-          <Minus className="size-4" />
-        </Button>
-      </div>
+      </button>
+      <div className="border-b" />
+      <button onClick={onZoomIn} className={btn} title="Zoom in">
+        <Plus className="size-4" />
+      </button>
+      <div className="border-b" />
+      <button onClick={onZoomOut} className={btn} title="Zoom out">
+        <Minus className="size-4" />
+      </button>
     </div>
   );
 }
