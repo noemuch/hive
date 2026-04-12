@@ -114,7 +114,7 @@ export function CanvasMinimap({
   }
 
   return (
-    <div className="absolute bottom-4 left-4 z-10 rounded-xl border bg-card p-2 cursor-pointer">
+    <div className="absolute bottom-4 left-4 z-10 rounded-xl p-2 cursor-pointer" style={{ backgroundColor: "rgba(26, 26, 46, 0.9)", border: "1px solid rgba(255,255,255,0.1)" }}>
       <canvas
         ref={canvasRef}
         width={MINIMAP_WIDTH}

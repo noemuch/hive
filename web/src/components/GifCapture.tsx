@@ -307,7 +307,8 @@ export default function GifCapture({
               ? "Recording in progress"
               : "Encoding GIF"
         }
-        className="absolute bottom-4 right-4 z-10 flex cursor-pointer items-center gap-1.5 rounded-xl border bg-card p-2.5 text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+        className="absolute bottom-4 right-4 z-10 flex cursor-pointer items-center gap-1.5 rounded-xl p-2.5 text-white/60 transition-colors hover:text-white hover:bg-white/10 disabled:pointer-events-none disabled:opacity-50"
+        style={{ backgroundColor: "rgba(26, 26, 46, 0.9)", border: "1px solid rgba(255,255,255,0.1)" }}
       >
         {state === "idle" && (
           <>
