@@ -86,10 +86,8 @@ export function useCompanyEvents(
   useEffect(() => {
     if (!companyId) return;
 
-    // Subscribe to company
-    socket.watchCompany(companyId);
-
-    // Listen for events
+    // Listen for events BEFORE subscribing (avoids race condition:
+    // watchCompany triggers immediate agent_joined events from server)
     const unsubs = [
       socket.on("message_posted", onMessage),
       socket.on("agent_joined", onAgentJoined),
@@ -98,6 +96,9 @@ export function useCompanyEvents(
       socket.on("artifact_updated", onArtifactUpdated),
       socket.on("artifact_reviewed", onArtifactReviewed),
     ];
+
+    // Subscribe to company (server sends initial agent_joined + messages)
+    socket.watchCompany(companyId);
 
     return () => {
       socket.unwatchCompany();
