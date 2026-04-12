@@ -1,0 +1,223 @@
+/**
+ * Hive agent launcher — spawn and manage a team of agents.
+ *
+ * Usage:
+ *   HIVE_EMAIL=you@example.com \
+ *   HIVE_PASSWORD=*** \
+ *   ANTHROPIC_API_KEY=sk-ant-*** \
+ *   bun agents/lib/launcher.ts --team noe
+ *
+ * On first run: logs in builder, registers agents, caches API keys.
+ * On subsequent runs: loads cached keys, spawns agents with healthcheck.
+ */
+
+import { resolve } from "path";
+import { existsSync } from "fs";
+import type { TeamConfig, AgentPersonality } from "./types";
+
+const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
+
+// ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
+
+const teamFlag = process.argv.find((_, i, a) => a[i - 1] === "--team");
+if (!teamFlag) {
+  console.error("Usage: bun agents/lib/launcher.ts --team <name>");
+  console.error("Example: bun agents/lib/launcher.ts --team noe");
+  process.exit(1);
+}
+
+const HIVE_EMAIL = process.env.HIVE_EMAIL;
+const HIVE_PASSWORD = process.env.HIVE_PASSWORD;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+
+if (!ANTHROPIC_KEY) {
+  console.error("ERROR: Set ANTHROPIC_API_KEY");
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Load team config
+// ---------------------------------------------------------------------------
+
+const teamPath = resolve(import.meta.dir, `../teams/${teamFlag}.ts`);
+if (!existsSync(teamPath)) {
+  console.error(`Team config not found: ${teamPath}`);
+  console.error(`Create it by copying agents/teams/_template.ts`);
+  process.exit(1);
+}
+
+const teamModule = await import(teamPath);
+const team: TeamConfig = teamModule.default;
+
+if (!team?.agents?.length) {
+  console.error(`Team "${teamFlag}" has no agents defined.`);
+  process.exit(1);
+}
+
+console.log(`Team "${teamFlag}": ${team.agents.length} agents`);
+
+// ---------------------------------------------------------------------------
+// API helper
+// ---------------------------------------------------------------------------
+
+type Keys = { builder_token: string; agents: Record<string, string> };
+
+async function api(
+  path: string,
+  body: unknown,
+  token?: string
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  return { ok: res.ok, status: res.status, data: await res.json() };
+}
+
+// ---------------------------------------------------------------------------
+// Key management
+// ---------------------------------------------------------------------------
+
+const KEYS_PATH = resolve(import.meta.dir, `../teams/.keys-${teamFlag}.json`);
+
+async function loadOrCreateKeys(): Promise<Keys> {
+  // Try cached keys first
+  if (existsSync(KEYS_PATH)) {
+    const cached: Keys = JSON.parse(await Bun.file(KEYS_PATH).text());
+    if (cached.builder_token && Object.keys(cached.agents).length > 0) {
+      console.log(`Loaded ${Object.keys(cached.agents).length} cached keys for team "${teamFlag}"`);
+      return cached;
+    }
+  }
+
+  // Need credentials for registration
+  if (!HIVE_EMAIL || !HIVE_PASSWORD) {
+    console.error("ERROR: No cached keys found. Set HIVE_EMAIL and HIVE_PASSWORD to register agents.");
+    process.exit(1);
+  }
+
+  // Login builder (must already have an account via /register UI)
+  const login = await api("/api/builders/login", { email: HIVE_EMAIL, password: HIVE_PASSWORD });
+  if (!login.ok) {
+    console.error("Builder login failed:", login.data);
+    console.error("Register your account first at http://localhost:3000/register");
+    process.exit(1);
+  }
+  const token = login.data.token as string;
+  console.log(`Builder logged in: ${HIVE_EMAIL}`);
+
+  // Register each agent
+  const agents: Record<string, string> = {};
+  for (const p of team.agents) {
+    const res = await api(
+      "/api/agents/register",
+      { name: p.name, role: p.role, personality_brief: p.brief },
+      token
+    );
+    if (res.ok) {
+      agents[p.name] = res.data.api_key as string;
+      console.log(`  Registered ${p.name} (${p.role})`);
+    } else if (res.status === 409) {
+      console.warn(`  ${p.name} already exists — use cached key or re-register`);
+    } else {
+      console.warn(`  ${p.name} failed: ${JSON.stringify(res.data)}`);
+    }
+  }
+
+  if (Object.keys(agents).length === 0) {
+    console.error("No agents registered. Check your builder tier (need 'trusted' for >3 agents).");
+    process.exit(1);
+  }
+
+  const keys: Keys = { builder_token: token, agents };
+  await Bun.write(KEYS_PATH, JSON.stringify(keys, null, 2) + "\n");
+  console.log(`Saved ${Object.keys(agents).length} keys to .keys-${teamFlag}.json`);
+  return keys;
+}
+
+// ---------------------------------------------------------------------------
+// Spawn + healthcheck
+// ---------------------------------------------------------------------------
+
+type ManagedAgent = {
+  name: string;
+  apiKey: string;
+  personality: AgentPersonality;
+  proc: ReturnType<typeof Bun.spawn> | null;
+  restartCount: number;
+  lastRestart: number;
+};
+
+const managed = new Map<string, ManagedAgent>();
+const MAX_RESTARTS_PER_MINUTE = 3;
+
+function spawnAgent(name: string, apiKey: string, personality: AgentPersonality): ReturnType<typeof Bun.spawn> {
+  return Bun.spawn(["bun", resolve(import.meta.dir, "agent.ts")], {
+    env: {
+      ...process.env,
+      HIVE_API_KEY: apiKey,
+      ANTHROPIC_API_KEY: ANTHROPIC_KEY!,
+      AGENT_PERSONALITY: JSON.stringify(personality),
+    },
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+}
+
+async function healthcheck() {
+  for (const [name, agent] of managed) {
+    if (!agent.proc) continue;
+    const exitCode = agent.proc.exitCode;
+    if (exitCode !== null) {
+      const now = Date.now();
+      if (now - agent.lastRestart < 60_000 && agent.restartCount >= MAX_RESTARTS_PER_MINUTE) {
+        console.error(`[launch] ${name} crashed too often, stopping restarts`);
+        agent.proc = null;
+        continue;
+      }
+      if (now - agent.lastRestart > 60_000) agent.restartCount = 0;
+      console.warn(`[launch] ${name} exited (code ${exitCode}), restarting...`);
+      agent.proc = spawnAgent(name, agent.apiKey, agent.personality);
+      agent.restartCount++;
+      agent.lastRestart = now;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+const keys = await loadOrCreateKeys();
+
+let spawned = 0;
+for (const p of team.agents) {
+  const apiKey = keys.agents[p.name];
+  if (!apiKey) {
+    console.warn(`[launch] Skipping ${p.name} — no key cached`);
+    continue;
+  }
+  const proc = spawnAgent(p.name, apiKey, p);
+  managed.set(p.name, { name: p.name, apiKey, personality: p, proc, restartCount: 0, lastRestart: Date.now() });
+  spawned++;
+  if (spawned % 5 === 0) await new Promise((r) => setTimeout(r, 500));
+}
+
+console.log(`\n[launch] ${managed.size} agents running. Healthcheck every 60s.\n`);
+
+setInterval(healthcheck, 60_000);
+
+function shutdown() {
+  console.log("\n[launch] Shutting down all agents...");
+  for (const [, agent] of managed) {
+    agent.proc?.kill();
+  }
+  process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
