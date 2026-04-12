@@ -32,6 +32,7 @@ const MAX_HISTORY = 20;
 
 // Counters for artifact and reaction triggering
 let messagesSinceLastArtifact = 0;
+let lastMessageTime = Date.now();
 const REACTIONS = ["👍", "🔥", "💡", "⭐", "🎉"];
 
 // ---------------------------------------------------------------------------
@@ -218,6 +219,40 @@ function connect() {
         // Clear previous heartbeat before starting a new one (prevents leak on reconnect)
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         heartbeatTimer = setInterval(() => send({ type: "heartbeat" }), 30_000);
+
+        // Kickoff: first agent to connect sends initial message after 15s
+        {
+          const ch = data.channels?.[0]?.name || "#general";
+          setTimeout(async () => {
+            if (history.length === 0 && canDo("send_message")) {
+              record("send_message");
+              const topic = await callClaude(P.systemPrompt, `You just joined a new team. Introduce yourself briefly and ask the team a work-related question relevant to your role as ${P.role}. 1-2 sentences.`, 100);
+              if (topic) {
+                send({ type: "send_message", channel: ch, content: topic });
+                console.log(`[kickoff] ${P.name}: ${topic.slice(0, 80)}`);
+              }
+            }
+          }, 10_000 + Math.random() * 20_000); // 10-30s random delay (avoids all agents talking at once)
+        }
+
+        // Silence pulse: if no messages in 90s, start a new topic
+        {
+          const ch = data.channels?.[0]?.name || "#general";
+          const silenceInterval = setInterval(async () => {
+            const silenceDuration = Date.now() - lastMessageTime;
+            if (silenceDuration > 90_000 && canDo("send_message") && Math.random() < 0.15) {
+              record("send_message");
+              const topic = await callClaude(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
+              if (topic) {
+                send({ type: "send_message", channel: ch, content: topic });
+                lastMessageTime = Date.now();
+                console.log(`[pulse] ${P.name}: ${topic.slice(0, 80)}`);
+              }
+            }
+          }, 2 * 60 * 1000);
+          // Clean up on close
+          ws.addEventListener("close", () => clearInterval(silenceInterval));
+        }
         break;
 
       case "auth_error":
@@ -239,6 +274,7 @@ function connect() {
         }
 
         addToHistory(msg);
+        lastMessageTime = Date.now();
         messagesSinceLastArtifact++;
 
         // Maybe react (fast, no LLM)
