@@ -1,22 +1,23 @@
 /**
- * Demo team launcher — spawns 5 LLM agents with healthcheck and auto-restart.
+ * Demo team launcher — 20 LLM agents across 3 companies.
  *
  * Usage: ANTHROPIC_API_KEY=sk-... bun agents/demo-team/launch.ts
  *
  * On first run:
- *   - Registers builder "demo@hive.dev" (or logs in)
- *   - Registers 5 agents (Ada, Pixel, Scout, Atlas, Sage)
+ *   - Registers builder "demo-team@hive.dev" (or logs in)
+ *   - Upgrades builder to demo/trusted (direct DB)
+ *   - Registers 20 agents and assigns them to Launchpad/Nexus/Forgepoint
  *   - Caches keys in agents/demo-team/.keys.json
  *
  * On subsequent runs:
  *   - Loads cached keys
- *   - Spawns all 5 agents
- *   - Restarts any agent that crashes
+ *   - Spawns all agents with healthcheck + auto-restart
+ *   - Sends kickoff messages after 15s
  */
 
 import { resolve } from "path";
 import { existsSync } from "fs";
-import { DEMO_TEAM } from "./personalities";
+import { DEMO_TEAM, KICKOFF_MESSAGES } from "./personalities";
 
 const BASE_URL = "http://localhost:3000";
 const KEYS_PATH = resolve(import.meta.dir, ".keys.json");
@@ -74,13 +75,10 @@ async function loadOrCreateKeys(): Promise<Keys> {
     process.exit(1);
   }
 
-  // Ensure demo flag + trusted tier are set on this builder (direct DB access)
-  // The API doesn't expose these yet since they're platform-admin level.
-  // SECURITY: `email` is a hardcoded constant above; do not parameterize from user input.
+  // Upgrade builder to demo + trusted tier (allows >3 agents + same-company placement)
   try {
     const { $ } = await import("bun");
-    const sql = `UPDATE builders SET is_demo = true, tier = 'trusted' WHERE email = '${email}';`;
-    await $`psql hive -c ${sql}`.quiet();
+    await $`psql hive -c "UPDATE builders SET is_demo = true, tier = 'trusted' WHERE email = 'demo-team@hive.dev';"`.quiet();
     console.log("Builder upgraded to demo/trusted.");
   } catch (err) {
     console.warn("Could not set demo flag (psql not available?):", err);
@@ -96,9 +94,9 @@ async function loadOrCreateKeys(): Promise<Keys> {
     );
     if (res.ok) {
       agents[p.name] = res.data.api_key as string;
-      console.log(`  Registered ${p.name} (${p.role})`);
+      console.log(`  Registered ${p.name} (${p.role}) → will assign to ${p.company}`);
     } else if (res.status === 409) {
-      console.warn(`  ${p.name} already exists — cannot recover key without admin reset`);
+      console.warn(`  ${p.name} already exists — skipped (use cached key if available)`);
     } else if (res.status === 403) {
       console.error(`  ${p.name} blocked: ${JSON.stringify(res.data)}`);
     } else {
@@ -109,6 +107,35 @@ async function loadOrCreateKeys(): Promise<Keys> {
   if (Object.keys(agents).length === 0) {
     console.error("No agents registered.");
     process.exit(1);
+  }
+
+  // Reassign agents to their designated companies via SQL
+  console.log("\nAssigning agents to companies...");
+  try {
+    const { $ } = await import("bun");
+    for (const p of DEMO_TEAM) {
+      if (!agents[p.name]) continue;
+      const sql = `
+        UPDATE agents SET company_id = (SELECT id FROM companies WHERE name = '${p.company}')
+        WHERE name = '${p.name}';
+      `;
+      await $`psql hive -c ${sql}`.quiet();
+    }
+
+    // Update agent_count_cache for all 3 companies
+    for (const company of ["Launchpad", "Nexus", "Forgepoint"]) {
+      const sql = `
+        UPDATE companies SET
+          agent_count_cache = (SELECT COUNT(*)::int FROM agents WHERE company_id = companies.id AND status NOT IN ('retired')),
+          lifecycle_state = 'active',
+          last_activity_at = now()
+        WHERE name = '${company}';
+      `;
+      await $`psql hive -c ${sql}`.quiet();
+    }
+    console.log("Company assignments done.");
+  } catch (err) {
+    console.warn("Could not reassign agents (psql not available?):", err);
   }
 
   const keys: Keys = { builder_token: token, agents };
@@ -143,17 +170,14 @@ function spawnAgent(name: string, apiKey: string): ReturnType<typeof Bun.spawn> 
     stdout: "inherit",
     stderr: "inherit",
   });
-  console.log(`[launch] Spawned ${name} (pid ${proc.pid})`);
   return proc;
 }
 
 async function healthcheck() {
   for (const [name, agent] of managed) {
     if (!agent.proc) continue;
-    // Check if process is still running
     const exitCode = agent.proc.exitCode;
     if (exitCode !== null) {
-      // Process exited
       const now = Date.now();
       if (now - agent.lastRestart < 60_000 && agent.restartCount >= MAX_RESTARTS_PER_MINUTE) {
         console.error(`[launch] ${name} crashed too often, stopping restarts`);
@@ -169,12 +193,41 @@ async function healthcheck() {
   }
 }
 
-function shutdown() {
-  console.log("\n[launch] Shutting down all agents...");
-  for (const [, agent] of managed) {
-    agent.proc?.kill();
+// ---------------------------------------------------------------------------
+// Kickoff messages — each company PM starts a conversation
+// ---------------------------------------------------------------------------
+
+async function sendKickoffs(keys: Keys) {
+  const wsUrl = process.env.HIVE_URL || "ws://localhost:3000/agent";
+
+  for (const [company, kickoff] of Object.entries(KICKOFF_MESSAGES)) {
+    const apiKey = keys.agents[kickoff.agent];
+    if (!apiKey) {
+      console.warn(`[kickoff] No key for ${kickoff.agent} (${company}), skipping`);
+      continue;
+    }
+
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => ws.send(JSON.stringify({ type: "auth", api_key: apiKey }));
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data as string);
+      if (data.type === "auth_ok") {
+        const channel = data.channels?.find((c: { name: string }) => c.name === kickoff.channel) || data.channels?.[0];
+        if (channel) {
+          ws.send(JSON.stringify({
+            type: "send_message",
+            channel: channel.name,
+            content: kickoff.content,
+          }));
+          console.log(`[kickoff] ${kickoff.agent} (${company}): sent to ${channel.name}`);
+        }
+        setTimeout(() => ws.close(), 2000);
+      }
+    };
+
+    // Stagger kickoffs by 3s to avoid all conversations starting at exactly the same time
+    await new Promise((r) => setTimeout(r, 3000));
   }
-  process.exit(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +236,8 @@ function shutdown() {
 
 const keys = await loadOrCreateKeys();
 
+// Spawn all agents with a small stagger to avoid port thundering herd
+let spawned = 0;
 for (const p of DEMO_TEAM) {
   const apiKey = keys.agents[p.name];
   if (!apiKey) {
@@ -191,12 +246,25 @@ for (const p of DEMO_TEAM) {
   }
   const proc = spawnAgent(p.name, apiKey);
   managed.set(p.name, { name: p.name, apiKey, proc, restartCount: 0, lastRestart: Date.now() });
+  spawned++;
+  // Stagger spawns: 500ms between each to avoid 20 simultaneous WS connections
+  if (spawned % 5 === 0) await new Promise((r) => setTimeout(r, 500));
 }
 
-console.log(`\n[launch] ${managed.size} agents running. Healthcheck every 60s.\n`);
+console.log(`\n[launch] ${managed.size} agents running. Kickoffs in 15s. Healthcheck every 60s.\n`);
+
+// Send kickoff messages after 15s (give agents time to connect + auth)
+setTimeout(() => sendKickoffs(keys), 15_000);
 
 // Healthcheck every 60 seconds
 setInterval(healthcheck, 60_000);
 
+function shutdown() {
+  console.log("\n[launch] Shutting down all agents...");
+  for (const [, agent] of managed) {
+    agent.proc?.kill();
+  }
+  process.exit(0);
+}
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

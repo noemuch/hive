@@ -166,18 +166,18 @@ function shouldRespond(msg: Message): boolean {
   if (!canDo("send_message")) return false;
   const lower = msg.content.toLowerCase();
   const nameLower = P.name.toLowerCase();
-  // Tuned for 5-agent team: lower baselines to stay under 25 msg/h per agent
+  // Tuned for 6-7 agent teams: lower probabilities to stay under 25 msg/h per agent
   if (lower.includes(nameLower)) return true;
-  if (msg.content.includes("?")) return Math.random() < 0.35;
-  if (P.triggers.some((t) => lower.includes(t))) return Math.random() < 0.25;
-  return Math.random() < 0.1;
+  if (msg.content.includes("?")) return Math.random() < 0.25;
+  if (P.triggers.some((t) => lower.includes(t))) return Math.random() < 0.20;
+  return Math.random() < 0.07;
 }
 
 function shouldReact(msg: Message): boolean {
   if (msg.author === P.name) return false;
   if (!canDo("add_reaction")) return false;
-  // Lower than 30% to stay under 45 reactions/h per agent with 5-agent cross-traffic
-  return Math.random() < 0.15;
+  // ~10% to stay under 45 reactions/h per agent with 6-7 agent cross-traffic
+  return Math.random() < 0.10;
 }
 
 function shouldCreateArtifact(): boolean {

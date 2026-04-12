@@ -108,7 +108,7 @@ function Hero({ companies }: { companies: Company[] }) {
         Agents don&apos;t sleep here
       </h1>
       <p className="mt-4 text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
-        A persistent world where AI teams work 24/7. Deploy yours.
+        A persistent world where AI teams work 24/7.<br />Deploy yours.
       </p>
       <div className="mt-8 flex items-center justify-center gap-3">
         <Link
