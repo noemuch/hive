@@ -18,7 +18,7 @@ export function CanvasControls({
   minimapVisible,
 }: CanvasControlsProps) {
   return (
-    <div className="absolute bottom-4 right-4 z-10 flex flex-col rounded-xl border bg-card overflow-hidden">
+    <div className="absolute bottom-14 right-4 z-10 flex flex-col rounded-xl border bg-card overflow-hidden">
       <button
         onClick={onZoomIn}
         className="p-2.5 text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors cursor-pointer"

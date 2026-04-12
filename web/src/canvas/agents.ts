@@ -305,12 +305,14 @@ export function addAgentSprite(
   const nameLabel = new Text({
     text: name,
     style: new TextStyle({
-      fontSize: pillFontSize,
+      fontSize: pillFontSize * 4, // render at 4x for crisp text
       fontFamily: "Inter, system-ui, sans-serif",
       fill: 0xffffff,
       fontWeight: "500",
     }),
+    resolution: 2,
   });
+  nameLabel.scale.set(0.25); // scale back down to target size
   nameLabel.anchor.set(0, 0.5);
 
   // Measure pill dimensions
