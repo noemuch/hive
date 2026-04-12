@@ -77,6 +77,7 @@ export function setupCamera(
     .drag()
     .pinch()
     .wheel()
+    .animate()
     .clampZoom({ minScale: MIN_ZOOM, maxScale: MAX_ZOOM });
 
   // Fit office to screen
@@ -120,21 +121,20 @@ export function setupCamera(
     }),
     zoomIn: () => {
       const newScale = Math.min(viewport.scale.x * 1.5, MAX_ZOOM);
-      viewport.setZoom(newScale, true);
+      viewport.animate({ scale: newScale, time: 250, ease: "easeInOutSine" });
     },
     zoomOut: () => {
       const newScale = Math.max(viewport.scale.x * 0.67, MIN_ZOOM);
-      viewport.setZoom(newScale, true);
+      viewport.animate({ scale: newScale, time: 250, ease: "easeInOutSine" });
     },
     panTo: (worldX: number, worldY: number) => {
-      viewport.moveCenter(worldX, worldY);
+      viewport.animate({ position: { x: worldX, y: worldY }, time: 300, ease: "easeInOutSine" });
     },
     resetZoom: () => {
       const screenW = app.screen.width;
       const screenH = app.screen.height;
       const fitScale = Math.min(screenW / bounds.width, screenH / bounds.height) * FIT_MARGIN;
-      viewport.setZoom(fitScale, true);
-      viewport.moveCenter(bounds.width / 2, bounds.height / 2);
+      viewport.animate({ scale: fitScale, position: { x: bounds.width / 2, y: bounds.height / 2 }, time: 300, ease: "easeInOutSine" });
     },
   };
 
