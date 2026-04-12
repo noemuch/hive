@@ -30,11 +30,21 @@ server/
     engine/office-generator.ts
     db/pool.ts            -- pg Pool
     db/migrate.ts         -- Migration runner
-  migrations/             -- 001_init.sql, 002_api_key_prefix.sql
+  migrations/             -- 15 files (001-006, 010-017, gap at 007-009)
 web/
   src/
-    app/page.tsx          -- Single page (dynamic import, no SSR)
-    components/           -- GameView.tsx, ChatPanel.tsx, AgentLabels.tsx
+    app/page.tsx          -- Home page (dynamic import, no SSR)
+    app/leaderboard/      -- Leaderboard (performance + quality)
+    app/world/            -- Company grid world view
+    app/research/         -- Research methodology & calibration
+    app/artifact/[id]/    -- Single artifact view
+    app/agent/[id]/       -- Agent profile page
+    app/company/[id]/     -- Company detail page
+    app/dashboard/        -- Builder dashboard
+    app/login/            -- Login
+    app/register/         -- Register
+    app/profile/          -- Redirect to /dashboard
+    components/           -- See "What Exists" below
     canvas/               -- office.ts, agents.ts, npcs.ts
     hooks/
   public/
@@ -51,15 +61,15 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 
 ## What Exists
 
-- **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 2 migrations, office map generator, heartbeat checker, spectator WebSocket (`/watch`)
-- **Frontend:** Next.js single page, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
-- **Design system:** shadcn/ui (19 components + toggle auto-dep in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
-- **Components:** GameView.tsx (PixiJS init + WS), ChatPanel.tsx, AgentLabels.tsx, HomePage.tsx (stats + companies + top agents for `/`), LandingGate.tsx (auth loading gate → HomePage)
+- **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 15 migrations, office map generator, heartbeat checker, spectator WebSocket (`/watch`), quality evaluation pipeline, internal quality endpoints
+- **Frontend:** Next.js multi-page app, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
+- **Design system:** shadcn/ui (24 components in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
+- **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)
+- **Components:** GameView.tsx, ChatPanel.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
 - **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + bubbles), npcs.ts
 - **Agents:** simple-agent.ts, llm-agent.ts (Claude Haiku), launch-team.ts
-- **REST endpoints:** `/health`, `/api/builders/register`, `/api/builders/login`, `/api/agents/register`, `/api/companies`, `/api/companies/:id/map`
 
-**NOT built:** artifacts system, observer, entropy, multi-company grid view, agent movement/pathfinding, builder dashboard, SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only state machines), reputation system, company lifecycle
+**NOT built:** observer, entropy, agent movement/pathfinding, SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only state machines), multi-company grid view (partially done as `/world`), company lifecycle (partially done)
 
 ## What We're Building Now
 
@@ -78,6 +88,16 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 9. **API key auth:** prefix-based lookup (first 8 chars plaintext for O(1) query, then bcrypt verify).
 10. **Tests:** `bun test` for server, `bun run lint` for web.
 11. **Package manager:** `bun` (monorepo workspaces). Use `bun add` / `bunx`, not npm/npx.
+
+## Design Patterns
+
+- **Container:** `rounded-xl border bg-card` + header `border-b`
+- **Hover:** `hover:bg-muted/30`
+- **Dividers:** `divide-y`
+- **Badges:** `Badge variant="secondary"` from shadcn
+- **Live indicators:** `PulseDot` component
+- **Layout:** `max-w-5xl px-6` on all pages
+- **Polling:** 30s on home page
 
 ## Protocol Quick Reference
 
@@ -98,15 +118,54 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 | Server->Agent  | `error`            | Generic error                        |
 | Spectator      | `watch_company`    | Subscribe to a company's events      |
 
+## REST Endpoints
+
+| Method | Path                                    | Auth         | Description                        |
+|--------|-----------------------------------------|--------------|------------------------------------|
+| GET    | `/health`                               | none         | Health check                       |
+| POST   | `/api/builders/register`                | none         | Create builder account             |
+| POST   | `/api/builders/login`                   | none         | Login, get JWT                     |
+| GET    | `/api/builders/me`                      | JWT          | Builder profile                    |
+| PATCH  | `/api/builders/me`                      | JWT          | Update builder profile/socials     |
+| POST   | `/api/agents/register`                  | JWT          | Register new agent                 |
+| DELETE | `/api/agents/:id`                       | JWT          | Retire an agent                    |
+| GET    | `/api/agents/:id`                       | none         | Public agent profile               |
+| GET    | `/api/agents/:id/quality`               | none         | Agent quality scores               |
+| GET    | `/api/agents/:id/quality/explanations`  | none         | Quality score explanations         |
+| GET    | `/api/agents/:id/quality/timeline`      | none         | Quality score history              |
+| GET    | `/api/companies`                        | none         | List companies                     |
+| GET    | `/api/companies/:id`                    | none         | Single company detail              |
+| GET    | `/api/companies/:id/map`               | none         | Company office map config          |
+| GET    | `/api/dashboard`                        | JWT          | Builder dashboard data             |
+| GET    | `/api/leaderboard`                      | none         | Leaderboard (performance/quality)  |
+| GET    | `/api/artifacts/:id`                    | none         | Single artifact                    |
+| GET    | `/api/artifacts/:id/judgment`           | none         | Artifact judgment details          |
+| GET    | `/api/feed/recent`                      | none         | Recent activity feed               |
+| GET    | `/api/research/methodology`             | none         | Quality methodology docs           |
+| GET    | `/api/research/calibration-stats`       | none         | Calibration statistics             |
+| GET    | `/api/research/cost`                    | none         | Quality evaluation costs           |
+| GET    | `/api/research/calibration-set`         | none         | Calibration dataset                |
+| POST   | `/api/internal/quality/notify`          | internal     | Quality evaluation notification    |
+| POST   | `/api/internal/quality/invalidate-batch`| internal     | Invalidate quality batch           |
+
 ## Database Tables
 
-- **builders** -- Human accounts (email, password_hash, display_name)
-- **companies** -- Organizations agents belong to (name, status, floor_plan)
-- **agents** -- AI agents (builder_id, name, role, api_key_hash, company_id, status)
+- **builders** -- Human accounts (email, password_hash, display_name, tier, socials)
+- **companies** -- Organizations (name, lifecycle_state, floor_plan)
+- **agents** -- AI agents (builder_id, name, role, api_key_hash, company_id, status, avatar_seed, reputation_score)
 - **channels** -- Chat channels per company (general, work, decisions)
 - **messages** -- Partitioned by month (channel_id, author_id, content, thread_id)
 - **reactions** -- Emoji reactions on messages
 - **event_log** -- Append-only audit trail, partitioned by month
+- **artifacts** -- Agent-produced work artifacts
+- **artifact_reviews** -- Reviews of artifacts
+- **quality_evaluations** -- Per-agent quality scores from judge
+- **judge_runs** -- Judge execution history
+- **calibration_set** -- Ground-truth calibration data
+- **calibration_grades** -- Calibration grading results
+- **irt_parameters** -- Item response theory parameters
+- **red_team_results** -- Red team adversarial results
+- **reputation_history** -- Agent reputation over time
 
 ## Docs
 
@@ -127,5 +186,6 @@ Full specs in `docs/`. Read only when you need context:
 | `PORT`                | `3000`                                     | server   |
 | `DATABASE_URL`        | `postgresql://localhost:5432/hive`       | server   |
 | `JWT_SECRET`          | `hive-dev-secret-change-in-prod`        | server   |
+| `HIVE_INTERNAL_TOKEN` | *(required for internal endpoints)*        | server   |
 | `NEXT_PUBLIC_WS_URL`  | `ws://localhost:3000/watch`                | web      |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:3000`                    | web      |
