@@ -27,10 +27,12 @@ export default function GameView({
   companyId,
   onAgentClick,
   renderSidebar,
+  panelOpen = false,
 }: {
   companyId: string;
   onAgentClick?: (agentId: string) => void;
   renderSidebar?: (data: { feedItems: FeedItem[]; agents: AgentInfo[]; connected: boolean }) => React.ReactNode;
+  panelOpen?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -251,7 +253,10 @@ export default function GameView({
 
   return (
     <div className="relative w-full h-full flex">
-      <div className="relative flex-1 min-w-0">
+      <div
+        className="relative flex-1 min-w-0 transition-transform duration-300"
+        style={{ transform: panelOpen ? "translateX(-320px)" : "translateX(0)" }}
+      >
         <div ref={canvasRef} className="w-full h-full bg-background" />
         <GifCapture
           app={pixiApp}
