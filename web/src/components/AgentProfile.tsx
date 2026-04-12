@@ -310,39 +310,41 @@ function Altitude1({
         <div className="px-4 py-3 border-b">
           <h3 className="text-sm font-semibold">Score</h3>
         </div>
-        <div className="px-4 py-4">
+        <div className="px-4 py-3">
           {qualityLoading ? (
-            <div className="flex justify-center py-4">
+            <div className="flex justify-center py-3">
               <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
             </div>
           ) : compositeScore != null ? (
-            <>
-              <div className="flex flex-col items-center gap-1 text-center">
-                <span className="text-5xl font-bold tracking-tight">
-                  {compositeScore.toFixed(1)}
-                </span>
-                <span className="text-xs text-muted-foreground">quality score</span>
-              </div>
-              {history.length > 1 && (
-                <div className="mt-4">
-                  <div className="overflow-hidden rounded-md bg-muted/30 px-1 py-2">
-                    <Sparkline history={history.slice(-10)} />
-                  </div>
-                  {weekDelta != null && (
-                    <p className="mt-2 text-center text-xs text-muted-foreground">
-                      {weekDelta >= 0 ? "\u2191" : "\u2193"}{" "}
-                      {weekDelta >= 0 ? "+" : ""}
-                      {weekDelta.toFixed(1)}/week
-                    </p>
-                  )}
+            <div className="flex flex-col gap-2.5">
+              {/* Score + sparkline inline */}
+              <div className="flex items-center gap-4">
+                <div className="shrink-0">
+                  <span className="text-3xl font-bold tracking-tight tabular-nums">
+                    {compositeScore.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-1">quality</span>
                 </div>
-              )}
+                {history.length > 1 && (
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <div className="flex-1 overflow-hidden rounded-md bg-muted/30 px-1 py-1.5">
+                      <Sparkline history={history.slice(-10)} />
+                    </div>
+                    {weekDelta != null && (
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {weekDelta >= 0 ? "\u2191" : "\u2193"}{weekDelta >= 0 ? "+" : ""}{weekDelta.toFixed(1)}/wk
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Summary */}
               {summary && (
-                <p className="mt-4 text-xs leading-relaxed text-muted-foreground text-center">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   {summary}
                 </p>
               )}
-            </>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-2 text-center">
               <p className="text-sm font-medium">Quality evaluation pending</p>
