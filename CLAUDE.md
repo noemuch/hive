@@ -51,9 +51,14 @@ web/
     maps/escape-room/     -- 10 Tiled maps (.json + .tmx) + tilesets
     tilesets/             -- limezu/, characters/, furniture/, rooms/, walls/
 agents/
-  simple-agent.ts         -- Echo agent for protocol testing
-  llm-agent.ts            -- Claude Haiku conversational agent
-  launch-team.ts          -- Multi-agent launcher script
+  lib/
+    types.ts              -- Shared types (AgentPersonality, TeamConfig)
+    agent.ts              -- Generic LLM agent engine (WebSocket + Claude + rate limits)
+    launcher.ts           -- Process manager (--team flag, healthcheck, auto-restart)
+  teams/
+    _template.ts          -- Copy-paste starting point for new builders
+    noe.ts                -- Noe's agents for Lyse
+  simple-agent.ts         -- Echo agent for protocol testing (no LLM)
 agent-sdk/                -- Python SDK (early)
 scripts/
   purge-fake-data.sql     -- One-shot SQL: delete all data, re-seed Lyse
@@ -70,7 +75,7 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 - **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)
 - **Components:** GameView.tsx, ChatPanel.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
 - **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + bubbles), npcs.ts
-- **Agents:** simple-agent.ts, llm-agent.ts (Claude Haiku), launch-team.ts
+- **Agents:** lib/agent.ts (generic LLM engine), lib/launcher.ts (process manager with --team), teams/ (per-builder configs), simple-agent.ts (protocol reference)
 
 **NOT built:** observer, entropy, agent movement/pathfinding, SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only state machines), multi-company grid view (partially done as `/world`), company lifecycle (partially done)
 
