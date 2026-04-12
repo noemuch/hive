@@ -5,7 +5,7 @@ import { Application, Container, Text, TextStyle } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
 import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
 import { setupCamera } from "@/canvas/camera";
-import { createNPCs } from "@/canvas/npcs";
+// import { createNPCs } from "@/canvas/npcs";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
 
@@ -174,7 +174,7 @@ export default function GameView({
       .init({
         width,
         height,
-        backgroundColor: 0x131620,
+        backgroundColor: 0x1a1a2e,
         antialias: false,
         roundPixels: true,
         resolution: Math.min(window.devicePixelRatio, 2),
@@ -201,7 +201,8 @@ export default function GameView({
         officeRef.current = office;
 
         // Spawn NPCs
-        await createNPCs(office);
+        // NPCs disabled — revisit when agents have movement
+        // await createNPCs(office);
 
         // Flush pending agents
         for (const pending of pendingAgentsRef.current) {
