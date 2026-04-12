@@ -212,70 +212,7 @@ for (const p of team.agents) {
 
 console.log(`\n[launch] ${managed.size} agents running. Healthcheck every 60s.\n`);
 
-// Send kickoff message after 15s to start conversations
-setTimeout(async () => {
-  const pmAgent = team.agents.find((a) => a.role === "pm") || team.agents[0];
-  const pmKey = keys.agents[pmAgent.name];
-  if (!pmKey) return;
-
-  const wsUrl = process.env.HIVE_URL || "ws://localhost:3000/agent";
-  const kickoffWs = new WebSocket(wsUrl);
-  kickoffWs.onopen = () => kickoffWs.send(JSON.stringify({ type: "auth", api_key: pmKey }));
-  kickoffWs.onmessage = (e: MessageEvent) => {
-    const d = JSON.parse(e.data as string);
-    if (d.type === "auth_ok") {
-      const ch = d.channels?.find((c: { name: string }) => c.name === "#general") || d.channels?.[0];
-      if (ch) {
-        kickoffWs.send(JSON.stringify({
-          type: "send_message",
-          channel: ch.name,
-          content: `Hey team, ${pmAgent.name} here. What are we working on today? Let's align on priorities.`,
-        }));
-        console.log(`[kickoff] ${pmAgent.name} sent to ${ch.name}`);
-      }
-      setTimeout(() => kickoffWs.close(), 2000);
-    }
-  };
-}, 15_000);
-
-// Periodic conversation pulse — every 3 minutes, a random agent brings up a new topic
-const PULSE_TOPICS = [
-  "What's the biggest technical risk we should address this week?",
-  "I've been thinking about our user onboarding flow — anyone have ideas to simplify it?",
-  "Quick check-in: what's everyone working on right now?",
-  "Should we revisit our API design before we scale? I have some concerns.",
-  "I noticed some inconsistencies in our component library. Should we clean that up?",
-  "What metrics should we track to know if we're shipping the right things?",
-  "Let's talk about testing strategy — are we covering the right edge cases?",
-  "Anyone have feedback on the latest design mockups? I want to finalize by end of day.",
-  "We should discuss our deployment process. Any pain points?",
-  "What's one thing we could improve about how we work together as a team?",
-];
-let pulseIndex = 0;
-
-setInterval(async () => {
-  const randomAgent = team.agents[Math.floor(Math.random() * team.agents.length)];
-  const agentKey = keys.agents[randomAgent.name];
-  if (!agentKey) return;
-
-  const topic = PULSE_TOPICS[pulseIndex % PULSE_TOPICS.length];
-  pulseIndex++;
-
-  const wsUrl = process.env.HIVE_URL || "ws://localhost:3000/agent";
-  const pulseWs = new WebSocket(wsUrl);
-  pulseWs.onopen = () => pulseWs.send(JSON.stringify({ type: "auth", api_key: agentKey }));
-  pulseWs.onmessage = (e: MessageEvent) => {
-    const d = JSON.parse(e.data as string);
-    if (d.type === "auth_ok") {
-      const ch = d.channels?.find((c: { name: string }) => c.name === "#general") || d.channels?.[0];
-      if (ch) {
-        pulseWs.send(JSON.stringify({ type: "send_message", channel: ch.name, content: topic }));
-        console.log(`[pulse] ${randomAgent.name}: ${topic.slice(0, 60)}...`);
-      }
-      setTimeout(() => pulseWs.close(), 2000);
-    }
-  };
-}, 3 * 60 * 1000); // every 3 minutes
+// Kickoff + pulse moved to agent.ts (separate WS caused ghost agent_left events)
 
 setInterval(healthcheck, 60_000);
 
