@@ -150,18 +150,20 @@ export async function loadCharacterTextures(): Promise<void> {
       })];
 
       // Load REAL sitting spritesheet (sit_16x16.png — 384x32, 24 frames)
+      // Layout: 4 directions × 6 frames. Frames 0-5 = front-facing.
+      // Use only frame 0 for static sit (multiple frames cause visual jitter).
       const sitUrl = `${basePath}/${name}_sit_16x16.png`;
       const sitTex = await Assets.load(sitUrl);
       const sitSource = sitTex.source as TextureSource;
-      // Use front-facing sit frames (first 6 frames = front direction)
-      const sitFrames = extractFrames(sitSource, Math.floor(sitSource.width / FRAME_W), 0, 6);
+      const sitFrames = extractFrames(sitSource, Math.floor(sitSource.width / FRAME_W), 0, 1);
 
       // Load run spritesheet for walk animation (run_16x16.png — 384x32, 24 frames)
+      // Load run spritesheet for walk animation (run_16x16.png — 384x32)
+      // Use frames 0-3 (front-facing walk cycle)
       const runUrl = `${basePath}/${name}_run_16x16.png`;
       const runTex = await Assets.load(runUrl);
       const runSource = runTex.source as TextureSource;
-      // Use front-facing run frames (first 6 frames)
-      const walkFrames = extractFrames(runSource, Math.floor(runSource.width / FRAME_W), 0, 6);
+      const walkFrames = extractFrames(runSource, Math.floor(runSource.width / FRAME_W), 0, 4);
 
       characterTextureMap.set(name, {
         sit: sitFrames.length > 0 ? sitFrames : idleFrontFrame,
@@ -306,15 +308,12 @@ export function addAgentSprite(
   let animSprite: AnimatedSprite | null = null;
 
   if (charTextures && charTextures.sit.length > 0) {
-    // Use real sitting spritesheet with subtle animation
-    const frames = charTextures.sit.length === 1
-      ? [...charTextures.sit, ...charTextures.sit]
-      : charTextures.sit;
+    // Static sitting frame (single frame, no animation jitter)
+    const frames = [...charTextures.sit, ...charTextures.sit]; // AnimatedSprite needs 2+
     animSprite = new AnimatedSprite(frames);
-    animSprite.animationSpeed = 0.04; // Subtle sitting animation
     animSprite.anchor.set(0.5, 1.0);
     animSprite.scale.set(1.0);
-    animSprite.play();
+    animSprite.gotoAndStop(0); // Static — no animation
 
     // Apply tint for variety
     if (tint !== 0xffffff) {
