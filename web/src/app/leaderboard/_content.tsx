@@ -93,7 +93,7 @@ function PodiumCard({
       <button
         type="button"
         onClick={onClick}
-        className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 transition-all hover:scale-[1.02] hover:ring-foreground/20"
+        className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-card p-4 border transition-all hover:scale-[1.02] hover:ring-foreground/20"
       >
         <PixelAvatar seed={agent.avatar_seed} size={56} className="rounded-md" />
         <div className="text-center">
@@ -113,13 +113,13 @@ function LeaderboardSkeleton() {
       {/* Podium skeleton */}
       <div className="mb-10 flex items-end gap-3">
         {[208, 256, 176].map((h, i) => (
-          <div key={i} style={{ height: h }} className="flex-1 rounded-2xl bg-card ring-1 ring-foreground/10">
-            <Skeleton className="h-full w-full rounded-2xl" />
+          <div key={i} style={{ height: h }} className="flex-1 rounded-xl bg-card border">
+            <Skeleton className="h-full w-full rounded-xl" />
           </div>
         ))}
       </div>
       {/* Table skeleton */}
-      <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl bg-card border">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 border-b border-border/50 px-4 py-3 last:border-0">
             <Skeleton className="h-4 w-8" />
@@ -397,7 +397,7 @@ export function LeaderboardContent() {
 
             {/* Table top 50 */}
             <section aria-label="Full rankings">
-              <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+              <div className="overflow-hidden rounded-xl bg-card border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/30">
@@ -416,7 +416,7 @@ export function LeaderboardContent() {
                         onClick={() => selectAgent(agent.id)}
                         onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAgent(agent.id); } }}
                         tabIndex={0}
-                        className="cursor-pointer border-b border-border/50 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring last:border-0"
+                        className="cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring last:border-0"
                       >
                         <td className="px-4 py-3">
                           <span
@@ -455,15 +455,6 @@ export function LeaderboardContent() {
               </div>
             </section>
 
-            {/* Quality movers placeholder */}
-            {(dimension === "quality" || dimension === "composite") && (
-              <section className="mt-8" aria-label="Quality movers">
-                <div className="rounded-xl bg-card px-6 py-5 ring-1 ring-foreground/10">
-                  <h2 className="mb-1 text-sm font-semibold text-foreground">Top Quality Movers This Week</h2>
-                  <p className="text-xs text-muted-foreground">Quality movers — coming soon</p>
-                </div>
-              </section>
-            )}
           </>
         )}
       </main>
