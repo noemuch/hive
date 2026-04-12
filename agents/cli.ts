@@ -61,7 +61,8 @@ if (!team) {
 // ---------------------------------------------------------------------------
 
 if (!subcommand) {
-  // Re-inject --team into argv for launcher.ts compatibility
+  // No subcommand — route directly to launcher.ts. process.argv still contains
+  // the original args (including --team), which launcher.ts parses itself.
   const launcherPath = resolve(import.meta.dir, "lib", "launcher.ts");
   await import(launcherPath);
   process.exit(0);
@@ -103,6 +104,7 @@ async function readSecret(promptText: string): Promise<string> {
 
 async function runSetup(team: string): Promise<void> {
   const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
+  const projectRoot = resolve(import.meta.dir, "..");
 
   // Check existing config
   if (configExists(team)) {
@@ -140,11 +142,6 @@ async function runSetup(team: string): Promise<void> {
     process.exit(1);
   }
 
-  // Save credentials
-  const config: HiveConfig = { email, password, anthropic_api_key };
-  writeConfig(team, config);
-  console.log(`✓ Credentials saved to ~/.hive/${team}/config.json`);
-
   // API helper
   async function apiPost(
     path: string,
@@ -161,7 +158,7 @@ async function runSetup(team: string): Promise<void> {
     return { ok: res.ok, status: res.status, data: await res.json() };
   }
 
-  // Login
+  // Login — validate credentials before writing anything to disk
   const login = await apiPost("/api/builders/login", { email, password });
   if (!login.ok) {
     console.error(`\nLogin failed: ${JSON.stringify(login.data)}`);
@@ -170,6 +167,11 @@ async function runSetup(team: string): Promise<void> {
   }
   const builderToken = login.data.token as string;
   console.log(`✓ Builder authenticated`);
+
+  // Save credentials only after confirmed valid login
+  const config: HiveConfig = { email, password, anthropic_api_key };
+  writeConfig(team, config);
+  console.log(`✓ Credentials saved to ~/.hive/${team}/config.json`);
 
   // Load team config
   const teamPath = resolve(import.meta.dir, "teams", `${team}.ts`);
@@ -210,32 +212,42 @@ async function runSetup(team: string): Promise<void> {
       process.exit(1);
     }
     console.log(`✓ Reusing ${Object.keys(existing.agents).length} existing key(s) from ~/.hive/${team}/keys.json`);
-    const bunPath2 = Bun.which("bun");
-    if (!bunPath2) {
-      console.error("bun not found in PATH. Install from https://bun.sh");
-      process.exit(1);
-    }
-    await installService({ team, bunPath: bunPath2, projectRoot: process.cwd() });
-    console.log(`\n✓ Service installed: sh.hive.agents.${team}`);
-    console.log(`✓ Logs: ~/Library/Logs/hive/${team}.log`);
-    console.log(`\nAgents are running and will auto-start at login.`);
-    console.log(`Run 'bun run agents status --team ${team}' to verify.`);
-    process.exit(0);
+    await installAndFinish(team, existing, projectRoot);
+    return;
+  }
+
+  const failedCount = teamConfig.agents.filter(
+    (p: { name: string }) => !agentKeys[p.name]
+  ).length;
+  const skippedCount = teamConfig.agents.length - registered - failedCount;
+  // skippedCount = 409 agents (already exist, not re-registered)
+  void skippedCount;
+
+  if (failedCount > 0) {
+    console.warn(`\n⚠ ${failedCount} agent(s) failed to register. Service will run with partial team.`);
   }
 
   const keys: HiveKeys = { builder_token: builderToken, agents: agentKeys };
   writeKeys(team, keys);
   console.log(`✓ ${registered} agent key(s) saved to ~/.hive/${team}/keys.json`);
 
-  // Resolve bun path
+  await installAndFinish(team, keys, projectRoot);
+}
+
+async function installAndFinish(team: string, _keys: HiveKeys, projectRoot: string): Promise<void> {
   const bunPath = Bun.which("bun");
   if (!bunPath) {
     console.error("bun not found in PATH. Install from https://bun.sh");
     process.exit(1);
   }
 
-  const projectRoot = process.cwd();
-  await installService({ team, bunPath, projectRoot });
+  try {
+    await installService({ team, bunPath, projectRoot });
+  } catch (err) {
+    console.error(`\nFailed to install service: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`You can try manually running: launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.hive.agents.${team}.plist`);
+    process.exit(1);
+  }
 
   console.log(`\n✓ Service installed: sh.hive.agents.${team}`);
   console.log(`✓ Logs: ~/Library/Logs/hive/${team}.log`);
