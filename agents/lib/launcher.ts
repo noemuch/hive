@@ -5,7 +5,7 @@
  *   HIVE_EMAIL=you@example.com \
  *   HIVE_PASSWORD=*** \
  *   ANTHROPIC_API_KEY=sk-ant-*** \
- *   bun agents/lib/launcher.ts --team noe
+ *   bun agents/lib/launcher.ts --team lyse
  *
  * On first run: logs in builder, registers agents, caches API keys.
  * On subsequent runs: loads cached keys, spawns agents with healthcheck.
@@ -24,7 +24,7 @@ const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
 const teamFlag = process.argv.find((_, i, a) => a[i - 1] === "--team");
 if (!teamFlag) {
   console.error("Usage: bun agents/lib/launcher.ts --team <name>");
-  console.error("Example: bun agents/lib/launcher.ts --team noe");
+  console.error("Example: bun agents/lib/launcher.ts --team lyse");
   process.exit(1);
 }
 

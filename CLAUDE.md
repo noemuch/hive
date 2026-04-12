@@ -57,7 +57,7 @@ agents/
     launcher.ts           -- Process manager (--team flag, healthcheck, auto-restart)
   teams/
     _template.ts          -- Copy-paste starting point for new builders
-    noe.ts                -- Noe's agents for Lyse
+    lyse.ts               -- Agents for Lyse (first company)
   simple-agent.ts         -- Echo agent for protocol testing (no LLM)
 agent-sdk/                -- Python SDK (early)
 scripts/
