@@ -604,6 +604,165 @@ export function showSpeechBubble(
 }
 
 // ---------------------------------------------------------------------------
+// Movement system
+// ---------------------------------------------------------------------------
+
+const AGENT_TILES_PER_SECOND = 2;
+const IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+const DESTINATION_DURATION_MS: Record<string, number> = { whiteboard: 8000, coffee: 6000 };
+
+function tileToPixel(tx: number, ty: number): { px: number; py: number } {
+  return { px: (tx + 0.5) * TILE, py: (ty + 0.5) * TILE };
+}
+
+function pixelToTile(px: number, py: number): { tx: number; ty: number } {
+  return { tx: Math.floor(px / TILE), ty: Math.floor(py / TILE) };
+}
+
+export function triggerAgentMove(agentId: string, destination: "whiteboard" | "coffee"): void {
+  const agent = agents.get(agentId);
+  if (!agent) return;
+  if (agent.motion.state !== "SITTING") return;
+
+  const target: Point = destination === "whiteboard" ? POI.WHITEBOARD : POI.COFFEE;
+  const currentTile = pixelToTile(agent.container.x, agent.container.y);
+
+  const path = findPath(
+    collisionGrid,
+    { x: currentTile.tx, y: currentTile.ty },
+    target,
+    OFFICE_W,
+    OFFICE_H
+  );
+
+  if (!path || path.length === 0) return;
+
+  agent.motion.path = path;
+  agent.motion.pathIndex = 0;
+  agent.motion.lerpProgress = 0;
+  agent.motion.destination = destination;
+  agent.motion.state = "WALKING";
+
+  agent.motion.fromX = agent.container.x;
+  agent.motion.fromY = agent.container.y;
+  const to = tileToPixel(path[0].x, path[0].y);
+  agent.motion.toX = to.px;
+  agent.motion.toY = to.py;
+
+  switchAgentSprite(agent, "walk");
+}
+
+export function notifyAgentActivity(agentId: string): void {
+  const agent = agents.get(agentId);
+  if (!agent) return;
+  agent.motion.idleTimer = 0;
+}
+
+export function updateAgents(deltaMS: number): void {
+  const dt = deltaMS / 1000;
+
+  for (const [, agent] of agents) {
+    const m = agent.motion;
+
+    switch (m.state) {
+      case "SITTING": {
+        m.idleTimer += deltaMS;
+        if (m.idleTimer >= IDLE_THRESHOLD_MS) {
+          m.idleTimer = 0;
+          triggerAgentMove(agent.id, "coffee");
+        }
+        break;
+      }
+
+      case "WALKING": {
+        m.lerpProgress += AGENT_TILES_PER_SECOND * dt;
+
+        if (agent.animSprite) {
+          const dx = m.toX - m.fromX;
+          if (dx < 0) {
+            agent.animSprite.scale.x = -Math.abs(agent.animSprite.scale.x);
+          } else if (dx > 0) {
+            agent.animSprite.scale.x = Math.abs(agent.animSprite.scale.x);
+          }
+        }
+
+        if (m.lerpProgress >= 1) {
+          const current = m.path[m.pathIndex];
+          const { px, py } = tileToPixel(current.x, current.y);
+          agent.container.x = px;
+          agent.container.y = py;
+          agent.container.zIndex = 900 + current.y;
+
+          m.pathIndex++;
+
+          if (m.pathIndex >= m.path.length) {
+            if (m.destination === "desk") {
+              m.state = "SITTING";
+              switchAgentSprite(agent, "sit");
+            } else {
+              m.state = "AT_DESTINATION";
+              m.stateTimer = DESTINATION_DURATION_MS[m.destination] || 6000;
+              switchAgentSprite(agent, "sit");
+            }
+          } else {
+            const next = m.path[m.pathIndex];
+            m.fromX = px;
+            m.fromY = py;
+            const nextPos = tileToPixel(next.x, next.y);
+            m.toX = nextPos.px;
+            m.toY = nextPos.py;
+            m.lerpProgress = m.lerpProgress - 1;
+          }
+        } else {
+          agent.container.x = Math.round(m.fromX + (m.toX - m.fromX) * m.lerpProgress);
+          agent.container.y = Math.round(m.fromY + (m.toY - m.fromY) * m.lerpProgress);
+        }
+        break;
+      }
+
+      case "AT_DESTINATION": {
+        m.stateTimer -= deltaMS;
+        if (m.stateTimer <= 0) {
+          const home: Point = { x: m.homeDeskX, y: m.homeDeskY };
+          const currentTile = pixelToTile(agent.container.x, agent.container.y);
+
+          const path = findPath(
+            collisionGrid,
+            { x: currentTile.tx, y: currentTile.ty },
+            home,
+            OFFICE_W,
+            OFFICE_H
+          );
+
+          if (path && path.length > 0) {
+            m.path = path;
+            m.pathIndex = 0;
+            m.lerpProgress = 0;
+            m.destination = "desk";
+            m.state = "WALKING";
+
+            m.fromX = agent.container.x;
+            m.fromY = agent.container.y;
+            const to = tileToPixel(path[0].x, path[0].y);
+            m.toX = to.px;
+            m.toY = to.py;
+
+            switchAgentSprite(agent, "walk");
+          } else {
+            const { px, py } = tileToPixel(m.homeDeskX, m.homeDeskY);
+            agent.container.x = px;
+            agent.container.y = py;
+            m.state = "SITTING";
+            switchAgentSprite(agent, "sit");
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Removal
 // ---------------------------------------------------------------------------
 
