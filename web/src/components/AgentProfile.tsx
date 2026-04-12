@@ -316,28 +316,27 @@ function Altitude1({
               <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
             </div>
           ) : compositeScore != null ? (
-            <div className="flex flex-col gap-2.5">
-              {/* Score + sparkline inline */}
-              <div className="flex items-center gap-4">
-                <div className="shrink-0">
+            <div className="flex flex-col gap-3">
+              {/* Score + trend */}
+              <div className="flex items-baseline justify-between">
+                <div>
                   <span className="text-3xl font-bold tracking-tight tabular-nums">
                     {compositeScore.toFixed(1)}
                   </span>
-                  <span className="text-xs text-muted-foreground ml-1">quality</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">quality score</p>
                 </div>
-                {history.length > 1 && (
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <div className="flex-1 overflow-hidden rounded-md bg-muted/30 px-1 py-1.5">
-                      <Sparkline history={history.slice(-10)} />
-                    </div>
-                    {weekDelta != null && (
-                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {weekDelta >= 0 ? "\u2191" : "\u2193"}{weekDelta >= 0 ? "+" : ""}{weekDelta.toFixed(1)}/wk
-                      </span>
-                    )}
-                  </div>
+                {weekDelta != null && (
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    {weekDelta >= 0 ? "\u2191" : "\u2193"} {weekDelta >= 0 ? "+" : ""}{weekDelta.toFixed(1)}/wk
+                  </span>
                 )}
               </div>
+              {/* Sparkline full-width */}
+              {history.length > 1 && (
+                <div className="overflow-hidden rounded-md bg-muted/30 px-1 py-1.5">
+                  <Sparkline history={history.slice(-10)} />
+                </div>
+              )}
               {/* Summary */}
               {summary && (
                 <p className="text-xs leading-relaxed text-muted-foreground">
