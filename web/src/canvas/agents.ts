@@ -294,67 +294,59 @@ export function addAgentSprite(
     container.addChild(initial);
   }
 
-  // --- Name label with dark semi-transparent background style ---
-  const labelY = 4;
-  const labelFontSize = 6;
-  const labelPadH = 4;
-  const labelPadV = 2;
+  // --- Pill name label (Gather-style) ---
+  const pillFontSize = 7;
+  const pillPadH = 6;
+  const pillPadV = 3;
+  const dotRadius = 3;
+  const dotGap = 4;
+  const arrowSize = 4;
 
   const nameLabel = new Text({
     text: name,
     style: new TextStyle({
-      fontSize: labelFontSize,
-      fontFamily: "monospace",
+      fontSize: pillFontSize,
+      fontFamily: "Inter, system-ui, sans-serif",
       fill: 0xffffff,
-      fontWeight: "bold",
+      fontWeight: "500",
     }),
   });
-  nameLabel.anchor.set(0.5, 0);
+  nameLabel.anchor.set(0, 0.5);
 
-  // Measure text width (approximate for monospace)
-  const labelWidth = name.length * (labelFontSize * 0.6) + labelPadH * 2;
-  const labelHeight = labelFontSize + labelPadV * 2;
+  // Measure pill dimensions
+  const textWidth = name.length * (pillFontSize * 0.55);
+  const pillWidth = dotRadius * 2 + dotGap + textWidth + pillPadH * 2;
+  const pillHeight = pillFontSize + pillPadV * 2;
+  const pillY = -38; // above 32px character sprite
 
-  const labelBg = new Graphics();
-  labelBg.roundRect(
-    -labelWidth / 2,
-    labelY,
-    labelWidth,
-    labelHeight,
-    3
-  );
-  labelBg.fill({ color: 0x000000, alpha: 0.65 });
-  container.addChild(labelBg);
+  // Pill background
+  const pillBg = new Graphics();
+  pillBg.roundRect(-pillWidth / 2, pillY, pillWidth, pillHeight, pillHeight / 2);
+  pillBg.fill({ color: 0x1a1a2e, alpha: 0.92 });
+  container.addChild(pillBg);
 
-  nameLabel.y = labelY + labelPadV;
+  // Arrow pointing down to agent
+  const arrowY = pillY + pillHeight;
+  const arrow = new Graphics();
+  arrow.moveTo(-arrowSize, arrowY);
+  arrow.lineTo(0, arrowY + arrowSize);
+  arrow.lineTo(arrowSize, arrowY);
+  arrow.closePath();
+  arrow.fill({ color: 0x1a1a2e, alpha: 0.92 });
+  container.addChild(arrow);
+
+  // Green status dot
+  const dotX = -pillWidth / 2 + pillPadH + dotRadius;
+  const dotY = pillY + pillHeight / 2;
+  const dot = new Graphics();
+  dot.circle(dotX, dotY, dotRadius);
+  dot.fill(0x22c55e);
+  container.addChild(dot);
+
+  // Name text (positioned after dot)
+  nameLabel.x = -pillWidth / 2 + pillPadH + dotRadius * 2 + dotGap;
+  nameLabel.y = pillY + pillHeight / 2;
   container.addChild(nameLabel);
-
-  // --- Role badge with color ---
-  const badgeY = labelY + labelHeight + 1;
-  const badgeFontSize = 4;
-  const badgePadH = 3;
-  const badgePadV = 1;
-  const roleText = role.toUpperCase();
-  const badgeWidth = roleText.length * (badgeFontSize * 0.6) + badgePadH * 2;
-  const badgeHeight = badgeFontSize + badgePadV * 2;
-
-  const roleBg = new Graphics();
-  roleBg.roundRect(-badgeWidth / 2, badgeY, badgeWidth, badgeHeight, 2);
-  roleBg.fill({ color, alpha: 0.85 });
-  container.addChild(roleBg);
-
-  const roleBadge = new Text({
-    text: roleText,
-    style: new TextStyle({
-      fontSize: badgeFontSize,
-      fontFamily: "monospace",
-      fill: 0xffffff,
-      fontWeight: "bold",
-    }),
-  });
-  roleBadge.anchor.set(0.5, 0);
-  roleBadge.y = badgeY + badgePadV;
-  container.addChild(roleBadge);
 
   container.zIndex = 900;
   container.eventMode = "static";
