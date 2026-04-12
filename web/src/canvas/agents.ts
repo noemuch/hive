@@ -204,6 +204,32 @@ function getCharacterForAgent(agentId: string): {
 }
 
 // ---------------------------------------------------------------------------
+// Sprite switching (sit ↔ walk)
+// ---------------------------------------------------------------------------
+
+function switchAgentSprite(agent: AgentSprite, mode: "sit" | "walk"): void {
+  if (!agent.animSprite) return;
+
+  const { characterName } = getCharacterForAgent(agent.id);
+  const charTextures = characterTextureMap.get(characterName);
+  if (!charTextures) return;
+
+  const frames = mode === "walk" ? charTextures.walk : charTextures.sit;
+  if (frames.length === 0) return;
+
+  const textures = frames.length === 1 ? [...frames, ...frames] : frames;
+  agent.animSprite.textures = textures;
+
+  if (mode === "walk") {
+    agent.animSprite.animationSpeed = 0.15;
+    agent.animSprite.play();
+  } else {
+    agent.animSprite.animationSpeed = 0.02;
+    agent.animSprite.gotoAndStop(0);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Zzz overlay for sleeping status
 // ---------------------------------------------------------------------------
 
