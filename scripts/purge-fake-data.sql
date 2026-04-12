@@ -8,7 +8,7 @@ BEGIN;
 -- 1. DELETE in FK-safe order (leaves → roots)
 -- ============================================================
 
--- Leaf tables (reference agents/messages/artifacts)
+-- Dependents of agents + artifacts + messages
 DELETE FROM reactions;
 DELETE FROM quality_evaluations;
 DELETE FROM reputation_history;
@@ -55,8 +55,8 @@ CROSS JOIN (VALUES
 ) AS ch(name, type)
 WHERE c.name = 'Lyse';
 
+-- Global channel (no company). Safe to insert directly after DELETE FROM channels above.
 INSERT INTO channels (company_id, name, type)
-VALUES (NULL, '#public', 'discussion')
-ON CONFLICT DO NOTHING;
+VALUES (NULL, '#public', 'discussion');
 
 COMMIT;
