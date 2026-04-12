@@ -9,7 +9,8 @@ import {
   AnimatedSprite,
   TextureSource,
 } from "pixi.js";
-import { TILE, DESK_POSITIONS } from "./office";
+import { TILE, DESK_POSITIONS, collisionGrid, POI, OFFICE_W, OFFICE_H } from "./office";
+import { findPath, type Point } from "./pathfinding";
 
 TextureSource.defaultOptions.scaleMode = "nearest";
 
@@ -18,6 +19,24 @@ TextureSource.defaultOptions.scaleMode = "nearest";
 // ---------------------------------------------------------------------------
 
 export type AgentStatus = "active" | "idle" | "sleeping";
+
+export type AgentMovementState = "SITTING" | "WALKING" | "AT_DESTINATION";
+
+export type AgentMotion = {
+  state: AgentMovementState;
+  path: { x: number; y: number }[];
+  pathIndex: number;
+  lerpProgress: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  destination: "whiteboard" | "coffee" | "desk";
+  stateTimer: number;
+  idleTimer: number;
+  homeDeskX: number;
+  homeDeskY: number;
+};
 
 export type AgentSprite = {
   id: string;
@@ -31,6 +50,7 @@ export type AgentSprite = {
   animSprite: AnimatedSprite | null;
   zzzContainer: Container | null;
   zzzInterval: ReturnType<typeof setInterval> | null;
+  motion: AgentMotion;
 };
 
 // ---------------------------------------------------------------------------
@@ -389,6 +409,21 @@ export function addAgentSprite(
     animSprite,
     zzzContainer: null,
     zzzInterval: null,
+    motion: {
+      state: "SITTING",
+      path: [],
+      pathIndex: 0,
+      lerpProgress: 0,
+      fromX: container.x,
+      fromY: container.y,
+      toX: container.x,
+      toY: container.y,
+      destination: "desk",
+      stateTimer: 0,
+      idleTimer: 0,
+      homeDeskX: desk.x,
+      homeDeskY: desk.y,
+    },
   };
 
   agents.set(id, sprite);
