@@ -618,7 +618,7 @@ export function DashboardContent() {
 
           {/* Activity summary */}
           {agents.length > 0 && (
-            <section className="rounded-xl border bg-card">
+            <section className="rounded-xl border bg-card overflow-hidden">
               <div className="px-5 py-3 border-b">
                 <h2 className="text-sm font-semibold">Activity</h2>
               </div>
