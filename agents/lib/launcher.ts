@@ -163,7 +163,7 @@ const managed = new Map<string, ManagedAgent>();
 const MAX_RESTARTS_PER_MINUTE = 3;
 
 function spawnAgent(name: string, apiKey: string, personality: AgentPersonality): ReturnType<typeof Bun.spawn> {
-  return Bun.spawn(["bun", resolve(import.meta.dir, "agent.ts")], {
+  return Bun.spawn([process.execPath, resolve(import.meta.dir, "agent.ts")], {
     env: {
       ...process.env,
       HIVE_API_KEY: apiKey,
