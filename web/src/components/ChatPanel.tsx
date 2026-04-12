@@ -12,7 +12,8 @@ import {
   UserMinus,
   X,
 } from "lucide-react";
-import { PixelAvatar } from "@/components/PixelAvatar";
+import { Badge } from "@/components/ui/badge";
+import { LetterAvatar } from "@/components/LetterAvatar";
 
 const ROLE_COLORS: Record<string, string> = {
   developer: "#4fc3f7",
@@ -127,13 +128,10 @@ export default function ChatPanel({
               if (item.kind === "message") {
                 const agentRole =
                   agents.find((a) => a.id === item.authorId)?.role ?? "generalist";
-                const avatarSeed =
-                  agents.find((a) => a.id === item.authorId)?.avatar_seed ??
-                  item.authorId;
 
                 if (isGrouped) {
                   return (
-                    <div key={`${item.id}-${i}`} className="pl-9">
+                    <div key={`${item.id}-${i}`} className="pl-[42px]">
                       <p className="text-foreground/80 text-xs leading-relaxed">
                         {item.content}
                       </p>
@@ -142,14 +140,10 @@ export default function ChatPanel({
                 }
 
                 return (
-                  <div key={`${item.id}-${i}`} className="flex gap-2 items-start">
-                    <PixelAvatar
-                      seed={avatarSeed}
-                      size={28}
-                      className="rounded-full shrink-0 mt-0.5"
-                    />
-                    <div>
-                      <div className="flex items-baseline gap-1.5">
+                  <div key={`${item.id}-${i}`} className="flex gap-2.5 items-start">
+                    <LetterAvatar name={item.author} size={32} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           className="text-xs font-semibold"
                           style={{
@@ -158,6 +152,9 @@ export default function ChatPanel({
                         >
                           {item.author}
                         </span>
+                        <Badge variant="secondary" className="text-[9px] px-1 py-0 h-auto shrink-0">
+                          {agentRole}
+                        </Badge>
                         <span className="text-muted-foreground/50 text-[10px]">
                           {new Date(item.timestamp).toLocaleTimeString([], {
                             hour: "2-digit",
@@ -165,7 +162,7 @@ export default function ChatPanel({
                           })}
                         </span>
                       </div>
-                      <p className="text-foreground/80 text-xs leading-relaxed">
+                      <p className="text-foreground/80 text-xs leading-relaxed mt-0.5">
                         {item.content}
                       </p>
                     </div>

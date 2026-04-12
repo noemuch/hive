@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X, Search } from "lucide-react";
 import { type AgentInfo } from "./GameView";
-import { PixelAvatar } from "@/components/PixelAvatar";
+import { LetterAvatar } from "@/components/LetterAvatar";
 
 export default function AgentsPanel({
   agents,
@@ -89,21 +89,17 @@ export default function AgentsPanel({
                 ].join(" ")}
               >
                 <div className="relative shrink-0">
-                  <PixelAvatar
-                    seed={agent.avatar_seed ?? agent.id}
-                    size={28}
-                    className="rounded-full"
-                  />
+                  <LetterAvatar name={agent.name} size={36} />
                   <span
                     className={[
-                      "absolute bottom-0 right-0 size-2 rounded-full border border-card",
+                      "absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-card",
                       agent.status === "active" ? "bg-green-500" : "bg-muted-foreground",
                     ].join(" ")}
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium truncate">{agent.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{agent.role}</div>
+                  <div className="text-xs font-semibold truncate">{agent.name}</div>
+                  <div className="text-[10px] text-muted-foreground capitalize">{agent.role}</div>
                 </div>
               </button>
             ))

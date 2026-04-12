@@ -252,7 +252,7 @@ export default function GameView({
   // Sync viewport + agent positions every 500ms for minimap/controls
 
   return (
-    <div className="relative w-full h-full flex">
+    <div className="relative w-full h-full flex overflow-hidden">
       <div
         className="relative flex-1 min-w-0 transition-transform duration-300"
         style={{ transform: panelOpen ? "translateX(-320px)" : "translateX(0)" }}
