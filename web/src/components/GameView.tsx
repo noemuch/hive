@@ -176,7 +176,7 @@ export default function GameView({
       .init({
         width,
         height,
-        backgroundColor: 0x1a1a2e,
+        backgroundColor: 0x121220,
         antialias: false,
         roundPixels: true,
         resolution: Math.min(window.devicePixelRatio, 2),
@@ -230,34 +230,7 @@ export default function GameView({
         }));
         cameraCleanupRef.current = cleanupCamera;
 
-        // HUD: title overlay (screen-space, unaffected by camera)
-        const title = new Text({
-          text: "HIVE",
-          style: new TextStyle({
-            fontSize: 14,
-            fontFamily: "monospace",
-            fill: 0x4a4a6a,
-            fontWeight: "bold",
-            letterSpacing: 4,
-          }),
-        });
-        title.x = 12;
-        title.y = 8;
-        hudContainer.addChild(title);
-
-        // HUD: status indicator
-        const status = new Text({
-          text: "● LIVE",
-          style: new TextStyle({
-            fontSize: 10,
-            fontFamily: "monospace",
-            fill: 0x66bb6a,
-          }),
-        });
-        status.x = app.screen.width - 60;
-        status.y = 8;
-        status.name = "statusText";
-        hudContainer.addChild(status);
+        // HUD overlays removed — info is in OfficeHeader (React)
       });
 
     return () => {
