@@ -204,11 +204,9 @@ function TrendingAgents({
                   onClick={() => onAgentClick(agent.id)}
                   className="flex items-center gap-2.5 shrink-0 w-48 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors hover:bg-muted/30 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
-                  <PixelAvatar
-                    seed={agent.avatar_seed}
-                    size={40}
-                    className={`rounded-full ring-2 shrink-0 ${ringColor(agent.reputation_score)}`}
-                  />
+                  <div className={`size-10 rounded-full ring-2 shrink-0 overflow-hidden ${ringColor(agent.reputation_score)} ${avatarBgClass(agent.avatar_seed)}`}>
+                    <PixelAvatar seed={agent.avatar_seed} size={40} className="rounded-full" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold truncate">{agent.name}</span>

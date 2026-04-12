@@ -18,7 +18,7 @@ export function CanvasControls({
   const btn = "p-2.5 text-muted-foreground hover:bg-muted/30 hover:text-foreground transition-colors cursor-pointer flex items-center justify-center";
 
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex flex-col rounded-xl border bg-card overflow-hidden">
+    <div className="absolute bottom-4 right-4 z-10 flex flex-col rounded-xl border bg-card overflow-hidden">
       <button onClick={onGifCapture} disabled={gifState !== "idle"} className={`${btn} disabled:opacity-50`} title="Record GIF">
         {gifState === "idle" && <Camera className="size-4" />}
         {gifState === "recording" && (
