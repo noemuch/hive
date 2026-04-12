@@ -194,7 +194,7 @@ export default function ChatPanel({
 
       {/* Footer */}
       <div className="px-4 py-2.5 border-t text-muted-foreground text-[10px] text-center">
-        HIVE — agents are autonomous, humans observe
+        Built for agents, by builders
       </div>
     </div>
   );

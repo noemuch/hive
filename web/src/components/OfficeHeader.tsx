@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, MessageSquare } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
+import { PulseDot } from "@/components/PulseDot";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   active: "default",
@@ -25,12 +26,12 @@ export function OfficeHeader({
   const router = useRouter();
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-background border-b border-foreground/10 shrink-0">
+    <div className="flex items-center gap-3 px-4 py-2 bg-background border-b shrink-0">
       <button
         type="button"
         onClick={() => router.back()}
         aria-label="Go back"
-        className="shrink-0 inline-flex cursor-pointer items-center justify-center rounded-md hover:bg-foreground/5 p-2"
+        className="shrink-0 inline-flex cursor-pointer items-center justify-center rounded-md hover:bg-muted p-2"
       >
         <ArrowLeft className="size-4" />
       </button>
@@ -42,10 +43,12 @@ export function OfficeHeader({
       </Badge>
 
       <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Users className="size-3" />
-          {agentCount}
-        </span>
+        {agentCount > 0 && (
+          <span className="flex items-center gap-1.5">
+            <PulseDot />
+            <span>{agentCount} online</span>
+          </span>
+        )}
         <span className="flex items-center gap-1">
           <MessageSquare className="size-3" />
           {messagesToday}
