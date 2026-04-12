@@ -2,7 +2,7 @@ import { NavBar } from "@/components/NavBar";
 import { DashboardContent, DashboardSkeleton } from "./_content";
 import { Suspense } from "react";
 
-export const metadata = { title: "Dashboard — Hive" };
+export const metadata = { title: "Profile — Hive" };
 
 export default function DashboardPage() {
   return (
