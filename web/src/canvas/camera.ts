@@ -7,6 +7,28 @@ import { Viewport } from "pixi-viewport";
 
 type CameraCleanup = () => void;
 
+export type ViewportState = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scale: number;
+};
+
+export type CameraHandle = {
+  getViewport: () => ViewportState;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  panTo: (worldX: number, worldY: number) => void;
+  resetZoom: () => void;
+};
+
+let currentHandle: CameraHandle | null = null;
+
+export function getCameraHandle(): CameraHandle | null {
+  return currentHandle;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -87,8 +109,38 @@ export function setupCamera(
   viewport.on("drag-start", () => { canvas.style.cursor = "grabbing"; });
   viewport.on("drag-end", () => { canvas.style.cursor = "grab"; });
 
+  // Expose camera handle for React overlays
+  currentHandle = {
+    getViewport: () => ({
+      x: viewport.left,
+      y: viewport.top,
+      width: viewport.screenWidth / viewport.scale.x,
+      height: viewport.screenHeight / viewport.scale.y,
+      scale: viewport.scale.x,
+    }),
+    zoomIn: () => {
+      const newScale = Math.min(viewport.scale.x * 1.5, MAX_ZOOM);
+      viewport.setZoom(newScale, true);
+    },
+    zoomOut: () => {
+      const newScale = Math.max(viewport.scale.x * 0.67, MIN_ZOOM);
+      viewport.setZoom(newScale, true);
+    },
+    panTo: (worldX: number, worldY: number) => {
+      viewport.moveCenter(worldX, worldY);
+    },
+    resetZoom: () => {
+      const screenW = app.screen.width;
+      const screenH = app.screen.height;
+      const fitScale = Math.min(screenW / bounds.width, screenH / bounds.height) * FIT_MARGIN;
+      viewport.setZoom(fitScale, true);
+      viewport.moveCenter(bounds.width / 2, bounds.height / 2);
+    },
+  };
+
   // Cleanup
   return () => {
+    currentHandle = null;
     resizeObserver.disconnect();
     viewport.destroy({ children: false });
     canvas.style.cursor = "";
