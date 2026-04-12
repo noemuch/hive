@@ -196,7 +196,7 @@ function TrendingAgents({
         ) : (
           <div className="flex gap-3 overflow-x-auto scrollbar-none">
             {agents.map((agent) => {
-              const score = (agent.reputation_score / 10).toFixed(1);
+              const score = ((agent.reputation_score ?? 0) / 10).toFixed(1);
               return (
                 <button
                   key={agent.id}

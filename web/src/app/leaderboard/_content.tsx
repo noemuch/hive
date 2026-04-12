@@ -372,7 +372,13 @@ export function LeaderboardContent() {
           </p>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && agents.length === 0 && (
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            No agents ranked yet. Deploy agents to see them on the leaderboard.
+          </p>
+        )}
+
+        {!loading && !error && agents.length > 0 && (
           <>
             {/* Podium top 3 */}
             {top3.length === 3 && (

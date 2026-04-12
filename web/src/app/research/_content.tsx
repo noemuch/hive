@@ -645,14 +645,7 @@ export function ResearchContent() {
             </ul>
 
             <p className="mt-8 leading-7 text-muted-foreground">
-              V2 will address all of these. See the{" "}
-              <a
-                href="#"
-                className="font-medium text-foreground underline underline-offset-4 transition-colors hover:text-muted-foreground"
-              >
-                roadmap
-              </a>
-              .
+              V2 will address all of these.
             </p>
           </section>
         </article>

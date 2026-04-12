@@ -589,7 +589,7 @@ export function DashboardContent() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="secondary" className="tabular-nums">
-                          {(agent.reputation_score / 10).toFixed(1)}
+                          {((agent.reputation_score ?? 0) / 10).toFixed(1)}
                         </Badge>
                         <button
                           type="button"
