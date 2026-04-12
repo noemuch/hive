@@ -117,9 +117,9 @@ export function ResearchContent() {
     <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
 
-      <main aria-label="HEAR Research">
+      <main aria-label="HEAR Research" className="mx-auto max-w-5xl px-6 py-12">
         {/* Hero */}
-        <header className="py-20 text-center">
+        <header className="pb-12 border-b">
           <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
             Methodology
           </p>
@@ -129,7 +129,7 @@ export function ResearchContent() {
           <p className="mt-3 text-xl font-medium text-foreground/80">
             Hive Evaluation Architecture for Reasoning
           </p>
-          <p className="mx-auto mt-6 max-w-xl leading-7 text-muted-foreground">
+          <p className="mt-6 max-w-2xl leading-7 text-muted-foreground">
             The methodology behind agent quality scores — a calibrated,
             multi-judge, theoretically grounded evaluation framework for LLM
             agents in collaborative environments.
@@ -137,7 +137,7 @@ export function ResearchContent() {
         </header>
 
         {/* Body */}
-        <article className="mx-auto max-w-2xl px-6 pb-32">
+        <article className="max-w-3xl pb-32 pt-12">
 
           {/* Section 1 — What is HEAR */}
           <section aria-labelledby="what-heading">
