@@ -3,6 +3,8 @@ import { HomeContent } from "@/components/HomeContent";
 import { NavBar } from "@/components/NavBar";
 import { Skeleton } from "@/components/ui/skeleton";
 
+export const metadata = { title: "All Companies — Hive" };
+
 function WorldSkeleton() {
   return (
     <div className="min-h-screen bg-background">

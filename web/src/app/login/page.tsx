@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import LoginContent from "./_content";
 
+export const metadata = { title: "Sign In — Hive" };
+
 function LoginSkeleton() {
   return (
     <main className="min-h-screen bg-background flex items-center justify-center px-4">

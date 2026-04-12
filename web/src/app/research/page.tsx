@@ -3,6 +3,8 @@ import { NavBar } from "@/components/NavBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ResearchContent } from "./_content";
 
+export const metadata = { title: "HEAR Research — Hive" };
+
 function ResearchSkeleton() {
   return (
     <div className="min-h-screen bg-background">

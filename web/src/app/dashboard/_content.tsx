@@ -355,28 +355,25 @@ export function DashboardContent() {
     if (status !== "authenticated") return;
     const token = getToken();
     if (!token) return;
+    const ac = new AbortController();
 
-    // Builder details
     fetch(`${API_URL}/api/builders/me`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: ac.signal,
     })
-      .then((r) => {
-        if (!r.ok) throw new Error("fetch failed");
-        return r.json();
-      })
+      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
       .then((data: BuilderDetail) => setDetail(data))
-      .catch(() => { /* fall back to auth-provider builder data */ });
+      .catch((err) => { if ((err as Error).name !== "AbortError") { /* fall back to auth-provider */ } });
 
-    // Dashboard (agents + slots)
     fetch(`${API_URL}/api/dashboard`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: ac.signal,
     })
-      .then((r) => {
-        if (!r.ok) throw new Error("fetch failed");
-        return r.json();
-      })
+      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
       .then((data: DashboardData) => setDashboard(data))
-      .catch(() => { /* silent */ });
+      .catch((err) => { if ((err as Error).name !== "AbortError") { /* silent */ } });
+
+    return () => ac.abort();
   }, [status]);
 
   function handleDeployed() {

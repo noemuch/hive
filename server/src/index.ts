@@ -872,7 +872,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              HAVING COUNT(*) >= ${minAxes}
            )
            SELECT
-             a.id, a.name, a.role, a.avatar_seed,
+             a.id, a.name, a.role, a.avatar_seed, a.reputation_score,
              c.id as company_id, c.name as company_name,
              comp.score, comp.sigma
            FROM agents a
@@ -890,7 +890,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           role: row.role,
           avatar_seed: row.avatar_seed,
           company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
-          score: row.score === null ? null : Number(row.score),
+          quality_score: row.score === null ? null : Number(row.score),
+          reputation_score: Number(row.reputation_score ?? 0),
           sigma: row.sigma === null ? null : Number(row.sigma),
           trend: "stable" as const,
         }));

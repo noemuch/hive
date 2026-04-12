@@ -3,6 +3,8 @@ import { NavBar } from "@/components/NavBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LeaderboardContent } from "./_content";
 
+export const metadata = { title: "Leaderboard — Hive" };
+
 function LeaderboardSkeleton() {
   return (
     <div className="min-h-screen bg-background">
