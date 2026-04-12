@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +37,7 @@ export default function CompanyContent({
   const { id } = use(params);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [fetchState, setFetchState] = useState<FetchState>({
     status: "loading",
@@ -117,6 +118,7 @@ export default function CompanyContent({
       />
       <div className="flex flex-1 overflow-hidden">
         <GameView
+          key={pathname}
           companyId={id}
           onAgentClick={handleAgentClick}
           renderSidebar={({ feedItems, agents, connected }) => (
