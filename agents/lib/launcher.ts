@@ -14,6 +14,7 @@
 import { resolve } from "path";
 import { existsSync } from "fs";
 import type { TeamConfig, AgentPersonality } from "./types";
+import { migrateIfNeeded, readKeys as readHiveKeys, writeKeys as writeHiveKeys } from "./credentials";
 
 const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
 
@@ -57,6 +58,7 @@ if (!team?.agents?.length) {
 }
 
 console.log(`Team "${teamFlag}": ${team.agents.length} agents`);
+migrateIfNeeded(teamFlag, resolve(import.meta.dir, "../.."));
 
 // ---------------------------------------------------------------------------
 // API helper
@@ -83,63 +85,57 @@ async function api(
 // Key management
 // ---------------------------------------------------------------------------
 
-const KEYS_PATH = resolve(import.meta.dir, `../teams/.keys-${teamFlag}.json`);
-
 async function loadOrCreateKeys(): Promise<Keys> {
-  // Try cached keys first
-  if (existsSync(KEYS_PATH)) {
-    const cached: Keys = JSON.parse(await Bun.file(KEYS_PATH).text());
-    if (cached.builder_token && Object.keys(cached.agents).length > 0) {
-      console.log(`Loaded ${Object.keys(cached.agents).length} cached keys for team "${teamFlag}"`);
-      return cached;
+  // 1. Env vars override ~/.hive/ when both are explicitly set
+  if (HIVE_EMAIL && HIVE_PASSWORD) {
+    const login = await api("/api/builders/login", { email: HIVE_EMAIL, password: HIVE_PASSWORD });
+    if (!login.ok) {
+      console.error("Builder login failed:", login.data);
+      console.error("Register your account first at http://localhost:3000/register");
+      process.exit(1);
     }
-  }
+    const token = login.data.token as string;
+    console.log(`Builder logged in: ${HIVE_EMAIL}`);
 
-  // Need credentials for registration
-  if (!HIVE_EMAIL || !HIVE_PASSWORD) {
-    console.error("ERROR: No cached keys found. Set HIVE_EMAIL and HIVE_PASSWORD to register agents.");
-    process.exit(1);
-  }
-
-  // Login builder (must already have an account via /register UI)
-  const login = await api("/api/builders/login", { email: HIVE_EMAIL, password: HIVE_PASSWORD });
-  if (!login.ok) {
-    console.error("Builder login failed:", login.data);
-    console.error("Register your account first at http://localhost:3000/register");
-    process.exit(1);
-  }
-  const token = login.data.token as string;
-  console.log(`Builder logged in: ${HIVE_EMAIL}`);
-
-  // Register each agent
-  const agents: Record<string, string> = {};
-  for (const p of team.agents) {
-    const res = await api(
-      "/api/agents/register",
-      { name: p.name, role: p.role, personality_brief: p.brief },
-      token
-    );
-    if (res.ok) {
-      agents[p.name] = res.data.api_key as string;
-      console.log(`  Registered ${p.name} (${p.role})`);
-    } else if (res.status === 409) {
-      console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or restore .keys-${teamFlag}.json`);
-    } else {
-      console.warn(`  ${p.name} failed: ${JSON.stringify(res.data)}`);
+    const agents: Record<string, string> = {};
+    for (const p of team.agents) {
+      const res = await api(
+        "/api/agents/register",
+        { name: p.name, role: p.role, personality_brief: p.brief },
+        token
+      );
+      if (res.ok) {
+        agents[p.name] = res.data.api_key as string;
+        console.log(`  Registered ${p.name} (${p.role})`);
+      } else if (res.status === 409) {
+        console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or restore .keys-${teamFlag}.json`);
+      } else {
+        console.warn(`  ${p.name} failed: ${JSON.stringify(res.data)}`);
+      }
     }
+
+    if (Object.keys(agents).length === 0) {
+      console.error("No agents registered.");
+      process.exit(1);
+    }
+
+    const keys: Keys = { builder_token: token, agents };
+    writeHiveKeys(teamFlag, keys);
+    console.log(`Saved ${Object.keys(agents).length} keys to ~/.hive/${teamFlag}/keys.json`);
+    return keys;
   }
 
-  if (Object.keys(agents).length === 0) {
-    console.error("No agents registered. Possible causes:");
-    console.error("  - All agents already exist (409): delete them via /dashboard and re-run");
-    console.error("  - Builder tier too low: need 'trusted' for >3 agents");
-    process.exit(1);
+  // 2. Try ~/.hive/{team}/keys.json (new standard)
+  const hiveKeys = readHiveKeys(teamFlag);
+  if (hiveKeys && hiveKeys.builder_token && Object.keys(hiveKeys.agents).length > 0) {
+    console.log(`Loaded ${Object.keys(hiveKeys.agents).length} cached keys from ~/.hive/${teamFlag}/`);
+    return hiveKeys;
   }
 
-  const keys: Keys = { builder_token: token, agents };
-  await Bun.write(KEYS_PATH, JSON.stringify(keys, null, 2) + "\n");
-  console.log(`Saved ${Object.keys(agents).length} keys to .keys-${teamFlag}.json`);
-  return keys;
+  // 3. No credentials found
+  console.error(`ERROR: No credentials found.`);
+  console.error(`Run: bun run agents setup --team ${teamFlag}`);
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
