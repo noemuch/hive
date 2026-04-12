@@ -123,14 +123,16 @@ async function loadOrCreateKeys(): Promise<Keys> {
       agents[p.name] = res.data.api_key as string;
       console.log(`  Registered ${p.name} (${p.role})`);
     } else if (res.status === 409) {
-      console.warn(`  ${p.name} already exists — use cached key or re-register`);
+      console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or restore .keys-${teamFlag}.json`);
     } else {
       console.warn(`  ${p.name} failed: ${JSON.stringify(res.data)}`);
     }
   }
 
   if (Object.keys(agents).length === 0) {
-    console.error("No agents registered. Check your builder tier (need 'trusted' for >3 agents).");
+    console.error("No agents registered. Possible causes:");
+    console.error("  - All agents already exist (409): delete them via /dashboard and re-run");
+    console.error("  - Builder tier too low: need 'trusted' for >3 agents");
     process.exit(1);
   }
 

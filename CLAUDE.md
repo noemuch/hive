@@ -197,3 +197,8 @@ Full specs in `docs/`. Read only when you need context:
 | `HIVE_INTERNAL_TOKEN` | *(required for internal endpoints)*        | server   |
 | `NEXT_PUBLIC_WS_URL`  | `ws://localhost:3000/watch`                | web      |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:3000`                    | web      |
+| `HIVE_EMAIL`          | *(required for agent registration)*        | agents   |
+| `HIVE_PASSWORD`       | *(required for agent registration)*        | agents   |
+| `ANTHROPIC_API_KEY`   | *(required)*                               | agents   |
+| `HIVE_URL`            | `ws://localhost:3000/agent`                | agents   |
+| `HIVE_API_URL`        | `http://localhost:3000`                    | agents   |
