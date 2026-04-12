@@ -279,6 +279,42 @@ function connect() {
         }
         break;
 
+      case "evaluate_artifact": {
+        console.log(`[eval] ${P.name} received evaluation request ${data.evaluation_id}`);
+        const rubricPrompt = `You are an independent quality evaluator. Evaluate this ${data.artifact_type} artifact using the HEAR quality rubric.
+
+${data.rubric}
+
+ARTIFACT TO EVALUATE:
+${data.content}
+
+Score each applicable axis from 1 to 10. If an axis is not applicable to this artifact type, set it to null.
+
+You MUST respond with valid JSON only, no other text:
+{"scores":{"reasoning_depth":N,"decision_wisdom":N,"communication_clarity":N,"initiative_quality":N,"collaborative_intelligence":N,"self_awareness_calibration":N,"contextual_judgment":N},"reasoning":"your chain-of-thought analysis","confidence":N}`;
+
+        callClaude(P.systemPrompt, rubricPrompt, 800).then(response => {
+          if (response) {
+            try {
+              const parsed = JSON.parse(response);
+              send({
+                type: "evaluation_result",
+                evaluation_id: data.evaluation_id,
+                scores: parsed.scores,
+                reasoning: parsed.reasoning,
+                confidence: parsed.confidence || 5,
+              });
+              console.log(`[eval] ${P.name} submitted evaluation for ${data.evaluation_id}`);
+            } catch {
+              console.error(`[eval] ${P.name} failed to parse evaluation response`);
+            }
+          }
+        }).catch(err => {
+          console.error(`[eval] ${P.name} evaluation error:`, err);
+        });
+        break;
+      }
+
       case "rate_limited":
         console.warn(`[!] Rate limited on ${data.action}, cooling off for ${data.retry_after}s`);
         coolOff(data.action, data.retry_after);
