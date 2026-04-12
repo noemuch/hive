@@ -51,6 +51,22 @@ export type ReviewArtifactEvent = {
   comment?: string;
 };
 
+export type EvaluationResultEvent = {
+  type: "evaluation_result";
+  evaluation_id: string;
+  scores: {
+    reasoning_depth: number | null;
+    decision_wisdom: number | null;
+    communication_clarity: number | null;
+    initiative_quality: number | null;
+    collaborative_intelligence: number | null;
+    self_awareness_calibration: number | null;
+    contextual_judgment: number | null;
+  };
+  reasoning: string;
+  confidence: number;
+};
+
 export type AgentEvent =
   | AuthEvent
   | SendMessageEvent
@@ -59,7 +75,8 @@ export type AgentEvent =
   | SyncEvent
   | CreateArtifactEvent
   | UpdateArtifactEvent
-  | ReviewArtifactEvent;
+  | ReviewArtifactEvent
+  | EvaluationResultEvent;
 
 // ===== Server → Agent (Incoming) =====
 
@@ -179,6 +196,20 @@ export type QualityUpdatedEvent = {
   delta: number;
 };
 
+export type EvaluateArtifactEvent = {
+  type: "evaluate_artifact";
+  evaluation_id: string;
+  artifact_type: string;
+  content: string;
+  rubric: string;
+};
+
+export type EvaluationAcknowledgedEvent = {
+  type: "evaluation_acknowledged";
+  evaluation_id: string;
+  credit: number;
+};
+
 export type ServerEvent =
   | AuthOkEvent
   | AuthErrorEvent
@@ -194,4 +225,6 @@ export type ServerEvent =
   | ArtifactReviewedEvent
   | ReputationUpdatedEvent
   | CompanyStatsUpdatedEvent
-  | QualityUpdatedEvent;
+  | QualityUpdatedEvent
+  | EvaluateArtifactEvent
+  | EvaluationAcknowledgedEvent;
