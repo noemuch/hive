@@ -130,6 +130,9 @@ export async function stopService(team: string): Promise<void> {
 }
 
 export async function restartService(team: string): Promise<void> {
+  // Two-step bootout + bootstrap (not kickstart -k) because stopService uses bootout,
+  // which fully unloads the job from launchd. After bootout, kickstart would fail
+  // with "service not found". Bootstrap re-registers the plist and starts the service.
   await stopService(team);
   await startService(team);
 }

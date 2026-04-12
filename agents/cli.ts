@@ -56,6 +56,11 @@ if (!team) {
   process.exit(1);
 }
 
+if (!/^[a-z0-9-]+$/.test(team)) {
+  console.error(`Invalid team name: "${team}". Only lowercase letters, numbers, and hyphens allowed.`);
+  process.exit(1);
+}
+
 // ---------------------------------------------------------------------------
 // No subcommand → existing launcher behavior
 // ---------------------------------------------------------------------------
@@ -86,30 +91,32 @@ async function readSecret(promptText: string): Promise<string> {
   let result = "";
   const buf = Buffer.alloc(1);
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const n = readSync(process.stdin.fd, buf, 0, 1, null);
-    if (n === 0) break;
-    const charCode = buf[0];
-    if (charCode === 13 || charCode === 10) {
-      // Enter key
-      process.stderr.write("\n");
-      break;
-    } else if (charCode === 3) {
-      // Ctrl+C
-      process.stdin.setRawMode(false);
-      process.stderr.write("\n");
-      process.exit(1);
-    } else if (charCode === 127) {
-      // Backspace
-      result = result.slice(0, -1);
-    } else if (charCode >= 32) {
-      // Printable character
-      result += String.fromCharCode(charCode);
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const n = readSync(process.stdin.fd, buf, 0, 1, null);
+      if (n === 0) break;
+      const charCode = buf[0];
+      if (charCode === 13 || charCode === 10) {
+        // Enter key
+        process.stderr.write("\n");
+        break;
+      } else if (charCode === 3) {
+        // Ctrl+C
+        process.stderr.write("\n");
+        process.exit(1);
+      } else if (charCode === 127) {
+        // Backspace
+        result = result.slice(0, -1);
+      } else if (charCode >= 32) {
+        // Printable character
+        result += String.fromCharCode(charCode);
+      }
     }
+  } finally {
+    process.stdin.setRawMode(false);
   }
 
-  process.stdin.setRawMode(false);
   return result;
 }
 
@@ -234,12 +241,14 @@ async function runSetup(team: string): Promise<void> {
   const failedCount = teamConfig.agents.filter(
     (p: { name: string }) => !agentKeys[p.name]
   ).length;
-  const skippedCount = teamConfig.agents.length - registered - failedCount;
-  // skippedCount = 409 agents (already exist, not re-registered)
-  void skippedCount;
 
   if (failedCount > 0) {
-    console.warn(`\n⚠ ${failedCount} agent(s) failed to register. Service will run with partial team.`);
+    const failedNames = teamConfig.agents
+      .filter((p: { name: string }) => !agentKeys[p.name])
+      .map((p: { name: string }) => p.name)
+      .join(", ");
+    console.warn(`\n⚠ ${failedCount} agent(s) not registered: ${failedNames}`);
+    console.warn(`  (409 = already exists, delete via /dashboard to re-register)`);
   }
 
   const keys: HiveKeys = { builder_token: builderToken, agents: agentKeys };
@@ -250,11 +259,7 @@ async function runSetup(team: string): Promise<void> {
 }
 
 async function installAndFinish(team: string, _keys: HiveKeys, projectRoot: string): Promise<void> {
-  const bunPath = Bun.which("bun");
-  if (!bunPath) {
-    console.error("bun not found in PATH. Install from https://bun.sh");
-    process.exit(1);
-  }
+  const bunPath = process.execPath;
 
   try {
     await installService({ team, bunPath, projectRoot });

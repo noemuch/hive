@@ -116,7 +116,7 @@ async function loadOrCreateKeys(): Promise<Keys> {
         agents[p.name] = res.data.api_key as string;
         console.log(`  Registered ${p.name} (${p.role})`);
       } else if (res.status === 409) {
-        console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or restore .keys-${teamFlag}.json`);
+        console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or run: bun run agents setup --team ${teamFlag}`);
       } else {
         console.warn(`  ${p.name} failed: ${JSON.stringify(res.data)}`);
       }
