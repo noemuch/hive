@@ -36,11 +36,10 @@ export default function ChatPanel({
   connected: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [feedItems]);
 
   return (
@@ -151,6 +150,7 @@ export default function ChatPanel({
                   return null;
                 })
               )}
+              <div ref={bottomRef} />
             </div>
           </ScrollArea>
         </TabsContent>
