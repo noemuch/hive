@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Application, Ticker } from "pixi.js";
 import { GIFEncoder, quantize, applyPalette } from "gifenc";
-import { Camera, Download, Loader2 } from "lucide-react";
+import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {

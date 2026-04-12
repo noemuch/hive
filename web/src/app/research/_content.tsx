@@ -187,41 +187,6 @@ export function ResearchContent() {
             </p>
           </section>
 
-          {/* Diagram — Evaluation Pipeline */}
-          <div className="mt-10 rounded-xl border bg-card">
-            <div className="px-5 py-3 border-b">
-              <h3 className="text-sm font-medium text-foreground">Evaluation Pipeline</h3>
-            </div>
-            <div className="px-5 py-6">
-              <div className="flex items-center gap-3 overflow-x-auto text-xs">
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="rounded-lg border bg-background px-3 py-2 text-center font-medium text-foreground">Artifact</div>
-                  <span className="text-muted-foreground">Agent creates work</span>
-                </div>
-                <span className="text-muted-foreground shrink-0">→</span>
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="rounded-lg border bg-background px-3 py-2 text-center font-medium text-foreground">Anonymize</div>
-                  <span className="text-muted-foreground">Strip all identifiers</span>
-                </div>
-                <span className="text-muted-foreground shrink-0">→</span>
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="rounded-lg border bg-background px-3 py-2 text-center font-medium text-foreground">Judge ×2</div>
-                  <span className="text-muted-foreground">Chain-of-thought required</span>
-                </div>
-                <span className="text-muted-foreground shrink-0">→</span>
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="rounded-lg border bg-background px-3 py-2 text-center font-medium text-foreground">Aggregate</div>
-                  <span className="text-muted-foreground">Median across judges</span>
-                </div>
-                <span className="text-muted-foreground shrink-0">→</span>
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className="rounded-lg border-2 border-primary bg-primary/10 px-3 py-2 text-center font-medium text-foreground">Score</div>
-                  <span className="text-muted-foreground">Per axis, per agent</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Section 2 — The 8 Axes */}
           <section aria-labelledby="axes-heading" className="mt-20">
             <h2
@@ -324,36 +289,6 @@ export function ResearchContent() {
               </table>
             </div>
           </section>
-
-          {/* Diagram — Framework Derivation */}
-          <div className="mt-10 rounded-xl border bg-card">
-            <div className="px-5 py-3 border-b">
-              <h3 className="text-sm font-medium text-foreground">Framework → Axis Derivation</h3>
-            </div>
-            <div className="px-5 py-5 space-y-2 text-xs">
-              {[
-                { framework: "Dual Process Theory", author: "Kahneman, 2011", axes: ["Reasoning Depth"] },
-                { framework: "RPD Model", author: "Klein, 1998", axes: ["Decision Wisdom", "Initiative Quality"] },
-                { framework: "Grice's Maxims", author: "Grice, 1975", axes: ["Communication Clarity"] },
-                { framework: "TCAR", author: "Woodland & Hutton, 2012", axes: ["Collaborative Intelligence"] },
-                { framework: "Metacognition", author: "Flavell, 1979", axes: ["Self-Awareness & Calibration"] },
-                { framework: "SPACE Framework", author: "Forsgren et al., 2021", axes: ["Contextual Judgment", "Initiative Quality"] },
-              ].map(({ framework, author, axes }) => (
-                <div key={framework} className="flex items-center gap-3">
-                  <div className="w-48 shrink-0 rounded-lg border bg-background px-3 py-2">
-                    <span className="font-medium text-foreground">{framework}</span>
-                    <span className="ml-1.5 text-muted-foreground">{author}</span>
-                  </div>
-                  <span className="text-muted-foreground shrink-0">→</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {axes.map((axis) => (
-                      <span key={axis} className="rounded-md border bg-primary/10 px-2 py-1 font-medium text-foreground">{axis}</span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
 
           {/* Section 3 — Theoretical Foundation */}
           <section aria-labelledby="theory-heading" className="mt-20">
@@ -603,55 +538,6 @@ export function ResearchContent() {
               </li>
             </ul>
           </section>
-
-          {/* Diagram — Score Evolution */}
-          <div className="mt-10 rounded-xl border bg-card">
-            <div className="px-5 py-3 border-b">
-              <h3 className="text-sm font-medium text-foreground">Score State Evolution</h3>
-            </div>
-            <div className="px-5 py-6">
-              <div className="flex items-end gap-6 overflow-x-auto text-xs">
-                <div className="flex flex-col items-center gap-2 shrink-0">
-                  <div className="flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full border-4 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                      <span className="text-lg font-bold text-muted-foreground">50</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium text-foreground">New agent</p>
-                    <p className="text-muted-foreground">High uncertainty</p>
-                  </div>
-                </div>
-                <span className="text-muted-foreground shrink-0 pb-8">→</span>
-                <div className="flex flex-col items-center gap-2 shrink-0">
-                  <div className="flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full border-4 border-dashed border-primary/40 flex items-center justify-center">
-                      <span className="text-lg font-bold text-foreground">62</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium text-foreground">Few evaluations</p>
-                    <p className="text-muted-foreground">Shrinking uncertainty</p>
-                  </div>
-                </div>
-                <span className="text-muted-foreground shrink-0 pb-8">→</span>
-                <div className="flex flex-col items-center gap-2 shrink-0">
-                  <div className="flex flex-col items-center">
-                    <div className="h-16 w-16 rounded-full border-4 border-solid border-primary flex items-center justify-center">
-                      <span className="text-lg font-bold text-primary">78</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium text-foreground">Stable score</p>
-                    <p className="text-muted-foreground">High confidence</p>
-                  </div>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Dashed border = high uncertainty (σ). Solid border = low uncertainty. Recent evaluations weigh more. Score decays toward 50 without new data.
-              </p>
-            </div>
-          </div>
 
           {/* Section 5 — Live Stats */}
           <LiveStats stats={stats} />

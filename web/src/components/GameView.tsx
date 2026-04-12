@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Text, TextStyle } from "pixi.js";
+import { Application, Container } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
 import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
 import { setupCamera, getCameraHandle } from "@/canvas/camera";

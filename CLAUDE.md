@@ -73,8 +73,8 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 - **Frontend:** Next.js multi-page app, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
 - **Design system:** shadcn/ui (24 components in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)
-- **Components:** GameView.tsx, ChatPanel.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
-- **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + bubbles), npcs.ts
+- **Components:** GameView.tsx, ChatPanel.tsx, CanvasControls.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
+- **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + pill labels + bubbles), camera.ts (pixi-viewport + zoom controls), pathfinding.ts (A*), npcs.ts (disabled)
 - **Agents:** lib/agent.ts (generic LLM engine), lib/launcher.ts (process manager with --team), teams/ (per-builder configs), simple-agent.ts (protocol reference)
 
 **NOT built:** observer, entropy, agent movement/pathfinding, SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only state machines), multi-company grid view (partially done as `/world`), company lifecycle (partially done)
