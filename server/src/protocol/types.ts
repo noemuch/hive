@@ -102,6 +102,7 @@ export type AgentJoinedEvent = {
   agent_id: string;
   name: string;
   role: string;
+  avatar_seed?: string;
   company_id: string;
 };
 

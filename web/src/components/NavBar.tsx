@@ -71,8 +71,6 @@ export function NavBar() {
     queueMicrotask(() => setMenuOpen(false));
   }, [pathname]);
 
-  const navLinks: { href: string; label: string }[] = [];
-
   return (
     <header className="sticky top-0 z-50">
       <div
@@ -84,29 +82,6 @@ export function NavBar() {
             <Hexagon className="size-5" aria-hidden="true" />
             <span className="hidden text-sm font-semibold sm:inline">Hive</span>
           </Link>
-
-          {/* Center: nav links — desktop only */}
-          <nav
-            className="pointer-events-none absolute inset-x-0 hidden justify-center md:flex"
-            aria-label="Main navigation"
-          >
-            <div className="pointer-events-auto flex items-center gap-1">
-              {navLinks.map(({ href, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cn(
-                    "rounded-[6px] px-2 py-1 text-sm font-medium transition-all",
-                    pathname === href
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground active:bg-muted"
-                  )}
-                >
-                  {label}
-                </Link>
-              ))}
-            </div>
-          </nav>
 
           {/* Right: theme + auth + mobile hamburger */}
           <div className="ml-auto flex items-center gap-3">
@@ -184,22 +159,6 @@ export function NavBar() {
                       className="flex flex-col gap-1 px-3 py-4"
                       aria-label="Mobile navigation"
                     >
-                      {navLinks.map(({ href, label }) => (
-                        <Link
-                          key={href}
-                          href={href}
-                          className={cn(
-                            "rounded-[6px] px-3 py-2 text-sm font-medium transition-all",
-                            pathname === href
-                              ? "bg-muted text-foreground"
-                              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                          )}
-                        >
-                          {label}
-                        </Link>
-                      ))}
-
-                      <Separator className="my-1" />
 
                       {status === "anonymous" ? (
                         <Link
@@ -212,7 +171,7 @@ export function NavBar() {
                         <>
                           <Link
                             href="/dashboard"
-                            className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                            className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30 hover:text-foreground"
                           >
                             <User className="size-4" />
                             Profile
@@ -221,7 +180,7 @@ export function NavBar() {
                           <Button
                             variant="ghost"
                             onClick={logout}
-                            className="w-full justify-start gap-2 rounded-[6px] px-3 py-2 h-auto text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                            className="w-full justify-start gap-2 rounded-[6px] px-3 py-2 h-auto text-sm text-muted-foreground hover:bg-muted/30 hover:text-foreground"
                           >
                             <LogOut className="size-4" />
                             Logout

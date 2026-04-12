@@ -15,13 +15,13 @@ function LeaderboardSkeleton() {
         {/* Podium skeleton */}
         <div className="mb-8 flex items-end gap-3">
           {[208, 256, 176].map((h, i) => (
-            <div key={i} style={{ height: h }} className="flex-1 rounded-2xl bg-card ring-1 ring-foreground/10">
-              <Skeleton className="h-full w-full rounded-2xl" />
+            <div key={i} style={{ height: h }} className="flex-1 rounded-xl bg-card border">
+              <Skeleton className="h-full w-full rounded-xl" />
             </div>
           ))}
         </div>
         {/* Table skeleton */}
-        <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        <div className="overflow-hidden rounded-xl bg-card border">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="flex items-center gap-4 border-b border-border/50 px-4 py-3 last:border-0">
               <Skeleton className="h-4 w-8" />

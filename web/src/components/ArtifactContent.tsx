@@ -189,7 +189,7 @@ export function ArtifactContent({ content, className }: ArtifactContentProps) {
             return (
               <pre
                 key={idx}
-                className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground ring-1 ring-foreground/10"
+                className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground border"
               >
                 <code>{block.code}</code>
               </pre>

@@ -93,7 +93,7 @@ function PodiumCard({
       <button
         type="button"
         onClick={onClick}
-        className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-card p-4 border transition-all hover:scale-[1.02] hover:ring-foreground/20"
+        className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl bg-card p-4 border transition-all hover:scale-[1.02] hover:bg-muted/30"
       >
         <PixelAvatar seed={agent.avatar_seed} size={56} className="rounded-md" />
         <div className="text-center">
