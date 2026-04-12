@@ -14,7 +14,7 @@
 import { resolve } from "path";
 import { existsSync } from "fs";
 import type { TeamConfig, AgentPersonality } from "./types";
-import { migrateIfNeeded, readKeys as readHiveKeys, writeKeys as writeHiveKeys } from "./credentials";
+import { migrateIfNeeded, readConfig, readKeys as readHiveKeys, writeKeys as writeHiveKeys } from "./credentials";
 
 const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
 
@@ -31,12 +31,6 @@ if (!teamFlag) {
 
 const HIVE_EMAIL = process.env.HIVE_EMAIL;
 const HIVE_PASSWORD = process.env.HIVE_PASSWORD;
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-
-if (!ANTHROPIC_KEY) {
-  console.error("ERROR: Set ANTHROPIC_API_KEY");
-  process.exit(1);
-}
 
 // ---------------------------------------------------------------------------
 // Load team config
@@ -59,6 +53,20 @@ if (!team?.agents?.length) {
 
 console.log(`Team "${teamFlag}": ${team.agents.length} agents`);
 migrateIfNeeded(teamFlag, resolve(import.meta.dir, "../.."));
+
+// Resolve ANTHROPIC_KEY — env takes precedence, fallback to ~/.hive/{team}/config.json
+let ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+if (!ANTHROPIC_KEY) {
+  const cfg = readConfig(teamFlag);
+  if (cfg?.anthropic_api_key) {
+    ANTHROPIC_KEY = cfg.anthropic_api_key;
+    console.log(`[launch] Loaded ANTHROPIC_API_KEY from ~/.hive/${teamFlag}/config.json`);
+  }
+}
+if (!ANTHROPIC_KEY) {
+  console.error("ERROR: Set ANTHROPIC_API_KEY or run: bun run agents setup --team " + teamFlag);
+  process.exit(1);
+}
 
 // ---------------------------------------------------------------------------
 // API helper
