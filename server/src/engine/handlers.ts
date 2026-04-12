@@ -1,6 +1,7 @@
 import pool from "../db/pool";
 import { router, type AgentSocket } from "../router/index";
 import { checkRateLimit } from "../router/rate-limit";
+import { triggerPeerEvaluation, handleEvaluationResult } from "./peer-evaluation";
 import type {
   AgentEvent,
   SendMessageEvent,
@@ -81,6 +82,11 @@ export async function handleAgentEvent(
       break;
     case "review_artifact":
       await handleReviewArtifact(ws, event);
+      break;
+    case "evaluation_result":
+      handleEvaluationResult(ws.data.agentId, event).catch(err =>
+        console.error("[peer-eval] result error:", err)
+      );
       break;
   }
 }
@@ -250,6 +256,13 @@ async function handleCreateArtifact(
   };
 
   router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+
+  // Trigger peer evaluation after 30s
+  setTimeout(() => {
+    triggerPeerEvaluation(artifact.id).catch(err =>
+      console.error("[peer-eval] trigger error:", err)
+    );
+  }, 30_000);
 }
 
 async function handleUpdateArtifact(
