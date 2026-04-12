@@ -143,33 +143,30 @@ export async function loadCharacterTextures(): Promise<void> {
       const idleTex = await Assets.load(idleUrl);
       const idleSource = idleTex.source as TextureSource;
 
-      // Extract just the front-facing frame (frame 0)
-      const frontFrame = [new Texture({
+      // Extract front-facing idle frame (for standing at destinations)
+      const idleFrontFrame = [new Texture({
         source: idleSource,
         frame: new Rectangle(0, 0, FRAME_W, idleSource.height),
       })];
 
-      // Load idle ANIM for subtle breathing (use first 2 frames only)
-      const idleAnimUrl = `${basePath}/${name}_idle_anim_16x16.png`;
-      const idleAnimTex = await Assets.load(idleAnimUrl);
-      const idleAnimSource = idleAnimTex.source as TextureSource;
-      const idleAnimFrames = extractFrames(idleAnimSource, Math.floor(idleAnimSource.width / FRAME_W), 0, 2);
+      // Load REAL sitting spritesheet (sit_16x16.png — 384x32, 24 frames)
+      const sitUrl = `${basePath}/${name}_sit_16x16.png`;
+      const sitTex = await Assets.load(sitUrl);
+      const sitSource = sitTex.source as TextureSource;
+      // Use front-facing sit frames (first 6 frames = front direction)
+      const sitFrames = extractFrames(sitSource, Math.floor(sitSource.width / FRAME_W), 0, 6);
 
-      // Load walk spritesheet for movement animation
-      let walkFrames: Texture[] = [];
-      try {
-        const walkUrl = `${basePath}/${name}_walk_16x16.png`;
-        const walkTex = await Assets.load(walkUrl);
-        const walkSource = walkTex.source as TextureSource;
-        walkFrames = extractFrames(walkSource, Math.floor(walkSource.width / FRAME_W), 0, 4);
-      } catch {
-        walkFrames = idleAnimFrames; // fallback
-      }
+      // Load run spritesheet for walk animation (run_16x16.png — 384x32, 24 frames)
+      const runUrl = `${basePath}/${name}_run_16x16.png`;
+      const runTex = await Assets.load(runUrl);
+      const runSource = runTex.source as TextureSource;
+      // Use front-facing run frames (first 6 frames)
+      const walkFrames = extractFrames(runSource, Math.floor(runSource.width / FRAME_W), 0, 6);
 
       characterTextureMap.set(name, {
-        sit: frontFrame,
-        idleAnim: idleAnimFrames,
-        walk: walkFrames,
+        sit: sitFrames.length > 0 ? sitFrames : idleFrontFrame,
+        idleAnim: idleFrontFrame,
+        walk: walkFrames.length > 0 ? walkFrames : idleFrontFrame,
       });
     } catch (e) {
       console.warn(`Failed to load character ${name}:`, e);
@@ -309,19 +306,15 @@ export function addAgentSprite(
   let animSprite: AnimatedSprite | null = null;
 
   if (charTextures && charTextures.sit.length > 0) {
-    // Use sitting frame — static single frame, no animation loop
+    // Use real sitting spritesheet with subtle animation
     const frames = charTextures.sit.length === 1
-      ? [...charTextures.sit, ...charTextures.sit] // AnimatedSprite needs 2+ frames
+      ? [...charTextures.sit, ...charTextures.sit]
       : charTextures.sit;
     animSprite = new AnimatedSprite(frames);
-    animSprite.animationSpeed = 0.02; // Very slow — barely perceptible breathing
+    animSprite.animationSpeed = 0.04; // Subtle sitting animation
     animSprite.anchor.set(0.5, 1.0);
     animSprite.scale.set(1.0);
-    if (frames.length <= 2) {
-      animSprite.gotoAndStop(0); // Static — don't animate
-    } else {
-      animSprite.play();
-    }
+    animSprite.play();
 
     // Apply tint for variety
     if (tint !== 0xffffff) {
