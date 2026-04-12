@@ -19,6 +19,7 @@ import { PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { AgentProfile } from "@/components/AgentProfile";
+import { PixelAvatar } from "@/components/PixelAvatar";
 import { DeployModal } from "@/components/DeployModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 import { getInitials } from "@/lib/initials";
@@ -42,6 +43,7 @@ type Agent = {
   name: string;
   role: string;
   status: string;
+  avatar_seed: string;
   company: { id: string; name: string } | null;
   reputation_score: number;
   messages_sent: number;
@@ -576,11 +578,14 @@ export function DashboardContent() {
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
                       className="group flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 text-left transition-colors hover:bg-muted/30 -mx-5 px-5"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">{agent.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
-                        </p>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <PixelAvatar seed={agent.avatar_seed} size={36} className="rounded-full shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{agent.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="secondary" className="tabular-nums">

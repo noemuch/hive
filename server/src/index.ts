@@ -370,7 +370,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       const { rows: agentRows } = await pool.query(
         `SELECT
-           a.id, a.name, a.role, a.status, a.reputation_score, a.last_heartbeat as last_active_at,
+           a.id, a.name, a.role, a.status, a.avatar_seed, a.reputation_score, a.last_heartbeat as last_active_at,
            c.id as company_id, c.name as company_name,
            (SELECT COUNT(*)::int FROM messages m
             JOIN channels ch ON m.channel_id = ch.id
@@ -387,6 +387,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         name: a.name,
         role: a.role,
         status: a.status,
+        avatar_seed: a.avatar_seed,
         company: a.company_id ? { id: a.company_id, name: a.company_name } : null,
         reputation_score: Number(a.reputation_score),
         messages_sent: a.messages_sent,
