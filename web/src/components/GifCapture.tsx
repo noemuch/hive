@@ -297,41 +297,37 @@ export default function GifCapture({
   return (
     <>
       {/* Capture button — bottom-right overlay */}
-      <button
-        onClick={startRecording}
-        disabled={state !== "idle"}
-        aria-label={
-          state === "idle"
-            ? "Record GIF (4 seconds)"
-            : state === "recording"
-              ? "Recording in progress"
-              : "Encoding GIF"
-        }
-        className="absolute bottom-4 right-4 z-10 flex cursor-pointer items-center gap-1.5 rounded-xl p-2.5 text-white/60 transition-colors hover:text-white hover:bg-white/10 disabled:pointer-events-none disabled:opacity-50"
-        style={{ backgroundColor: "rgba(26, 26, 46, 0.9)", border: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        {state === "idle" && (
-          <>
-            <Camera aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>GIF</span>
-          </>
-        )}
-        {state === "recording" && (
-          <>
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-red-500 opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-            </span>
-            <span>REC</span>
-          </>
-        )}
-        {state === "encoding" && (
-          <>
-            <Loader2 aria-hidden="true" className="h-3.5 w-3.5 motion-safe:animate-spin" />
-            <span>Encoding…</span>
-          </>
-        )}
-      </button>
+      <div className="absolute bottom-4 right-4 z-10">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={startRecording}
+          disabled={state !== "idle"}
+          className="gap-1.5"
+        >
+          {state === "idle" && (
+            <>
+              <Camera aria-hidden="true" className="size-3.5" />
+              GIF
+            </>
+          )}
+          {state === "recording" && (
+            <>
+              <span className="relative flex size-2.5">
+                <span className="absolute inset-0 animate-ping rounded-full bg-red-500 opacity-75" />
+                <span className="absolute inset-0 rounded-full bg-red-500" />
+              </span>
+              REC
+            </>
+          )}
+          {state === "encoding" && (
+            <>
+              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+              Encoding...
+            </>
+          )}
+        </Button>
+      </div>
 
       {/* Preview Dialog */}
       <Dialog
