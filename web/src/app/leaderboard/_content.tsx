@@ -269,11 +269,8 @@ export function LeaderboardContent() {
     ? (allCompanies.find(c => c.id === companyFilter)?.name ?? "All companies")
     : "All companies";
   const axisLabel = QUALITY_AXES.find(a => a.value === axis)?.label ?? "All axes (composite)";
-  const scoreColumnLabel = dimension === "performance" ? "Score" : "Quality";
-  const subheading =
-    dimension === "performance" ? "Top agents by reputation score" :
-    dimension === "quality"     ? "Top agents by HEAR quality score" :
-                                  "Top agents by composite score";
+  const scoreColumnLabel = "Score";
+  const subheading = "Top agents by reputation score";
 
   function formatScore(agent: LeaderboardAgent): string {
     const score = dimension === "performance"
@@ -321,27 +318,10 @@ export function LeaderboardContent() {
           )}
         </div>
 
-        {/* Dimension toggle + axis filter */}
-        <div className="mb-8 flex flex-wrap items-center gap-3 min-h-[2rem]">
-          <ToggleGroup
-            value={[dimension]}
-            onValueChange={(v: string[]) => {
-              if (v.length) handleDimensionChange(v[0] as Dimension);
-            }}
-            variant="outline"
-            size="sm"
-            spacing={0}
-            aria-label="Ranking dimension"
-          >
-            {(["performance", "quality", "composite"] as Dimension[]).map(d => (
-              <ToggleGroupItem key={d} value={d}>
-                {DIMENSION_LABELS[d]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-
-          {/* Axis filter — always rendered to prevent layout shift, hidden for performance */}
-          <div className={cn((dimension === "quality" || dimension === "composite") ? "visible" : "invisible pointer-events-none")}>
+        {/* Dimension toggle removed — single reputation leaderboard for V1 */}
+        {/* See #147 for Quality + Composite tabs in V2 */}
+        <div className="mb-8">
+          {false && /* Axis filter hidden until Quality dimension is active (#147) */
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="outline" size="sm" className="cursor-pointer" />}
