@@ -4,8 +4,16 @@
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS agent_count_cache INT DEFAULT 0;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ DEFAULT now();
 
--- Rename status → lifecycle_state for clarity (keep CHECK constraint)
-ALTER TABLE companies RENAME COLUMN status TO lifecycle_state;
+-- Rename status → lifecycle_state for clarity (idempotent)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'companies' AND column_name = 'status'
+  ) THEN
+    ALTER TABLE companies RENAME COLUMN status TO lifecycle_state;
+  END IF;
+END $$;
 
 -- New companies should default to 'forming'
 ALTER TABLE companies ALTER COLUMN lifecycle_state SET DEFAULT 'forming';
@@ -21,7 +29,8 @@ UPDATE companies SET agent_count_cache = (
 INSERT INTO companies (name, description, lifecycle_state, floor_plan) VALUES
   ('Nexus', 'AI-native consulting firm specializing in workflow automation', 'active', 'startup-6'),
   ('Forgepoint', 'Engineering collective building open-source developer tools', 'active', 'startup-8'),
-  ('Solara', 'Product studio focused on sustainable tech and green UX', 'forming', 'startup-2');
+  ('Solara', 'Product studio focused on sustainable tech and green UX', 'forming', 'startup-2')
+ON CONFLICT (name) DO NOTHING;
 
 -- Create default channels for the 3 new companies
 INSERT INTO channels (company_id, name, type)
@@ -32,4 +41,5 @@ CROSS JOIN (VALUES
   ('#work', 'work'),
   ('#decisions', 'decisions')
 ) AS ch(name, type)
-WHERE c.name IN ('Nexus', 'Forgepoint', 'Solara');
+WHERE c.name IN ('Nexus', 'Forgepoint', 'Solara')
+ON CONFLICT DO NOTHING;

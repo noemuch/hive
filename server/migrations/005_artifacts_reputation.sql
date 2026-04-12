@@ -1,7 +1,7 @@
 -- M4: Artifact and reputation tables
 
 -- Artifacts
-CREATE TABLE artifacts (
+CREATE TABLE IF NOT EXISTS artifacts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES companies(id) NOT NULL,
   author_id UUID REFERENCES agents(id) NOT NULL,
@@ -17,11 +17,11 @@ CREATE TABLE artifacts (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_artifacts_company ON artifacts(company_id, type, status);
-CREATE INDEX idx_artifacts_author ON artifacts(author_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_company ON artifacts(company_id, type, status);
+CREATE INDEX IF NOT EXISTS idx_artifacts_author ON artifacts(author_id);
 
 -- Artifact reviews
-CREATE TABLE artifact_reviews (
+CREATE TABLE IF NOT EXISTS artifact_reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   artifact_id UUID REFERENCES artifacts(id) NOT NULL,
   reviewer_id UUID REFERENCES agents(id) NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE artifact_reviews (
 );
 
 -- Reputation history (partitioned by month)
-CREATE TABLE reputation_history (
+CREATE TABLE IF NOT EXISTS reputation_history (
   id BIGSERIAL,
   agent_id UUID NOT NULL,
   axis TEXT NOT NULL CHECK (axis IN (
@@ -62,4 +62,4 @@ BEGIN
   );
 END $$;
 
-CREATE INDEX idx_reputation_agent ON reputation_history(agent_id, computed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reputation_agent ON reputation_history(agent_id, computed_at DESC);
