@@ -474,7 +474,7 @@ function QualityBars({
   const worstKey = sorted[sorted.length - 1].key;
 
   return (
-    <div className="flex flex-col divide-y divide-border/60">
+    <div className="flex flex-col divide-y">
       {sorted.map(ax => {
         const score = ax.axisData!.score;
         const isWorst = ax.key === worstKey;
@@ -485,7 +485,7 @@ function QualityBars({
             key={ax.key}
             type="button"
             onClick={() => onAxisClick(ax.key)}
-            className="group flex w-full cursor-pointer items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="group flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           >
             <div className="min-w-0 flex-1">
               <div className="mb-2 flex items-center gap-1.5">
@@ -544,31 +544,36 @@ function Altitude2({
   onAxisClick: (key: QualityAxisKey) => void;
 }) {
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col gap-4">
       {/* Nav header */}
-      <div className="flex items-center justify-between border-b px-5 py-4">
+      <div className="flex items-center justify-between px-5 pt-4">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 px-0 hover:bg-transparent">
           <ChevronLeft className="size-4" aria-hidden="true" />
           Back
         </Button>
         {quality?.composite != null && (
-          <span className="font-mono text-lg font-bold tracking-tight">
+          <Badge variant="secondary" className="text-base font-bold tabular-nums">
             {quality.composite.toFixed(1)}
-          </span>
+          </Badge>
         )}
       </div>
 
-      {/* Quality bars — sorted, no tabs */}
-      {!quality ? (
-        <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
-          <p className="text-sm font-medium">Quality evaluation pending</p>
-          <p className="max-w-[240px] text-xs text-muted-foreground">
-            HEAR evaluations run nightly. Check back after the agent has produced artifacts.
-          </p>
+      {/* Quality bars — sorted, in container */}
+      <div className="mx-5 rounded-xl border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b">
+          <h3 className="text-sm font-semibold">Quality Breakdown</h3>
         </div>
-      ) : (
-        <QualityBars quality={quality} onAxisClick={onAxisClick} />
-      )}
+        {!quality ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
+            <p className="text-sm font-medium">Quality evaluation pending</p>
+            <p className="max-w-[240px] text-xs text-muted-foreground">
+              HEAR evaluations run nightly. Check back after the agent has produced artifacts.
+            </p>
+          </div>
+        ) : (
+          <QualityBars quality={quality} onAxisClick={onAxisClick} />
+        )}
+      </div>
     </div>
   );
 }
@@ -622,9 +627,9 @@ function Altitude3({
   }, [agentId, axisKey]);
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col gap-4">
       {/* Nav header */}
-      <div className="border-b px-5 py-4">
+      <div className="px-5 pt-4">
         <Button
           variant="ghost"
           size="sm"
@@ -637,45 +642,53 @@ function Altitude3({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-0 px-5 py-6">
-          {/* Axis heading + score */}
+        <div className="flex flex-col gap-4 px-5 pb-6">
+          {/* Axis heading */}
           <h2 className="text-lg font-semibold leading-tight">
             {axisMeta?.label ?? axisKey}
           </h2>
 
-          {/* Score card */}
-          <div className="mt-4 rounded-xl border bg-card p-5">
-            <div className="flex items-baseline gap-2">
-              <span
-                className={cn(
-                  "font-mono text-4xl font-bold tracking-tight",
-                  scoreTextColor(score)
-                )}
-              >
-                {score.toFixed(1)}
-              </span>
-              <span className="text-sm text-muted-foreground">/ 10</span>
-              <span className={cn("ml-auto text-xs font-medium", confidence.className)}>
-                {confidence.label}
-              </span>
+          {/* Score */}
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-sm font-semibold">Score</h3>
+            </div>
+            <div className="px-4 py-4">
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={cn(
+                    "font-mono text-4xl font-bold tracking-tight",
+                    scoreTextColor(score)
+                  )}
+                >
+                  {score.toFixed(1)}
+                </span>
+                <span className="text-sm text-muted-foreground">/ 10</span>
+                <span className={cn("ml-auto text-xs font-medium", confidence.className)}>
+                  {confidence.label}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* What this measures */}
-          <div className="mt-6">
-            <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              What this measures
-            </h3>
-            <p className="text-sm leading-relaxed text-foreground/80">
-              {WHAT_THIS_MEASURES[axisKey] ?? axisMeta?.description}
-            </p>
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-sm font-semibold">What this measures</h3>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {WHAT_THIS_MEASURES[axisKey] ?? axisMeta?.description}
+              </p>
+            </div>
           </div>
 
           {/* Recent judgments */}
-          <div className="mt-6">
-            <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Recent judgments
-            </h3>
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-sm font-semibold">Recent judgments</h3>
+            </div>
+            <div className="px-4 py-3">
 
             {loading && (
               <div className="flex justify-center py-8">
@@ -692,11 +705,11 @@ function Altitude3({
             )}
 
             {!loading && !fetchError && explanations.length > 0 && (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {explanations.map((exp, i) => (
                   <div
                     key={i}
-                    className="rounded-xl border bg-card p-4"
+                    className="rounded-lg bg-muted/30 p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span
@@ -735,6 +748,7 @@ function Altitude3({
                 ))}
               </div>
             )}
+            </div>
           </div>
         </div>
       </ScrollArea>
