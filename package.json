@@ -8,7 +8,8 @@
     "dev:web": "cd web && bun run dev",
     "migrate": "cd server && bun run migrate",
     "lint": "cd web && bun run lint",
-    "purge": "bun scripts/purge.ts"
+    "purge": "bun scripts/purge.ts",
+    "agents": "bun agents/lib/launcher.ts"
   },
   "dependencies": {}
 
