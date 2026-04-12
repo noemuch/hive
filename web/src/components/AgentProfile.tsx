@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
-import { MessageSquare, Package, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
+import { ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { cn } from "@/lib/utils";
@@ -257,26 +257,6 @@ function Sparkline({ history }: { history: { date: string; score: number }[] }) 
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className="size-3.5" aria-hidden="true" />
-        {label}
-      </div>
-      <div className="font-mono text-lg font-semibold">{value.toLocaleString()}</div>
-    </div>
-  );
-}
-
 // ─── Altitude 1 — Survol ─────────────────────────────────────────────────────
 
 function Altitude1({
@@ -325,61 +305,75 @@ function Altitude1({
         </div>
       </div>
 
-      {/* Hero quality score */}
-      <div className="mx-5 rounded-xl border bg-card p-5">
-        {qualityLoading ? (
-          <div className="flex justify-center py-4">
-            <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-          </div>
-        ) : compositeScore != null ? (
-          <>
-            <div className="flex flex-col items-center gap-1 text-center">
-              <span className="text-5xl font-bold tracking-tight">
-                {compositeScore.toFixed(1)}
-              </span>
-              <span className="text-xs text-muted-foreground">quality score</span>
+      {/* Score */}
+      <div className="mx-5 rounded-xl border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b">
+          <h3 className="text-sm font-semibold">Score</h3>
+        </div>
+        <div className="px-4 py-4">
+          {qualityLoading ? (
+            <div className="flex justify-center py-4">
+              <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
             </div>
-            {history.length > 1 && (
-              <div className="mt-4">
-                <div className="overflow-hidden rounded-md bg-muted/30 px-1 py-2">
-                  <Sparkline history={history.slice(-10)} />
-                </div>
-                {weekDelta != null && (
-                  <p className="mt-2 text-center text-xs text-muted-foreground">
-                    {weekDelta >= 0 ? "▲" : "▼"}{" "}
-                    {weekDelta >= 0 ? "+" : ""}
-                    {weekDelta.toFixed(1)}/week
-                  </p>
-                )}
+          ) : compositeScore != null ? (
+            <>
+              <div className="flex flex-col items-center gap-1 text-center">
+                <span className="text-5xl font-bold tracking-tight">
+                  {compositeScore.toFixed(1)}
+                </span>
+                <span className="text-xs text-muted-foreground">quality score</span>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-2 py-2 text-center">
-            <p className="text-sm font-medium">Quality evaluation pending</p>
-            <p className="max-w-[240px] text-xs text-muted-foreground">
-              HEAR evaluations run nightly. Check back after the agent has produced artifacts.
-            </p>
-          </div>
-        )}
+              {history.length > 1 && (
+                <div className="mt-4">
+                  <div className="overflow-hidden rounded-md bg-muted/30 px-1 py-2">
+                    <Sparkline history={history.slice(-10)} />
+                  </div>
+                  {weekDelta != null && (
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                      {weekDelta >= 0 ? "\u2191" : "\u2193"}{" "}
+                      {weekDelta >= 0 ? "+" : ""}
+                      {weekDelta.toFixed(1)}/week
+                    </p>
+                  )}
+                </div>
+              )}
+              {summary && (
+                <p className="mt-4 text-xs leading-relaxed text-muted-foreground text-center">
+                  {summary}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2 py-2 text-center">
+              <p className="text-sm font-medium">Quality evaluation pending</p>
+              <p className="max-w-[240px] text-xs text-muted-foreground">
+                HEAR evaluations run nightly. Check back after the agent has produced artifacts.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Natural language summary */}
-      {summary && (
-        <p className="px-5 py-4 text-sm leading-relaxed text-muted-foreground">
-          {summary}
-        </p>
-      )}
-
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-2 px-5 pb-2">
-        <StatCard icon={MessageSquare} label="Messages"  value={agent.stats.messages_sent} />
-        <StatCard icon={Package}       label="Artifacts" value={agent.stats.artifacts_created} />
+      <div className="mx-5 rounded-xl border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b">
+          <h3 className="text-sm font-semibold">Stats</h3>
+        </div>
+        <div className="grid grid-cols-2 gap-px bg-border">
+          <div className="bg-card px-4 py-3 text-center">
+            <div className="text-xl font-bold tabular-nums">{agent.stats.messages_sent.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">messages</div>
+          </div>
+          <div className="bg-card px-4 py-3 text-center">
+            <div className="text-xl font-bold tabular-nums">{agent.stats.artifacts_created.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">artifacts</div>
+          </div>
+        </div>
       </div>
 
       {/* CTA */}
       {quality && (
-        <div className="px-5 py-4">
+        <div className="px-5">
           <Button
             variant="outline"
             className="w-full justify-between"
@@ -391,11 +385,13 @@ function Altitude1({
         </div>
       )}
 
-      {/* Builder card */}
+      {/* Built by */}
       {agent.builder?.display_name && (
-        <div className="border-t px-5 py-4">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">Built by</p>
-          <div className="rounded-xl border p-3 flex flex-col gap-2.5">
+        <div className="mx-5 rounded-xl border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <h3 className="text-sm font-semibold">Built by</h3>
+          </div>
+          <div className="px-4 py-3 flex flex-col gap-2.5">
             <div className="flex items-center gap-2.5">
               <div className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold shrink-0">
                 {getInitials(agent.builder.display_name)}
