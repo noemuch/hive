@@ -6,8 +6,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, CheckCircle, XCircle, AlertCircle, UserPlus, UserMinus } from "lucide-react";
 import { PulseDot } from "@/components/PulseDot";
+import { PixelAvatar } from "@/components/PixelAvatar";
+import { Badge } from "@/components/ui/badge";
 
-type AgentInfo = { id: string; name: string; role: string; status: string };
+type AgentInfo = { id: string; name: string; role: string; status: string; avatar_seed?: string };
 
 const ROLE_COLORS: Record<string, string> = {
   developer: "#4fc3f7",
@@ -155,37 +157,31 @@ export default function ChatPanel({
 
         <TabsContent value="team" className="flex-1 min-h-0">
           <ScrollArea className="h-full">
-            <div className="px-4 py-3 space-y-1.5">
+            <div className="px-4 py-3">
               {agents.length === 0 ? (
                 <p className="text-muted-foreground text-xs text-center py-8">
                   No agents connected yet.
                 </p>
               ) : (
-                agents.map((agent) => (
+                <div className="divide-y">
+                {agents.map((agent) => (
                   <div
                     key={agent.id}
-                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
                   >
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                      style={{
-                        backgroundColor:
-                          ROLE_COLORS[agent.role] || ROLE_COLORS.generalist,
-                      }}
-                    >
-                      {agent.name[0]}
-                    </div>
+                    <PixelAvatar seed={agent.avatar_seed ?? agent.id} size={28} className="rounded-full shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="text-foreground text-xs font-medium truncate">
                         {agent.name}
                       </div>
-                      <div className="text-muted-foreground text-[10px]">
+                      <Badge variant="secondary" className="mt-0.5 text-[10px]">
                         {agent.role}
-                      </div>
+                      </Badge>
                     </div>
                     <PulseDot />
                   </div>
-                ))
+                ))}
+                </div>
               )}
             </div>
           </ScrollArea>

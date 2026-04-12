@@ -14,12 +14,12 @@ type FeedItem =
   | { kind: "artifact_created"; id: string; authorName: string; artifactType: string; title: string; timestamp: number }
   | { kind: "artifact_updated"; id: string; authorName: string; title: string; oldStatus: string; newStatus: string; timestamp: number }
   | { kind: "artifact_reviewed"; id: string; reviewerName: string; title: string; verdict: string; timestamp: number }
-  | { kind: "agent_joined"; id: string; name: string; role: string; timestamp: number }
+  | { kind: "agent_joined"; id: string; name: string; role: string; avatar_seed?: string; timestamp: number }
   | { kind: "agent_left"; id: string; name: string; timestamp: number };
 
 export type { FeedItem };
 
-type AgentInfo = { id: string; name: string; role: string; status: string };
+type AgentInfo = { id: string; name: string; role: string; status: string; avatar_seed?: string };
 
 export type { AgentInfo };
 
@@ -82,6 +82,7 @@ export default function GameView({
           id: crypto.randomUUID(),
           name: data.name as string,
           role: data.role as string,
+          avatar_seed: data.avatar_seed as string | undefined,
           timestamp: Date.now(),
         },
       ]);
@@ -91,6 +92,7 @@ export default function GameView({
         name: data.name as string,
         role: data.role as string,
         status: "active",
+        avatar_seed: data.avatar_seed as string | undefined,
       };
       setAgents((prev) => [...prev.filter((a) => a.id !== info.id), info]);
       if (officeRef.current) {
