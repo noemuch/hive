@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
+import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, resetAgentState, updateAgents, triggerAgentMove, notifyAgentActivity } from "@/canvas/agents";
 import { setupCamera, getCameraHandle } from "@/canvas/camera";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
@@ -27,12 +27,10 @@ export default function GameView({
   companyId,
   onAgentClick,
   renderSidebar,
-  panelOpen = false,
 }: {
   companyId: string;
   onAgentClick?: (agentId: string) => void;
   renderSidebar?: (data: { feedItems: FeedItem[]; agents: AgentInfo[]; connected: boolean }) => React.ReactNode;
-  panelOpen?: boolean;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -57,6 +55,15 @@ export default function GameView({
   const agentsRef = useRef<AgentInfo[]>([]);
   useEffect(() => { agentsRef.current = agents; }, [agents]);
 
+  // Reset agents on reconnect so stale "active" entries don't linger
+  const prevConnectedRef = useRef(connected);
+  useEffect(() => {
+    if (!prevConnectedRef.current && connected) {
+      setAgents([]);
+    }
+    prevConnectedRef.current = connected;
+  }, [connected]);
+
   // Subscribe to company WebSocket events
   useCompanyEvents(companyId, {
     onMessage: (data) => {
@@ -72,6 +79,7 @@ export default function GameView({
           timestamp: data.timestamp as number,
         },
       ]);
+      notifyAgentActivity(data.author_id as string);
       if (officeRef.current) {
         showSpeechBubble(officeRef.current, data.author_id as string, data.content as string);
       } else {
@@ -95,7 +103,7 @@ export default function GameView({
         id: data.agent_id as string,
         name: data.name as string,
         role: data.role as string,
-        status: "active",
+        status: (data.status as string) ?? "active",
         avatar_seed: data.avatar_seed as string | undefined,
       };
       setAgents((prev) => [...prev.filter((a) => a.id !== info.id), info]);
@@ -134,6 +142,10 @@ export default function GameView({
           timestamp: Date.now(),
         },
       ]);
+      // Find agent by name and walk to whiteboard
+      const authorName = data.author_name as string;
+      const match = agentsRef.current.find((a) => a.name === authorName);
+      if (match) triggerAgentMove(match.id, "whiteboard");
     },
     onArtifactUpdated: (data) => {
       setFeedItems((prev) => [
@@ -204,10 +216,6 @@ export default function GameView({
         if (destroyed) return;
         officeRef.current = office;
 
-        // Spawn NPCs
-        // NPCs disabled — revisit when agents have movement
-        // await createNPCs(office);
-
         // Flush pending agents
         for (const pending of pendingAgentsRef.current) {
           addAgentSprite(office, pending.id, pending.name, pending.role);
@@ -232,7 +240,9 @@ export default function GameView({
         }));
         cameraCleanupRef.current = cleanupCamera;
 
-        // HUD overlays removed — info is in OfficeHeader (React)
+        // Agent movement tick
+        const tickerFn = (ticker: { deltaMS: number }) => updateAgents(ticker.deltaMS);
+        app.ticker.add(tickerFn);
       });
 
     return () => {
@@ -240,6 +250,8 @@ export default function GameView({
       cameraCleanupRef.current?.();
       cameraCleanupRef.current = null;
       setOnAgentClick(null);
+      resetAgentState();
+      officeRef.current = null;
       try {
         app.destroy(true, { children: true });
       } catch {
@@ -252,19 +264,16 @@ export default function GameView({
   // Sync viewport + agent positions every 500ms for minimap/controls
 
   return (
-    <div className="relative w-full h-full flex overflow-hidden">
-      <div
-        className="relative flex-1 min-w-0 transition-transform duration-300"
-        style={{ transform: panelOpen ? "translateX(-320px)" : "translateX(0)" }}
-      >
-        <div ref={canvasRef} className="w-full h-full bg-background" />
+    <div style={{ display: "flex", width: "100%", height: "100%", overflow: "hidden" }}>
+      {renderSidebar?.({ feedItems, agents, connected })}
+      <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <div ref={canvasRef} style={{ width: "100%", height: "100%", background: "#121220" }} />
         <GifCapture
           app={pixiApp}
           companyName={companyId}
           onStateChange={(s) => setGifState(s === "preview" ? "idle" : s as "idle" | "recording" | "encoding")}
           triggerRef={gifTriggerRef}
         />
-        {/* Canvas controls overlay */}
         <CanvasControls
           onZoomIn={() => getCameraHandle()?.zoomIn()}
           onZoomOut={() => getCameraHandle()?.zoomOut()}
@@ -272,7 +281,6 @@ export default function GameView({
           gifState={gifState}
         />
       </div>
-      {renderSidebar?.({ feedItems, agents, connected })}
     </div>
   );
 }

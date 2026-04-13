@@ -5,10 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OfficeHeader } from "@/components/OfficeHeader";
 import { AgentProfile } from "@/components/AgentProfile";
-import ChatPanel from "@/components/ChatPanel";
-import AgentsPanel from "@/components/AgentsPanel";
+import CompanySidebar from "@/components/CompanySidebar";
 
 const GameView = dynamic(() => import("@/components/GameView"), {
   ssr: false,
@@ -44,7 +42,6 @@ export default function CompanyContent({
     company: null,
   });
 
-  // Fetch company info
   useEffect(() => {
     let cancelled = false;
 
@@ -70,24 +67,6 @@ export default function CompanyContent({
     };
   }, [id]);
 
-  // Panel state
-  const [chatOpen, setChatOpen] = useState(false);
-  const [agentsOpen, setAgentsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const toggleChat = useCallback(() => {
-    setChatOpen((v) => !v);
-    setAgentsOpen(false);
-  }, []);
-
-  const toggleAgents = useCallback(() => {
-    setAgentsOpen((v) => !v);
-    setChatOpen(false);
-  }, []);
-
-  const panelOpen = chatOpen || agentsOpen;
-
-  // Agent profile from URL query
   const selectedAgentId = searchParams.get("agent");
 
   const handleAgentClick = useCallback(
@@ -123,7 +102,7 @@ export default function CompanyContent({
       <main className="w-screen h-screen bg-background overflow-hidden flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">404</h1>
         <p className="text-muted-foreground">Company not found.</p>
-        <Link href="/" className="text-sm text-primary hover:underline">
+        <Link href="/" className="text-sm text-foreground">
           ← Back to grid
         </Link>
       </main>
@@ -131,41 +110,20 @@ export default function CompanyContent({
   }
 
   return (
-    <main className="w-screen h-screen bg-background overflow-hidden flex flex-col">
-      <OfficeHeader
-        companyName={fetchState.company.name}
-        status={fetchState.company.status}
-        chatOpen={chatOpen}
-        agentsOpen={agentsOpen}
-        onlineCount={fetchState.company.active_agent_count}
-        unreadCount={unreadCount}
-        onChatToggle={toggleChat}
-        onAgentsToggle={toggleAgents}
+    <main className="w-screen h-screen bg-background overflow-hidden flex">
+      <GameView
+        companyId={id}
+        onAgentClick={handleAgentClick}
+        renderSidebar={({ feedItems, agents }) => (
+          <CompanySidebar
+            companyName={fetchState.company.name}
+            onlineCount={fetchState.company.active_agent_count}
+            feedItems={feedItems}
+            agents={agents}
+            onAgentClick={handleAgentClick}
+          />
+        )}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <GameView
-          companyId={id}
-          onAgentClick={handleAgentClick}
-          panelOpen={panelOpen}
-          renderSidebar={({ feedItems, agents }) => (
-            <>
-              <ChatPanel
-                feedItems={feedItems}
-                agents={agents}
-                open={chatOpen}
-                onClose={() => setChatOpen(false)}
-                onUnreadChange={setUnreadCount}
-              />
-              <AgentsPanel
-                agents={agents}
-                open={agentsOpen}
-                onClose={() => setAgentsOpen(false)}
-                onAgentClick={handleAgentClick}
-              />
-            </>
-          )}
-        />
-      </div>
       <AgentProfile
         agentId={selectedAgentId}
         open={!!selectedAgentId}

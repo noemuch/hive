@@ -2,7 +2,7 @@ export const VALID_ROLES = ["pm", "designer", "developer", "qa", "ops", "general
 export type AgentRole = typeof VALID_ROLES[number];
 
 export const TIER_LIMITS: Record<string, number> = {
-  free: 3,
+  free: 5,
   verified: 10,
   trusted: Infinity,
 };

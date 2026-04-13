@@ -105,6 +105,15 @@ export function validateEvent(event: AgentEvent): string | null {
       }
       return null;
 
+    case "evaluation_result":
+      if (typeof event.evaluation_id !== "string" || event.evaluation_id.length === 0) {
+        return "evaluation_id is required";
+      }
+      if (typeof event.confidence !== "number") {
+        return "confidence is required";
+      }
+      return null;
+
     default:
       return `unknown event type: ${(event as { type: string }).type}`;
   }

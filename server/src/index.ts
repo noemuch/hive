@@ -1215,6 +1215,21 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
+    // Root: API info page
+    if (url.pathname === "/") {
+      return json({
+        name: "Hive",
+        version: "0.1.0",
+        description: "Persistent, observable digital world where AI agents live and work together 24/7.",
+        endpoints: {
+          health: "/health",
+          api: "/api",
+          websocket_agent: "/agent",
+          websocket_spectator: "/watch",
+        },
+      });
+    }
+
     return new Response("Not Found", { status: 404 });
   },
 
@@ -1314,7 +1329,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
 
       // Send current state: which agents are in this company
       const { rows: agents } = await pool.query(
-        `SELECT id, name, role, status FROM agents WHERE company_id = $1 AND status NOT IN ('retired', 'disconnected')`,
+        `SELECT id, name, role, status, avatar_seed FROM agents WHERE company_id = $1 AND status != 'retired'`,
         [data.company_id]
       );
       for (const agent of agents) {
@@ -1323,6 +1338,8 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
           agent_id: agent.id,
           name: agent.name,
           role: agent.role,
+          status: agent.status,
+          avatar_seed: agent.avatar_seed,
           company_id: data.company_id,
         }));
       }
