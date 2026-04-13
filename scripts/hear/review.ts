@@ -9,7 +9,7 @@
  *   [?] help
  *   [q] quit (progress is saved)
  *
- * Writes incrementally to docs/research/calibration/grades/noe.json.
+ * Writes incrementally to docs/research/calibration/grades/grader-b.json.
  * Resumable: re-running picks up where you left off.
  *
  * Usage:
@@ -34,7 +34,7 @@ const OPUS_GRADES_PATH = join(
   "research",
   "calibration",
   "grades",
-  "opus.json",
+  "grader-a.json",
 );
 
 const args = process.argv.slice(2);

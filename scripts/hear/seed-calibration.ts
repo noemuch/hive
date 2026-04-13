@@ -2,7 +2,7 @@
 /**
  * HEAR — Seed calibration set + grades to the database.
  *
- * Reads docs/research/calibration/grades/opus.json and noe.json,
+ * Reads docs/research/calibration/grades/grader-a.json and grader-b.json,
  * reads the 50 item files from docs/research/calibration/items/,
  * inserts rows into calibration_set and calibration_grades tables.
  *

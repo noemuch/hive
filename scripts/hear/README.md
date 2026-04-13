@@ -30,7 +30,7 @@ If `--model claude-opus-4-6` is not recognized by your version of Claude Code, t
 bun run scripts/hear/pre-grade.ts
 ```
 
-Reads all items in `docs/research/calibration/items/*.md`, invokes Claude Opus 4.6 via the `claude` CLI with the HEAR grader prompt, and writes results to `docs/research/calibration/grades/opus.json`.
+Reads all items in `docs/research/calibration/items/*.md`, invokes Claude Opus 4.6 via the `claude` CLI with the HEAR grader prompt, and writes results to `docs/research/calibration/grades/grader-a.json`.
 
 The script is **resumable**: if interrupted, re-run and it will skip items already graded. Use `--resume` to force resume mode.
 

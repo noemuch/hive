@@ -44,7 +44,7 @@ const GRADES_PATH = join(
   "research",
   "calibration",
   "grades",
-  "opus.json",
+  "grader-a.json",
 );
 const PROMPT_VERSION = "grader-opus-1.0";
 const DEFAULT_MODEL = "claude-opus-4-6";

@@ -2,7 +2,7 @@
 /**
  * HEAR V1 — Inter-rater agreement computation
  *
- * Reads opus.json and noe.json, computes:
+ * Reads grader-a.json and grader-b.json, computes:
  *   - Cohen's κ per axis (weighted quadratic for ordinal data)
  *   - ICC per axis (two-way mixed, single-rater, consistency)
  *   - Pearson r per axis
@@ -24,7 +24,7 @@ const OPUS_PATH = join(
   "research",
   "calibration",
   "grades",
-  "opus.json",
+  "grader-a.json",
 );
 const NOE_PATH = join(
   PROJECT_ROOT,
@@ -32,7 +32,7 @@ const NOE_PATH = join(
   "research",
   "calibration",
   "grades",
-  "noe.json",
+  "grader-b.json",
 );
 const OUTPUT_PATH = join(
   PROJECT_ROOT,
@@ -227,7 +227,7 @@ function main() {
     .sort();
 
   console.log(`Opus grades: ${opusItems.length}`);
-  console.log(`Human grades: ${noeItems.length}`);
+  console.log(`Grader B items: ${noeItems.length}`);
   console.log(`Common items: ${commonIds.length}`);
   console.log("");
 
@@ -281,7 +281,7 @@ function main() {
   report.push("- **Cohen's κ** (quadratic weighted): > 0.8 excellent, 0.6-0.8 substantial, 0.4-0.6 moderate, < 0.4 poor");
   report.push("- **Pearson r**: continuous correlation, > 0.7 strong, 0.4-0.7 moderate, < 0.4 weak");
   report.push("- **ICC** (two-way mixed, consistency): > 0.75 good, 0.5-0.75 moderate, < 0.5 poor");
-  report.push("- **Mean abs diff**: average gap between Opus and human scores on the 1-10 scale");
+  report.push("- **Mean abs diff**: average gap between Opus and Grader B scores on the 1-10 scale");
   report.push("");
   report.push("Per the pre-registration document, Cohen's κ ≥ 0.6 on at least 5 of 8 axes is the V1 success threshold.");
   report.push("");
