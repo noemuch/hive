@@ -531,8 +531,8 @@ function renderNamePills(
   offsetY: number,
   zoom: number,
 ): void {
-  const fontSize = Math.max(10, Math.round(7 * zoom));
-  ctx.font = `bold ${fontSize}px -apple-system, system-ui, sans-serif`;
+  const fontSize = Math.max(8, Math.round(4 * zoom));
+  ctx.font = `600 ${fontSize}px -apple-system, system-ui, sans-serif`;
   ctx.textBaseline = 'middle';
 
   for (const ch of characters) {
@@ -541,16 +541,18 @@ function renderNamePills(
     const isActive = ch.state === CharacterState.TYPE;
     const sittingOffset = isActive ? CHARACTER_SITTING_OFFSET_PX : 0;
 
-    // Position above character head
+    // Position above character head (compact)
     const charScreenX = offsetX + ch.x * zoom;
-    const charScreenY = offsetY + (ch.y + sittingOffset) * zoom - 24 * zoom;
+    const charScreenY = offsetY + (ch.y + sittingOffset) * zoom - 20 * zoom;
 
-    // Measure text
+    // Measure text — compact sizing
     const textWidth = ctx.measureText(ch.name).width;
-    const dotSize = Math.max(4, Math.round(3 * zoom));
-    const padding = Math.max(6, Math.round(4 * zoom));
-    const pillWidth = dotSize + 6 + textWidth + padding * 2;
-    const pillHeight = fontSize + padding;
+    const dotSize = Math.max(3, Math.round(2.5 * zoom));
+    const hPad = Math.max(5, Math.round(3 * zoom));
+    const vPad = Math.max(3, Math.round(2 * zoom));
+    const gap = Math.max(3, Math.round(2 * zoom));
+    const pillWidth = hPad + dotSize + gap + textWidth + hPad;
+    const pillHeight = fontSize + vPad * 2;
     const pillX = charScreenX - pillWidth / 2;
     const pillY = charScreenY - pillHeight / 2;
     const radius = pillHeight / 2;
@@ -563,7 +565,7 @@ function renderNamePills(
     ctx.fill();
 
     // Draw status dot
-    const dotX = pillX + padding + dotSize / 2;
+    const dotX = pillX + hPad + dotSize / 2;
     const dotY = pillY + pillHeight / 2;
     ctx.beginPath();
     ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
@@ -572,7 +574,7 @@ function renderNamePills(
 
     // Draw name text
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(ch.name, dotX + dotSize / 2 + 4, dotY);
+    ctx.fillText(ch.name, dotX + dotSize / 2 + gap, dotY);
 
     ctx.restore();
   }

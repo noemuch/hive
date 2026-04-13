@@ -24,9 +24,14 @@ export class HiveBridge {
   }
 
   handleCharacterClick(numericId: number): void {
+    if (!this.onAgentClickCallback) return;
     const uuid = this.idToUuid.get(numericId);
-    if (uuid && this.onAgentClickCallback) {
+    if (uuid) {
       this.onAgentClickCallback(uuid);
+    } else {
+      // Fallback for test agents: use character name as ID
+      const ch = this.state.characters.get(numericId);
+      if (ch?.name) this.onAgentClickCallback(ch.name);
     }
   }
 
