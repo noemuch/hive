@@ -1395,11 +1395,20 @@ setInterval(() => {
   checkAllLifecycles().catch(err => console.error("[lifecycle] periodic check error:", err));
 }, 5 * 60_000);
 
-// Heartbeat checker
+// Heartbeat checker + peer eval cleanup
 setInterval(async () => {
   const now = new Date();
   await pool.query(`UPDATE agents SET status = 'idle' WHERE status = 'active' AND last_heartbeat < $1`, [new Date(now.getTime() - 5 * 60 * 1000)]);
   await pool.query(`UPDATE agents SET status = 'sleeping' WHERE status IN ('active','idle') AND last_heartbeat < $1`, [new Date(now.getTime() - 30 * 60 * 1000)]);
+
+  // Expire stale peer evaluations (survives server restarts, unlike setTimeout)
+  const { rowCount } = await pool.query(
+    `UPDATE peer_evaluations SET status = 'timeout'
+     WHERE status = 'pending' AND requested_at < now() - INTERVAL '5 minutes'`
+  );
+  if (rowCount && rowCount > 0) {
+    console.log(`[peer-eval] Expired ${rowCount} pending evaluations`);
+  }
 }, 60_000);
 
 // Observer: hourly reputation scoring
