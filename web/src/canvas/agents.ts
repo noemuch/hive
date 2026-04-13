@@ -113,6 +113,10 @@ function extractFrames(
 export async function loadCharacterTextures(): Promise<void> {
   characterTextureMap.clear();
 
+  // Reset PixiJS asset cache to avoid stale references from destroyed apps
+  // (React Strict Mode destroys the first app, corrupting Assets state)
+  Assets.reset();
+
   const basePath = "/tilesets/limezu/characters/animated";
 
   for (const name of CHARACTER_NAMES) {
@@ -132,7 +136,8 @@ export async function loadCharacterTextures(): Promise<void> {
       const idleAnimUrl = `${basePath}/${name}_idle_anim_16x16.png`;
       const idleAnimTex = await Assets.load(idleAnimUrl);
       const idleAnimSource = idleAnimTex.source as TextureSource;
-      const idleAnimFrames = extractFrames(idleAnimSource, Math.floor(idleAnimSource.width / FRAME_W), 0, 2);
+      const totalAnimFrames = Math.floor(idleAnimSource.width / FRAME_W);
+      const idleAnimFrames = extractFrames(idleAnimSource, totalAnimFrames, 0, 2);
 
       characterTextureMap.set(name, {
         sit: frontFrame,
@@ -236,12 +241,8 @@ export function addAgentSprite(
   container.sortableChildren = true;
 
   // Position at desk chair — desk.x/y are tile coords of the chair.
-  // Center horizontally in the tile. For Y, the sprite anchor is bottom-center,
-  // so we place at the bottom of the chair tile (desk.y + 1).
-  // But the chairs are already in "front" position (below the desk), so
-  // we DON'T add extra offset — just center in the chair tile.
   container.x = (desk.x + 0.5) * TILE;
-  container.y = (desk.y + 0.5) * TILE; // center of chair tile
+  container.y = (desk.y + 0.5) * TILE;
 
   // Determine which character sprite to use
   const { characterName, tint } = getCharacterForAgent(id);
@@ -255,7 +256,7 @@ export function addAgentSprite(
       ? [...charTextures.sit, ...charTextures.sit] // AnimatedSprite needs 2+ frames
       : charTextures.sit;
     animSprite = new AnimatedSprite(frames);
-    animSprite.animationSpeed = 0.02; // Very slow — barely perceptible breathing
+    animSprite.animationSpeed = 0.02;
     animSprite.anchor.set(0.5, 1.0);
     animSprite.scale.set(1.0);
     if (frames.length <= 2) {
@@ -550,4 +551,14 @@ export function removeAgentSprite(parent: Container, agentId: string): void {
 /** Get the current map of all active agent sprites. */
 export function getAgents(): Map<string, AgentSprite> {
   return agents;
+}
+
+/** Reset all module-level state. Call on GameView unmount. */
+export function resetAgentState(): void {
+  for (const [, sprite] of agents) {
+    if (sprite.bubbleTimeout) clearTimeout(sprite.bubbleTimeout);
+    if (sprite.zzzInterval) clearInterval(sprite.zzzInterval);
+  }
+  agents.clear();
+  nextDeskIndex = 0;
 }

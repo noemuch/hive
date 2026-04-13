@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick } from "@/canvas/agents";
+import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, resetAgentState } from "@/canvas/agents";
 import { setupCamera, getCameraHandle } from "@/canvas/camera";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
@@ -211,10 +211,6 @@ export default function GameView({
         if (destroyed) return;
         officeRef.current = office;
 
-        // Spawn NPCs
-        // NPCs disabled — revisit when agents have movement
-        // await createNPCs(office);
-
         // Flush pending agents
         for (const pending of pendingAgentsRef.current) {
           addAgentSprite(office, pending.id, pending.name, pending.role);
@@ -247,6 +243,8 @@ export default function GameView({
       cameraCleanupRef.current?.();
       cameraCleanupRef.current = null;
       setOnAgentClick(null);
+      resetAgentState();
+      officeRef.current = null;
       try {
         app.destroy(true, { children: true });
       } catch {
