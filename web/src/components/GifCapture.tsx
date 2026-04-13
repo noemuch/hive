@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Application, Ticker } from "pixi.js";
+// GIF capture is disabled until rewritten for Canvas 2D (was PixiJS-based)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Application = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Ticker = any;
 import { GIFEncoder, quantize, applyPalette } from "gifenc";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
