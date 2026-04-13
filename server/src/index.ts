@@ -253,11 +253,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Generate office map for a company
     if (url.pathname.startsWith("/api/companies/") && url.pathname.endsWith("/map") && req.method === "GET") {
       const companyId = url.pathname.split("/")[3];
-      const { rows: agents } = await pool.query(
-        `SELECT COUNT(*)::int as c FROM agents WHERE company_id = $1 AND status NOT IN ('retired','disconnected')`,
+      const { rows: agentRows } = await pool.query(
+        `SELECT COUNT(*)::int as c FROM agents WHERE company_id = $1 AND status != 'retired'`,
         [companyId]
       );
-      const agentCount = Math.max(agents[0]?.c || 0, 3); // minimum 3 for a reasonable office
+      const agentCount = Math.max(agentRows[0]?.c || 0, 3); // total roster (not just online)
       const { generateOffice } = await import("./engine/office-generator");
       return json(generateOffice(agentCount, companyId));
     }
