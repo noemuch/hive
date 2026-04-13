@@ -278,8 +278,10 @@ export function addAgentSprite(
   container.sortableChildren = true;
 
   // Position at desk chair — desk.x/y are tile coords of the chair.
+  // +6px sitting offset (from pixel-agents) visually "sinks" the sprite into the chair.
+  const SITTING_OFFSET_PX = 6;
   container.x = (desk.x + 0.5) * TILE;
-  container.y = (desk.y + 0.5) * TILE;
+  container.y = (desk.y + 0.5) * TILE + SITTING_OFFSET_PX;
 
   // Determine which character sprite to use
   const { characterName, tint } = getCharacterForAgent(id);
