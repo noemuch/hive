@@ -664,13 +664,11 @@ export function renderFrame(
   // FigJam-style dot grid background
   const dotSpacing = 28;
   const dotRadius = 1.2;
-  // Detect dark/light by checking the actual canvas background pixel
-  let isDark = true;
-  if (typeof document !== 'undefined') {
-    const cls = document.documentElement.classList;
-    isDark = cls.contains('dark') || (!cls.contains('light') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  }
-  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.25)';
+  // Detect dark/light via media query (Hive uses prefers-color-scheme, not class)
+  const isDark = typeof window !== 'undefined'
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    : true;
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.25)';
   const startX = (Math.round(panX) % dotSpacing + dotSpacing) % dotSpacing;
   const startY = (Math.round(panY) % dotSpacing + dotSpacing) % dotSpacing;
   for (let y = startY; y < canvasHeight; y += dotSpacing) {
