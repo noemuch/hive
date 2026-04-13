@@ -20,6 +20,7 @@ interface CollisionObject {
 
 export interface GeneratedOffice {
   backgroundImage: string;
+  foregroundImage?: string;
   width: number;
   height: number;
   tilewidth: 16;
@@ -122,7 +123,8 @@ export function generateOffice(agentCount: number, _companyId?: string): Generat
   const desks = DESK_POSITIONS.slice(0, Math.max(agentCount, 2));
 
   return {
-    backgroundImage: "/maps/office-v1.png",
+    backgroundImage: "/maps/office-v1-bg.png",
+    foregroundImage: "/maps/office-v1-fg.png",
     width: MAP_W,
     height: MAP_H,
     tilewidth: 16,

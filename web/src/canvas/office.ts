@@ -153,15 +153,28 @@ export async function createOffice(_app: Application, companyId?: string): Promi
 
   // Render: either background image (V1) or tile layers (V2+)
   if (mapData.backgroundImage) {
-    // V1: Load the office design as a single background sprite
+    // V1: Split-layer rendering for depth (like pixel-agents).
+    // Background (floor/walls) → agents render between → Foreground (furniture on top)
+    // This makes agents appear to sit BEHIND desks.
     try {
       const bgTex = await Assets.load(mapData.backgroundImage);
       const bg = new Sprite(bgTex);
-      bg.zIndex = 0;
+      bg.zIndex = 0;  // below agents
       office.addChild(bg);
     } catch {
-      // Fallback: dark background
       console.warn("Failed to load office background image");
+    }
+
+    // Foreground layer (furniture) — renders OVER agents for depth illusion
+    if (mapData.foregroundImage) {
+      try {
+        const fgTex = await Assets.load(mapData.foregroundImage);
+        const fg = new Sprite(fgTex);
+        fg.zIndex = 900;  // above agents (agent containers use default zIndex)
+        office.addChild(fg);
+      } catch {
+        console.warn("Failed to load office foreground image");
+      }
     }
   } else {
     // V2+: Tile-based rendering
