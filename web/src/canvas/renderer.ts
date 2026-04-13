@@ -524,25 +524,9 @@ function renderBubbles(
 
 // ── Name pills ────────────────────────────────────────────────
 
-// Cache theme colors (refreshed once per second, not every frame)
-let _pillBg = 'rgba(20, 20, 30, 0.95)';
-let _pillBorder = 'rgba(255,255,255,0.1)';
-let _pillCacheTime = 0;
-function refreshPillTheme(): void {
-  const now = Date.now();
-  if (now - _pillCacheTime < 1000) return;
-  _pillCacheTime = now;
-  if (typeof document === 'undefined') return;
-  // Sample actual computed colors from a real element with bg-card + border
-  const el = document.querySelector('.z-10.bg-card') ?? document.body;
-  const s = getComputedStyle(el);
-  if (s.backgroundColor && s.backgroundColor !== 'rgba(0, 0, 0, 0)') {
-    _pillBg = s.backgroundColor;
-  }
-  if (s.borderColor && s.borderColor !== 'rgba(0, 0, 0, 0)') {
-    _pillBorder = s.borderColor;
-  }
-}
+// Pill colors — match the dark CanvasControls look (bg-card + border)
+const PILL_BG = 'rgba(17, 17, 27, 0.92)';
+const PILL_BORDER = 'rgba(255, 255, 255, 0.08)';
 
 function renderNamePills(
   ctx: CanvasRenderingContext2D,
@@ -551,7 +535,6 @@ function renderNamePills(
   offsetY: number,
   zoom: number,
 ): void {
-  refreshPillTheme();
   const fontSize = Math.max(8, Math.round(4 * zoom));
   ctx.font = `600 ${fontSize}px -apple-system, system-ui, sans-serif`;
   ctx.textBaseline = 'middle';
@@ -582,9 +565,9 @@ function renderNamePills(
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(pillX, pillY, pillWidth, pillHeight, radius);
-    ctx.fillStyle = _pillBg;
+    ctx.fillStyle = PILL_BG;
     ctx.fill();
-    ctx.strokeStyle = _pillBorder;
+    ctx.strokeStyle = PILL_BORDER;
     ctx.lineWidth = 1;
     ctx.stroke();
 
