@@ -1,21 +1,16 @@
+// server/src/engine/peer-evaluation.ts
 import pool from "../db/pool";
 import { router } from "../router/index";
 import { anonymize } from "./anonymizer";
+import { getPeerEvalRubric } from "./rubric-loader";
+import { updateScore, type ScoreState } from "./score-state";
+import { validateEvaluation } from "./peer-eval-validation";
+import { weightedMean } from "./peer-eval-aggregation";
 import type {
   EvaluateArtifactEvent,
   EvaluationAcknowledgedEvent,
+  QualityUpdatedEvent,
 } from "../protocol/types";
-
-const RUBRIC = `Score each axis from 1-10:
-- reasoning_depth: Quality of explicit reasoning. Are premises stated? Alternatives considered?
-- decision_wisdom: Trade-offs explicit? Second-order consequences anticipated? Reversibility considered?
-- communication_clarity: Concise, relevant, well-structured? Follows Grice's maxims?
-- initiative_quality: Proactive without noise? Acts at the right time?
-- collaborative_intelligence: Builds on others? References teammates? Integrates feedback?
-- self_awareness_calibration: Calibrated confidence? Asks for help when stuck?
-- contextual_judgment: Adapts tone and depth to audience and situation?
-
-Set to null if an axis is not applicable to this artifact type.`;
 
 const EVAL_AXES = [
   "reasoning_depth",
@@ -49,21 +44,23 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   );
   if (!artifact || !artifact.content) return;
 
-  // 2. Find eligible evaluators: different company, different builder, online
+  // 2. Find eligible evaluators: different company, online, prefer reliable
   const { rows: candidates } = await pool.query<{
     agent_id: string;
     company_id: string;
     builder_id: string;
     name: string;
+    eval_reliability: string;
   }>(
-    `SELECT a.id AS agent_id, a.company_id, a.builder_id, a.name
+    `SELECT a.id AS agent_id, a.company_id, a.builder_id, a.name,
+            a.eval_reliability
      FROM agents a
      WHERE a.status IN ('active', 'idle')
        AND a.company_id != $1
        AND a.id NOT IN (
          SELECT evaluator_agent_id FROM peer_evaluations WHERE status = 'pending'
        )
-     ORDER BY random()
+     ORDER BY a.eval_reliability DESC, random()
      LIMIT 2`,
     [artifact.company_id]
   );
@@ -94,7 +91,10 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
     builders.map((b) => b.display_name)
   );
 
-  // 5. Create peer_evaluation rows + send to each evaluator directly
+  // 5. Load full BARS rubric
+  const rubric = getPeerEvalRubric();
+
+  // 6. Create peer_evaluation rows + send to each evaluator
   for (const candidate of candidates) {
     const { rows: [pe] } = await pool.query<{ id: string }>(
       `INSERT INTO peer_evaluations (artifact_id, evaluator_agent_id, evaluator_builder_id, status)
@@ -108,10 +108,9 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
       evaluation_id: pe.id,
       artifact_type: artifact.type,
       content: anonContent,
-      rubric: RUBRIC,
+      rubric,
     };
 
-    // Send directly to the evaluating agent (not broadcast to whole company)
     router.sendToAgent(candidate.agent_id, event);
 
     console.log(
@@ -119,19 +118,7 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
     );
   }
 
-  // 6. Set timeout (5 minutes) to expire pending evaluations
-  setTimeout(async () => {
-    try {
-      await pool.query(
-        `UPDATE peer_evaluations SET status = 'timeout'
-         WHERE artifact_id = $1 AND status = 'pending'`,
-        [artifactId]
-      );
-      console.log(`[peer-eval] Timed out pending evaluations for artifact ${artifactId}`);
-    } catch (err) {
-      console.error("[peer-eval] timeout update error:", err);
-    }
-  }, 5 * 60 * 1000);
+  // No setTimeout — cleanup handled by periodic SQL job in index.ts
 }
 
 export async function handleEvaluationResult(
@@ -156,12 +143,35 @@ export async function handleEvaluationResult(
   );
   if (!pe) return;
 
-  // 2. Validate + extract scores
+  // 2. Extract scores + reasoning
   const scores = (data.scores as Record<string, number | null>) ?? {};
   const reasoning = (data.reasoning as string) || "";
   const confidence = (data.confidence as number) || 5;
 
-  // 3. Mark evaluation completed
+  // 3. Quality gate — validate before accepting
+  const validation = validateEvaluation(scores, reasoning, confidence);
+
+  if (!validation.valid) {
+    // Reject the evaluation
+    await pool.query(
+      `UPDATE peer_evaluations
+       SET status = 'rejected', reasoning = $1, completed_at = now()
+       WHERE id = $2`,
+      [`REJECTED: ${validation.reason}. Original: ${reasoning.slice(0, 200)}`, evaluationId]
+    );
+    console.log(`[peer-eval] Evaluation ${evaluationId} rejected: ${validation.reason}`);
+
+    // Still acknowledge to agent (don't reveal rejection to avoid gaming)
+    const ackEvent: EvaluationAcknowledgedEvent = {
+      type: "evaluation_acknowledged",
+      evaluation_id: evaluationId,
+      credit: 1,
+    };
+    router.sendToAgent(agentId, ackEvent);
+    return;
+  }
+
+  // 4. Mark evaluation completed
   await pool.query(
     `UPDATE peer_evaluations
      SET status = 'completed', scores = $1, reasoning = $2, confidence = $3, completed_at = now()
@@ -173,7 +183,7 @@ export async function handleEvaluationResult(
     `[peer-eval] Evaluation ${evaluationId} completed by agent ${agentId}`
   );
 
-  // 4. Acknowledge to the evaluating agent (credit preview)
+  // 5. Acknowledge to the evaluating agent
   const ackEvent: EvaluationAcknowledgedEvent = {
     type: "evaluation_acknowledged",
     evaluation_id: evaluationId,
@@ -181,79 +191,175 @@ export async function handleEvaluationResult(
   };
   router.sendToAgent(agentId, ackEvent);
 
-  // 5. Check if both evaluators have completed
-  const { rows: completed } = await pool.query<{
+  // 6. Check if enough evaluators have completed (need at least 1)
+  const { rows: completedRows } = await pool.query<{
+    evaluator_agent_id: string;
     scores: Record<EvalAxis, number | null> | string;
   }>(
-    `SELECT scores FROM peer_evaluations
+    `SELECT evaluator_agent_id, scores FROM peer_evaluations
      WHERE artifact_id = $1 AND status = 'completed'`,
     [pe.artifact_id]
   );
 
-  if (completed.length >= 2) {
-    // 6. Aggregate scores (mean of completed evaluations per axis)
-    for (const axis of EVAL_AXES) {
-      const axisScores = completed
-        .map((r) => {
-          const s: Record<string, number | null> =
-            typeof r.scores === "string" ? JSON.parse(r.scores) : r.scores;
-          return s[axis];
-        })
-        .filter((s): s is number => s !== null && s !== undefined);
+  // Need at least 2 completed, OR all peer evals for this artifact are done (completed + rejected + timeout)
+  const { rows: [counts] } = await pool.query<{ total: string; pending: string }>(
+    `SELECT COUNT(*) as total,
+            COUNT(*) FILTER (WHERE status = 'pending') as pending
+     FROM peer_evaluations WHERE artifact_id = $1`,
+    [pe.artifact_id]
+  );
 
-      if (axisScores.length === 0) continue;
+  const hasPending = Number(counts.pending) > 0;
+  const hasEnoughCompleted = completedRows.length >= 2;
 
-      const avgScore =
-        axisScores.reduce((a, b) => a + b, 0) / axisScores.length;
+  // Only aggregate when: 2+ completed OR (no more pending and at least 1 completed)
+  if (!hasEnoughCompleted && hasPending) return;
+  if (completedRows.length === 0) return;
 
-      await pool.query(
-        `INSERT INTO quality_evaluations
-           (agent_id, artifact_id, axis, score, judge_count, judge_models, judge_disagreement, rubric_version, methodology_version)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'v1', '1.0')`,
-        [
-          pe.author_id,
-          pe.artifact_id,
-          axis,
-          Math.round(avgScore * 10) / 10,
-          axisScores.length,
-          Array(axisScores.length).fill("peer-evaluation-v1"),
-          axisScores.length > 1
-            ? Math.sqrt(
-                axisScores.reduce(
-                  (acc, s) => acc + Math.pow(s - avgScore, 2),
-                  0
-                ) / axisScores.length
-              )
-            : 0,
-        ]
+  // 7. Fetch evaluator reliabilities
+  const evaluatorIds = completedRows.map((r) => r.evaluator_agent_id);
+  const { rows: reliabilityRows } = await pool.query<{
+    id: string;
+    eval_reliability: string;
+  }>(
+    `SELECT id, eval_reliability FROM agents WHERE id = ANY($1)`,
+    [evaluatorIds]
+  );
+  const reliabilityMap = new Map(
+    reliabilityRows.map((r) => [r.id, Number(r.eval_reliability)])
+  );
+
+  // 8. Aggregate scores per axis (weighted by reliability)
+  for (const axis of EVAL_AXES) {
+    const evaluatorScores: { score: number; reliability: number }[] = [];
+
+    for (const row of completedRows) {
+      const s: Record<string, number | null> =
+        typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
+      const val = s[axis];
+      if (typeof val === "number") {
+        evaluatorScores.push({
+          score: val,
+          reliability: reliabilityMap.get(row.evaluator_agent_id) ?? 0.5,
+        });
+      }
+    }
+
+    if (evaluatorScores.length === 0) continue;
+
+    // Compute aggregated score
+    let avgScore: number;
+    if (evaluatorScores.length === 1) {
+      avgScore = evaluatorScores[0].score;
+    } else {
+      avgScore = weightedMean(
+        evaluatorScores[0].score,
+        evaluatorScores[0].reliability,
+        evaluatorScores[1].score,
+        evaluatorScores[1].reliability,
       );
     }
 
-    // 7. Deduct eval credit from artifact author's builder
-    const { rows: [authorAgent] } = await pool.query<{ builder_id: string }>(
-      `SELECT builder_id FROM agents WHERE id = $1`,
-      [pe.author_id]
+    // Compute disagreement (std dev)
+    const disagreement =
+      evaluatorScores.length > 1
+        ? Math.sqrt(
+            evaluatorScores.reduce(
+              (acc, e) => acc + Math.pow(e.score - avgScore, 2),
+              0
+            ) / evaluatorScores.length
+          )
+        : 0;
+
+    // 9. Score state update — fetch prior, apply peer eval discount
+    const { rows: priorRows } = await pool.query<{
+      score_state_mu: string | null;
+      score_state_sigma: string | null;
+    }>(
+      `SELECT score_state_mu, score_state_sigma
+       FROM quality_evaluations
+       WHERE agent_id = $1 AND axis = $2 AND score_state_mu IS NOT NULL
+       ORDER BY computed_at DESC LIMIT 1`,
+      [pe.author_id, axis]
     );
-    if (authorAgent) {
-      await pool.query(
-        `UPDATE builders SET eval_credits = eval_credits - 1 WHERE id = $1`,
-        [authorAgent.builder_id]
-      );
-    }
 
-    // 8. Award eval credit to all evaluators who completed this artifact
+    const prior: ScoreState | null =
+      priorRows.length > 0 &&
+      priorRows[0].score_state_mu !== null &&
+      priorRows[0].score_state_sigma !== null
+        ? {
+            mu: Number(priorRows[0].score_state_mu),
+            sigma: Number(priorRows[0].score_state_sigma),
+            volatility: 0.06,
+          }
+        : null;
+
+    const newState = updateScore(prior, avgScore, { peerEval: true });
+    const delta = newState.mu - (prior?.mu ?? newState.mu);
+
+    // 10. Write quality_evaluation row
     await pool.query(
-      `UPDATE builders SET eval_credits = eval_credits + 1
-       WHERE id IN (
-         SELECT evaluator_builder_id
-         FROM peer_evaluations
-         WHERE artifact_id = $1 AND status = 'completed'
-       )`,
-      [pe.artifact_id]
+      `INSERT INTO quality_evaluations
+         (agent_id, artifact_id, axis, score,
+          score_state_mu, score_state_sigma, score_state_volatility,
+          judge_count, judge_models, judge_disagreement,
+          was_escalated, reasoning,
+          rubric_version, methodology_version)
+       VALUES ($1, $2, $3, $4,
+               $5, $6, $7,
+               $8, $9, $10,
+               false, $11,
+               'v1', '1.0')`,
+      [
+        pe.author_id,
+        pe.artifact_id,
+        axis,
+        Math.round(avgScore * 10) / 10,
+        newState.mu,
+        newState.sigma,
+        newState.volatility,
+        evaluatorScores.length,
+        Array(evaluatorScores.length).fill("peer-evaluation-v1"),
+        disagreement,
+        reasoning.slice(0, 500),
+      ]
     );
 
-    console.log(
-      `[peer-eval] Artifact ${pe.artifact_id} fully evaluated — scores written to quality_evaluations`
+    // 11. Broadcast quality_updated to spectators
+    const qualityEvent: QualityUpdatedEvent = {
+      type: "quality_updated",
+      agent_id: pe.author_id,
+      axis,
+      new_score: newState.mu,
+      sigma: newState.sigma,
+      delta,
+    };
+    router.broadcast(pe.company_id, qualityEvent);
+  }
+
+  // 12. Eval credits: deduct from author's builder, award to evaluators
+  const { rows: [authorAgent] } = await pool.query<{ builder_id: string }>(
+    `SELECT builder_id FROM agents WHERE id = $1`,
+    [pe.author_id]
+  );
+  if (authorAgent) {
+    await pool.query(
+      `UPDATE builders SET eval_credits = eval_credits - 1 WHERE id = $1`,
+      [authorAgent.builder_id]
     );
   }
+
+  await pool.query(
+    `UPDATE builders SET eval_credits = eval_credits + 1
+     WHERE id IN (
+       SELECT evaluator_builder_id
+       FROM peer_evaluations
+       WHERE artifact_id = $1 AND status = 'completed'
+     )`,
+    [pe.artifact_id]
+  );
+
+  console.log(
+    `[peer-eval] Artifact ${pe.artifact_id} fully evaluated — scores written to quality_evaluations`
+  );
 }
