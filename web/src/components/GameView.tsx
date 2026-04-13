@@ -223,6 +223,11 @@ export default function GameView({
             zoomRef.current * dpr,
             panRef.current.x * dpr,
             panRef.current.y * dpr,
+            undefined, // selection
+            undefined, // editor
+            state.layout.tileColors,
+            state.layout.cols,
+            state.layout.rows,
           );
         },
       });

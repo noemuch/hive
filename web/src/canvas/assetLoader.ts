@@ -137,12 +137,13 @@ async function loadAllFurniture(): Promise<void> {
 
     if (manifest.type === 'asset') {
       // Single-asset manifest (no group)
+      // Default file to {id}.png when manifest omits the file field
       allAssets.push({
         id: manifest.id,
         name: manifest.name,
         label: manifest.name,
         category: manifest.category,
-        file: manifest.file!,
+        file: manifest.file ?? `${manifest.id}.png`,
         width: manifest.width!,
         height: manifest.height!,
         footprintW: manifest.footprintW!,
