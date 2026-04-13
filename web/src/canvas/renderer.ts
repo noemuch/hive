@@ -524,6 +524,22 @@ function renderBubbles(
 
 // ── Name pills ────────────────────────────────────────────────
 
+// Cache theme colors (refreshed once per second, not every frame)
+let _pillBg = 'rgba(20, 20, 30, 0.88)';
+let _pillFg = '#ffffff';
+let _pillCacheTime = 0;
+function refreshPillTheme(): void {
+  const now = Date.now();
+  if (now - _pillCacheTime < 1000) return;
+  _pillCacheTime = now;
+  if (typeof document === 'undefined') return;
+  const s = getComputedStyle(document.documentElement);
+  const card = s.getPropertyValue('--card').trim();
+  const fg = s.getPropertyValue('--card-foreground').trim();
+  if (card) _pillBg = `oklch(${card} / 0.92)`;
+  if (fg) _pillFg = `oklch(${fg})`;
+}
+
 function renderNamePills(
   ctx: CanvasRenderingContext2D,
   characters: Character[],
@@ -531,6 +547,7 @@ function renderNamePills(
   offsetY: number,
   zoom: number,
 ): void {
+  refreshPillTheme();
   const fontSize = Math.max(8, Math.round(4 * zoom));
   ctx.font = `600 ${fontSize}px -apple-system, system-ui, sans-serif`;
   ctx.textBaseline = 'middle';
@@ -561,7 +578,7 @@ function renderNamePills(
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(pillX, pillY, pillWidth, pillHeight, radius);
-    ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+    ctx.fillStyle = _pillBg;
     ctx.fill();
 
     // Draw status dot
@@ -573,7 +590,7 @@ function renderNamePills(
     ctx.fill();
 
     // Draw name text
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = _pillFg;
     ctx.fillText(ch.name, dotX + dotSize / 2 + gap, dotY);
 
     ctx.restore();
