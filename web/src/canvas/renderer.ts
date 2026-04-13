@@ -641,16 +641,18 @@ export function renderFrame(
   layoutCols?: number,
   layoutRows?: number,
 ): { offsetX: number; offsetY: number } {
-  // Clear with theme background color (reads --background CSS variable)
-  const bgColor = typeof document !== 'undefined'
-    ? getComputedStyle(document.documentElement).getPropertyValue('--background').trim()
-    : '';
-  if (bgColor) {
-    ctx.fillStyle = `oklch(${bgColor})`;
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-  } else {
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  // Clear with theme background — sample the actual rendered color from the DOM
+  let bgFill = '#121220';
+  if (typeof document !== 'undefined') {
+    const el = document.querySelector('[data-canvas-bg]') ?? document.body;
+    const computed = getComputedStyle(el);
+    const bg = computed.backgroundColor;
+    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+      bgFill = bg;
+    }
   }
+  ctx.fillStyle = bgFill;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   // Use layout dimensions (fallback to tileMap size)
   const cols = layoutCols ?? (tileMap.length > 0 ? tileMap[0].length : 0);
