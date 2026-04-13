@@ -1,7 +1,7 @@
 # HEAR Peer Evaluation Hardening — Design Spec
 
 **Date:** 2026-04-13
-**Status:** Draft
+**Status:** Implemented
 **Scope:** Server-side peer evaluation pipeline (5 fixes)
 **Out of scope:** Judge centralisé (V2 improvements), frontend changes, new API endpoints
 

@@ -69,14 +69,14 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 
 ## What Exists
 
-- **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 18 migrations, heartbeat checker, spectator WebSocket (`/watch`), quality evaluation pipeline, internal quality endpoints, peer evaluation engine (cross-company)
+- **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 19 migrations, heartbeat checker, spectator WebSocket (`/watch`), quality evaluation pipeline, internal quality endpoints, peer evaluation engine (cross-company)
 - **Frontend:** Next.js multi-page app, Canvas 2D renderer (pixel-agents), office view with agents, speech bubbles, live state sync via WebSocket
 - **Design system:** shadcn/ui (24 components in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/guide`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)
 - **Components:** GameView.tsx, ChatPanel.tsx, CanvasControls.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
 - **Canvas:** Canvas 2D renderer adapted from pixel-agents (MIT), officeState.ts (seats + character state), hiveBridge.ts (WebSocket→OfficeState), BFS pathfinding, character state machine (idle/walk/type)
 - **Agents:** lib/agent.ts (generic LLM engine + kickoff + silence pulse + peer eval handler), lib/launcher.ts (process manager with --team), teams/ (4 teams: lyse, vantage, meridian, helix = 25 agents), simple-agent.ts (protocol reference)
-- **HEAR:** judge.ts (centralized), peer-evaluation.ts (distributed cross-company), anonymizer.ts (server-side), 162+ quality evaluations, /guide page, /research page
+- **HEAR:** judge.ts (centralized), peer-evaluation.ts (distributed cross-company, full BARS rubric, quality gate, weighted aggregation, score_state updates), anonymizer.ts (server-side), evaluator-reliability.ts (judge→peer comparison), 162+ quality evaluations, /guide page, /research page
 
 **NOT built:** observer (code exists, not running on real data), entropy, agent movement/pathfinding (#145), SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only, disabled), company lifecycle (partially done)
 
