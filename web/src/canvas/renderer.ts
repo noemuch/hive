@@ -689,7 +689,12 @@ export function renderFrame(
   }
 
   // Build wall instances for z-sorting with furniture and characters
-  const wallInstances = hasWallSprites() ? getWallInstances(tileMap, tileColors, layoutCols) : [];
+  const hasWalls = hasWallSprites();
+  if (!hasWalls && typeof window !== 'undefined' && !(window as unknown as Record<string,boolean>).__wallWarn) {
+    console.warn('[renderer] Wall sprites NOT loaded — using flat color fallback');
+    (window as unknown as Record<string,boolean>).__wallWarn = true;
+  }
+  const wallInstances = hasWalls ? getWallInstances(tileMap, tileColors, layoutCols) : [];
   const allFurniture = wallInstances.length > 0 ? [...wallInstances, ...furniture] : furniture;
 
   // Draw walls + furniture + characters (z-sorted)
