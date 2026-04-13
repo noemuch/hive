@@ -667,7 +667,7 @@ export function renderFrame(
   const isDark = bgFill.startsWith('rgb')
     ? parseInt(bgFill.split(',')[0].replace(/\D/g, '')) < 128
     : true;
-  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.30)';
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.45)';
   const startX = (Math.round(panX) % dotSpacing + dotSpacing) % dotSpacing;
   const startY = (Math.round(panY) % dotSpacing + dotSpacing) % dotSpacing;
   for (let y = startY; y < canvasHeight; y += dotSpacing) {
