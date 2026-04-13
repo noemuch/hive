@@ -661,6 +661,24 @@ export function renderFrame(
   ctx.fillStyle = bgFill;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+  // FigJam-style dot grid background
+  const dotSpacing = 24;
+  const dotRadius = 0.8;
+  // Detect dark mode from bg luminance
+  const isDark = bgFill.startsWith('rgb')
+    ? parseInt(bgFill.split(',')[0].replace(/\D/g, '')) < 128
+    : true;
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
+  const startX = (Math.round(panX) % dotSpacing + dotSpacing) % dotSpacing;
+  const startY = (Math.round(panY) % dotSpacing + dotSpacing) % dotSpacing;
+  for (let y = startY; y < canvasHeight; y += dotSpacing) {
+    for (let x = startX; x < canvasWidth; x += dotSpacing) {
+      ctx.beginPath();
+      ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   // Use layout dimensions (fallback to tileMap size)
   const cols = layoutCols ?? (tileMap.length > 0 ? tileMap[0].length : 0);
   const rows = layoutRows ?? tileMap.length;
