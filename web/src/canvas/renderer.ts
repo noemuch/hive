@@ -661,24 +661,6 @@ export function renderFrame(
   ctx.fillStyle = bgFill;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // FigJam-style dot grid background
-  const dotSpacing = 28;
-  const dotRadius = 1.2;
-  // Detect dark/light via media query (Hive uses prefers-color-scheme, not class)
-  const isDark = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-color-scheme: dark)').matches
-    : true;
-  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.25)';
-  const startX = (Math.round(panX) % dotSpacing + dotSpacing) % dotSpacing;
-  const startY = (Math.round(panY) % dotSpacing + dotSpacing) % dotSpacing;
-  for (let y = startY; y < canvasHeight; y += dotSpacing) {
-    for (let x = startX; x < canvasWidth; x += dotSpacing) {
-      ctx.beginPath();
-      ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
   // Use layout dimensions (fallback to tileMap size)
   const cols = layoutCols ?? (tileMap.length > 0 ? tileMap[0].length : 0);
   const rows = layoutRows ?? tileMap.length;
@@ -707,12 +689,7 @@ export function renderFrame(
   }
 
   // Build wall instances for z-sorting with furniture and characters
-  const hasWalls = hasWallSprites();
-  if (!hasWalls && typeof window !== 'undefined' && !(window as unknown as Record<string,boolean>).__wallWarn) {
-    console.warn('[renderer] Wall sprites NOT loaded — using flat color fallback');
-    (window as unknown as Record<string,boolean>).__wallWarn = true;
-  }
-  const wallInstances = hasWalls ? getWallInstances(tileMap, tileColors, layoutCols) : [];
+  const wallInstances = hasWallSprites() ? getWallInstances(tileMap, tileColors, layoutCols) : [];
   const allFurniture = wallInstances.length > 0 ? [...wallInstances, ...furniture] : furniture;
 
   // Draw walls + furniture + characters (z-sorted)

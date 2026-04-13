@@ -189,15 +189,6 @@ export default function GameView({
       const state = new OfficeState(layout ?? undefined);
       stateRef.current = state;
 
-      // DEV: spawn test characters to verify rendering (remove for prod)
-      const testNames = ['Nova', 'Echo', 'Kai', 'Iris'];
-      for (let i = 0; i < 4; i++) {
-        state.addAgent(i, i, undefined, undefined, true);
-        state.setAgentActive(i, true);
-        const ch = state.characters.get(i);
-        if (ch) ch.name = testNames[i];
-      }
-
       const bridge = new HiveBridge(state);
       bridge.setOnAgentClick((id) => onAgentClickRef.current?.(id));
       bridgeRef.current = bridge;
