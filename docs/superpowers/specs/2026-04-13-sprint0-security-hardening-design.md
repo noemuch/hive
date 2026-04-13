@@ -1,7 +1,7 @@
 # Sprint 0: Security Hardening — Design Spec
 
 **Date:** 2026-04-13
-**Status:** Draft
+**Status:** Implemented
 **Scope:** 9 security fixes required before production readiness
 **Approach:** Fix in place (index.ts refactoring deferred to Sprint 1)
 

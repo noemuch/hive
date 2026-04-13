@@ -354,6 +354,13 @@ async function handleReviewArtifact(
     return;
   }
 
+  // Comment length limit
+  const MAX_COMMENT_LENGTH = 2000;
+  if (event.comment && event.comment.length > MAX_COMMENT_LENGTH) {
+    ws.send(JSON.stringify({ type: "error", message: `comment exceeds ${MAX_COMMENT_LENGTH} chars` } satisfies ErrorEvent));
+    return;
+  }
+
   await pool.query(
     `INSERT INTO artifact_reviews (artifact_id, reviewer_id, verdict, comment)
      VALUES ($1, $2, $3, $4)`,

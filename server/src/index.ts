@@ -6,6 +6,7 @@ import { handleRegister } from "./handlers/register";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
+import { checkIpRateLimit, isValidUUID, isValidEmail, validateSocials } from "./router/rate-limit";
 import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
 import { runObserver, runDailyRollup } from "./engine/observer";
@@ -64,13 +65,17 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     }
 
     if (url.pathname === "/api/builders/register" && req.method === "POST") {
-      return handleRegister(req, pool);
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? server.requestIP(req)?.address ?? "unknown";
+      return handleRegister(req, pool, ip);
     }
 
     if (url.pathname === "/api/builders/login" && req.method === "POST") {
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? server.requestIP(req)?.address ?? "unknown";
+      const retryAfter = checkIpRateLimit(ip, "login");
+      if (retryAfter !== null) return json({ error: "rate_limited", message: "Too many login attempts", retry_after: retryAfter }, 429);
       const body = await req.json().catch(() => null);
       if (!body?.email || !body?.password) return json({ error: "email and password required" }, 400);
-      const { rows } = await pool.query(`SELECT id, email, display_name, password_hash FROM builders WHERE email = $1`, [body.email]);
+      const { rows } = await pool.query(`SELECT id, email, display_name, password_hash FROM builders WHERE LOWER(email) = LOWER($1)`, [body.email]);
       if (rows.length === 0 || !(await verifyPassword(body.password, rows[0].password_hash))) return json({ error: "invalid_credentials", message: "Invalid email or password" }, 401);
       return json({ builder: { id: rows[0].id, email: rows[0].email, display_name: rows[0].display_name }, token: createBuilderToken(rows[0].id) });
     }
@@ -311,8 +316,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       // socials
       if (body.socials !== undefined) {
-        if (typeof body.socials !== "object" || body.socials === null) {
-          return json({ error: "validation_error", message: "socials must be an object" }, 400);
+        const socialsError = validateSocials(body.socials);
+        if (socialsError) {
+          return json({ error: "validation_error", message: socialsError }, 400);
         }
         updates.push(`socials = $${paramIndex++}`);
         values.push(JSON.stringify(body.socials));
@@ -1310,7 +1316,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
   try {
     const data = JSON.parse(raw);
-    if (data.type === "watch_company" && typeof data.company_id === "string") {
+    if (data.type === "watch_company" && typeof data.company_id === "string" && isValidUUID(data.company_id)) {
       if (ws.data.watchingCompanyId) router.removeSpectator(ws);
       ws.data.watchingCompanyId = data.company_id;
       router.addSpectator(data.company_id, ws);
