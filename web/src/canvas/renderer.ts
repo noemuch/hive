@@ -522,6 +522,62 @@ function renderBubbles(
   }
 }
 
+// ── Name pills ────────────────────────────────────────────────
+
+function renderNamePills(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  const fontSize = Math.max(10, Math.round(7 * zoom));
+  ctx.font = `bold ${fontSize}px -apple-system, system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+
+  for (const ch of characters) {
+    if (!ch.name || ch.matrixEffect) continue;
+
+    const isActive = ch.state === CharacterState.TYPE;
+    const sittingOffset = isActive ? CHARACTER_SITTING_OFFSET_PX : 0;
+
+    // Position above character head
+    const charScreenX = offsetX + ch.x * zoom;
+    const charScreenY = offsetY + (ch.y + sittingOffset) * zoom - 24 * zoom;
+
+    // Measure text
+    const textWidth = ctx.measureText(ch.name).width;
+    const dotSize = Math.max(4, Math.round(3 * zoom));
+    const padding = Math.max(6, Math.round(4 * zoom));
+    const pillWidth = dotSize + 6 + textWidth + padding * 2;
+    const pillHeight = fontSize + padding;
+    const pillX = charScreenX - pillWidth / 2;
+    const pillY = charScreenY - pillHeight / 2;
+    const radius = pillHeight / 2;
+
+    // Draw pill background
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(pillX, pillY, pillWidth, pillHeight, radius);
+    ctx.fillStyle = 'rgba(20, 20, 30, 0.85)';
+    ctx.fill();
+
+    // Draw status dot
+    const dotX = pillX + padding + dotSize / 2;
+    const dotY = pillY + pillHeight / 2;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = isActive ? '#4ade80' : '#6b7280';
+    ctx.fill();
+
+    // Draw name text
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(ch.name, dotX + dotSize / 2 + 4, dotY);
+
+    ctx.restore();
+  }
+}
+
 export interface ButtonBounds {
   /** Center X in device pixels */
   cx: number;
@@ -624,6 +680,9 @@ export function renderFrame(
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
+
+  // Name pills (above characters and bubbles)
+  renderNamePills(ctx, characters, offsetX, offsetY, zoom);
 
   // Editor overlays
   if (editor) {

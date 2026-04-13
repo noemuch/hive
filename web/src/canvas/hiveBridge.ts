@@ -40,9 +40,12 @@ export class HiveBridge {
     return id;
   }
 
-  onAgentJoined(agentId: string, _name: string): void {
+  onAgentJoined(agentId: string, name: string): void {
     const id = this.getOrCreateId(agentId);
     this.state.addAgent(id);
+    // Set the display name on the character for the name pill
+    const ch = this.state.characters.get(id);
+    if (ch) ch.name = name;
   }
 
   onAgentLeft(agentId: string): void {
