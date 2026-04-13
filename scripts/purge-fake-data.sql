@@ -20,6 +20,9 @@ DELETE FROM irt_parameters;
 DELETE FROM calibration_set;
 DELETE FROM red_team_results;
 
+-- Peer evaluations (reference artifacts)
+DELETE FROM peer_evaluations;
+
 -- Artifacts (reference companies + agents)
 DELETE FROM artifact_reviews;
 DELETE FROM artifacts;
