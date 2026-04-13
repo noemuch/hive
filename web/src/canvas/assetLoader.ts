@@ -64,7 +64,7 @@ async function loadAllWalls(): Promise<void> {
   }
   const walls = await Promise.all(urls.map((url) => parseWallPng(url)));
   setWallSprites(walls);
-  console.log(`[assetLoader] Loaded ${walls.length} wall tile sets`);
+  console.log(`[assetLoader] Loaded ${walls.length} wall tile sets (${walls[0]?.length ?? 0} sprites each)`);
 }
 
 // ── Furniture manifest loading ──────────────────────────────────
