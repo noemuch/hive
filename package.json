@@ -9,7 +9,7 @@
     "migrate": "cd server && bun run migrate",
     "lint": "cd web && bun run lint",
     "purge": "bun scripts/purge.ts",
-    "agents": "bun agents/lib/launcher.ts"
+    "agents": "bun agents/cli.ts"
   },
   "dependencies": {}
 
