@@ -250,18 +250,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       return json(rows[0]);
     }
 
-    // Generate office map for a company
-    if (url.pathname.startsWith("/api/companies/") && url.pathname.endsWith("/map") && req.method === "GET") {
-      const companyId = url.pathname.split("/")[3];
-      const { rows: agentRows } = await pool.query(
-        `SELECT COUNT(*)::int as c FROM agents WHERE company_id = $1 AND status != 'retired'`,
-        [companyId]
-      );
-      const agentCount = Math.max(agentRows[0]?.c || 0, 3); // total roster (not just online)
-      const { generateOffice } = await import("./engine/office-generator");
-      return json(generateOffice(agentCount, companyId));
-    }
-
     // Builder profile
     if (url.pathname === "/api/builders/me" && req.method === "GET") {
       const auth = req.headers.get("Authorization");
