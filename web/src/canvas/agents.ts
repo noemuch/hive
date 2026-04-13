@@ -9,7 +9,8 @@ import {
   AnimatedSprite,
   TextureSource,
 } from "pixi.js";
-import { TILE, DESK_POSITIONS } from "./office";
+import { TILE, DESK_POSITIONS, POI, collisionGrid, OFFICE_W, OFFICE_H } from "./office";
+import { findPath, type Point } from "./pathfinding";
 
 TextureSource.defaultOptions.scaleMode = "nearest";
 
@@ -18,6 +19,23 @@ TextureSource.defaultOptions.scaleMode = "nearest";
 // ---------------------------------------------------------------------------
 
 export type AgentStatus = "active" | "idle" | "sleeping";
+export type MovementState = "SITTING" | "WALKING" | "AT_DESTINATION";
+export type DestinationType = "whiteboard" | "coffee" | "desk";
+
+export type AgentMotion = {
+  state: MovementState;
+  path: Point[];
+  pathIndex: number;
+  lerpProgress: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  destination: DestinationType;
+  stateTimer: number;
+  idleTimer: number;
+  homeDesk: Point;
+};
 
 export type AgentSprite = {
   id: string;
@@ -31,6 +49,9 @@ export type AgentSprite = {
   animSprite: AnimatedSprite | null;
   zzzContainer: Container | null;
   zzzInterval: ReturnType<typeof setInterval> | null;
+  motion: AgentMotion;
+  characterName: CharacterName;
+  tint: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -73,16 +94,20 @@ const TINT_COLORS = [
 const agents = new Map<string, AgentSprite>();
 let nextDeskIndex = 0;
 
+const TILES_PER_SECOND = 2;
+const IDLE_BEFORE_COFFEE_S = 300; // 5 minutes
+const AT_DESTINATION_S = 8;
+
 let onAgentClickCallback: ((agentId: string) => void) | null = null;
 
 export function setOnAgentClick(cb: ((agentId: string) => void) | null) {
   onAgentClickCallback = cb;
 }
 
-// Loaded textures: characterName -> { sit: Texture[], idleAnim: Texture[] }
 type CharacterTextures = {
   sit: Texture[];
   idleAnim: Texture[];
+  walk: Texture[];
 };
 const characterTextureMap = new Map<CharacterName, CharacterTextures>();
 
@@ -139,9 +164,21 @@ export async function loadCharacterTextures(): Promise<void> {
       const totalAnimFrames = Math.floor(idleAnimSource.width / FRAME_W);
       const idleAnimFrames = extractFrames(idleAnimSource, totalAnimFrames, 0, 2);
 
+      // Load walk/run sprite (384x32 = 24 frames: 4 dirs × 6 frames, front = 0-5)
+      let walkFrames: Texture[] = [];
+      try {
+        const walkUrl = `/tilesets/limezu/characters/legacy/${name}_run_16x16.png`;
+        const walkTex = await Assets.load(walkUrl);
+        const walkSource = walkTex.source as TextureSource;
+        walkFrames = extractFrames(walkSource, Math.floor(walkSource.width / FRAME_W), 0, 6);
+      } catch {
+        // No walk sprite — will use idle as fallback
+      }
+
       characterTextureMap.set(name, {
         sit: frontFrame,
         idleAnim: idleAnimFrames,
+        walk: walkFrames,
       });
     } catch (e) {
       console.warn(`Failed to load character ${name}:`, e);
@@ -371,6 +408,22 @@ export function addAgentSprite(
     animSprite,
     zzzContainer: null,
     zzzInterval: null,
+    motion: {
+      state: "SITTING",
+      path: [],
+      pathIndex: 0,
+      lerpProgress: 0,
+      fromX: container.x,
+      fromY: container.y,
+      toX: container.x,
+      toY: container.y,
+      destination: "desk",
+      stateTimer: 0,
+      idleTimer: 0,
+      homeDesk: { x: desk.x, y: desk.y },
+    },
+    characterName,
+    tint,
   };
 
   agents.set(id, sprite);
@@ -551,6 +604,148 @@ export function removeAgentSprite(parent: Container, agentId: string): void {
 /** Get the current map of all active agent sprites. */
 export function getAgents(): Map<string, AgentSprite> {
   return agents;
+}
+
+// ---------------------------------------------------------------------------
+// Movement system
+// ---------------------------------------------------------------------------
+
+const DEST_TO_POI: Record<DestinationType, Point> = {
+  whiteboard: POI.WHITEBOARD,
+  coffee: POI.COFFEE,
+  desk: { x: 0, y: 0 }, // overridden per agent
+};
+
+function switchSprite(agent: AgentSprite, mode: "sit" | "walk"): void {
+  if (!agent.animSprite) return;
+  const textures = characterTextureMap.get(agent.characterName);
+  if (!textures) return;
+
+  const frames = mode === "walk" && textures.walk.length >= 2
+    ? textures.walk
+    : textures.sit.length === 1
+      ? [...textures.sit, ...textures.sit]
+      : textures.sit;
+
+  agent.animSprite.textures = frames;
+  if (mode === "walk") {
+    agent.animSprite.animationSpeed = 0.15;
+    agent.animSprite.play();
+  } else {
+    agent.animSprite.animationSpeed = 0.02;
+    agent.animSprite.gotoAndStop(0);
+  }
+}
+
+function startWalking(agent: AgentSprite, dest: DestinationType): void {
+  const m = agent.motion;
+  const startTile: Point = {
+    x: Math.floor(agent.container.x / TILE),
+    y: Math.floor(agent.container.y / TILE),
+  };
+  const endTile = dest === "desk" ? m.homeDesk : DEST_TO_POI[dest];
+
+  if (!collisionGrid.length) return;
+  const path = findPath(collisionGrid, startTile, endTile, OFFICE_W, OFFICE_H);
+  if (!path || path.length === 0) return;
+
+  m.state = "WALKING";
+  m.destination = dest;
+  m.path = path;
+  m.pathIndex = 0;
+  m.lerpProgress = 0;
+  m.fromX = agent.container.x;
+  m.fromY = agent.container.y;
+  m.toX = (path[0].x + 0.5) * TILE;
+  m.toY = (path[0].y + 0.5) * TILE;
+  m.stateTimer = 0;
+  m.idleTimer = 0;
+
+  switchSprite(agent, "walk");
+  agent.container.alpha = 1;
+}
+
+/** Trigger an agent to walk to a destination. */
+export function triggerAgentMove(agentId: string, dest: DestinationType): void {
+  const agent = agents.get(agentId);
+  if (!agent) return;
+  if (agent.motion.state === "WALKING") return; // already moving
+  startWalking(agent, dest);
+}
+
+/** Reset idle timer when agent talks. */
+export function notifyAgentActivity(agentId: string): void {
+  const agent = agents.get(agentId);
+  if (!agent) return;
+  agent.motion.idleTimer = 0;
+}
+
+/** Main tick — call from GameView ticker. */
+export function updateAgents(deltaMS: number): void {
+  const dt = deltaMS / 1000;
+
+  for (const [, agent] of agents) {
+    const m = agent.motion;
+
+    switch (m.state) {
+      case "SITTING": {
+        m.idleTimer += dt;
+        if (m.idleTimer >= IDLE_BEFORE_COFFEE_S) {
+          startWalking(agent, "coffee");
+        }
+        break;
+      }
+
+      case "WALKING": {
+        m.lerpProgress += TILES_PER_SECOND * dt;
+
+        // Flip sprite based on horizontal direction
+        if (agent.animSprite) {
+          const dx = m.toX - m.fromX;
+          if (dx < 0) agent.animSprite.scale.x = -Math.abs(agent.animSprite.scale.x);
+          else if (dx > 0) agent.animSprite.scale.x = Math.abs(agent.animSprite.scale.x);
+        }
+
+        if (m.lerpProgress >= 1) {
+          // Arrived at current path node
+          agent.container.x = m.toX;
+          agent.container.y = m.toY;
+          m.pathIndex++;
+
+          if (m.pathIndex >= m.path.length) {
+            // Arrived at destination
+            m.state = "AT_DESTINATION";
+            m.stateTimer = AT_DESTINATION_S;
+            switchSprite(agent, "sit");
+          } else {
+            // Move to next path node
+            m.lerpProgress -= 1;
+            m.fromX = m.toX;
+            m.fromY = m.toY;
+            m.toX = (m.path[m.pathIndex].x + 0.5) * TILE;
+            m.toY = (m.path[m.pathIndex].y + 0.5) * TILE;
+          }
+        } else {
+          // Interpolate
+          agent.container.x = Math.round(m.fromX + (m.toX - m.fromX) * m.lerpProgress);
+          agent.container.y = Math.round(m.fromY + (m.toY - m.fromY) * m.lerpProgress);
+        }
+
+        // Update depth sorting
+        agent.container.zIndex = 900 + Math.floor(agent.container.y);
+        break;
+      }
+
+      case "AT_DESTINATION": {
+        m.stateTimer -= dt;
+        if (m.stateTimer <= 0) {
+          // Walk back to desk
+          startWalking(agent, "desk");
+        }
+        break;
+      }
+    }
+  }
 }
 
 /** Reset all module-level state. Call on GameView unmount. */

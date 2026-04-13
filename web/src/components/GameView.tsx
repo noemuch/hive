@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container } from "pixi.js";
 import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, resetAgentState } from "@/canvas/agents";
+import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, resetAgentState, updateAgents, triggerAgentMove, notifyAgentActivity } from "@/canvas/agents";
 import { setupCamera, getCameraHandle } from "@/canvas/camera";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
@@ -79,6 +79,7 @@ export default function GameView({
           timestamp: data.timestamp as number,
         },
       ]);
+      notifyAgentActivity(data.author_id as string);
       if (officeRef.current) {
         showSpeechBubble(officeRef.current, data.author_id as string, data.content as string);
       } else {
@@ -141,6 +142,10 @@ export default function GameView({
           timestamp: Date.now(),
         },
       ]);
+      // Find agent by name and walk to whiteboard
+      const authorName = data.author_name as string;
+      const match = agentsRef.current.find((a) => a.name === authorName);
+      if (match) triggerAgentMove(match.id, "whiteboard");
     },
     onArtifactUpdated: (data) => {
       setFeedItems((prev) => [
@@ -235,7 +240,9 @@ export default function GameView({
         }));
         cameraCleanupRef.current = cleanupCamera;
 
-        // HUD overlays removed — info is in OfficeHeader (React)
+        // Agent movement tick
+        const tickerFn = (ticker: { deltaMS: number }) => updateAgents(ticker.deltaMS);
+        app.ticker.add(tickerFn);
       });
 
     return () => {
