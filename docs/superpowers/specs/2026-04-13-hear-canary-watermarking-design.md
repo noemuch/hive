@@ -1,7 +1,7 @@
 # HEAR Canary Watermarking — Design Spec
 
 **Date:** 2026-04-13
-**Status:** Draft
+**Status:** Implemented
 **Scope:** Anti-contamination canary tokens for HEAR evaluation documents + adversarial test
 **Out of scope:** Active probes in prod, fingerprinting, consistency/hard/pass@k metrics (future cycle)
 **Inspiration:** Terminal-Bench canary GUID pattern (harbor-framework/terminal-bench)
