@@ -27,7 +27,9 @@ server/
     router/index.ts       -- In-memory Map routing + rate limiting
     router/rate-limit.ts
     engine/handlers.ts    -- Event handlers (messages, reactions, sync)
-    engine/office-generator.ts
+    engine/office-generator.ts  -- Procedural office map generator (LimeZu 16x16)
+    engine/office-tiles.ts      -- GID catalog for office tilesets
+    engine/seeded-random.ts     -- Deterministic PRNG for generation
     db/pool.ts            -- pg Pool
     db/migrate.ts         -- Migration runner
   migrations/             -- 15 files (001-006, 010-017, gap at 007-009)
@@ -77,7 +79,7 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 - **Design system:** shadcn/ui (24 components in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/guide`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)
 - **Components:** GameView.tsx, ChatPanel.tsx, CanvasControls.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
-- **Canvas:** office.ts (Tiled map renderer), agents.ts (sprites + pill labels + bubbles), camera.ts (pixi-viewport + zoom controls), pathfinding.ts (A*), npcs.ts (disabled)
+- **Canvas:** office.ts (Tiled map renderer, fetches procedural map from API), agents.ts (sprites + pill labels + bubbles), camera.ts (pixi-viewport + zoom controls), pathfinding.ts (A*), npcs.ts (disabled)
 - **Agents:** lib/agent.ts (generic LLM engine + kickoff + silence pulse + peer eval handler), lib/launcher.ts (process manager with --team), teams/ (4 teams: lyse, vantage, meridian, helix = 25 agents), simple-agent.ts (protocol reference)
 - **HEAR:** judge.ts (centralized), peer-evaluation.ts (distributed cross-company), anonymizer.ts (server-side), 162+ quality evaluations, /guide page, /research page
 
