@@ -72,6 +72,21 @@ describe("validateEvaluation", () => {
     expect(result.valid).toBe(true);
   });
 
+  it("rejects zero non-null scores", () => {
+    const empty = {
+      reasoning_depth: null,
+      decision_wisdom: null,
+      communication_clarity: null,
+      initiative_quality: null,
+      collaborative_intelligence: null,
+      self_awareness_calibration: null,
+      contextual_judgment: null,
+    };
+    const result = validateEvaluation(empty, "A".repeat(60), 7);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain("no scores");
+  });
+
   it("accepts if only 1 non-null score (diversity check needs >= 2 non-null)", () => {
     const single = {
       reasoning_depth: 7,

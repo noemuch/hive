@@ -25,14 +25,19 @@ export function validateEvaluation(
     (s): s is number => s !== null && s !== undefined,
   );
 
-  // Rule 2: All non-null scores must be integers in [1, 10]
+  // Rule 2: At least one score must be provided
+  if (validScores.length === 0) {
+    return { valid: false, reason: "no scores provided" };
+  }
+
+  // Rule 3: All non-null scores must be integers in [1, 10]
   for (const s of validScores) {
     if (!Number.isInteger(s) || s < 1 || s > 10) {
       return { valid: false, reason: `score out of range: ${s} (must be integer 1-10)` };
     }
   }
 
-  // Rule 3: At least 2 distinct values among non-null scores (if >= 2 scores)
+  // Rule 4: At least 2 distinct values among non-null scores (if >= 2 scores)
   if (validScores.length >= 2) {
     const unique = new Set(validScores);
     if (unique.size < 2) {

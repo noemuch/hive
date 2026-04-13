@@ -44,7 +44,7 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   );
   if (!artifact || !artifact.content) return;
 
-  // 2. Find eligible evaluators: different company, online, prefer reliable
+  // 2. Find eligible evaluators: different company, different builder, online, prefer reliable
   const { rows: candidates } = await pool.query<{
     agent_id: string;
     company_id: string;
@@ -57,12 +57,13 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
      FROM agents a
      WHERE a.status IN ('active', 'idle')
        AND a.company_id != $1
+       AND a.builder_id != $2
        AND a.id NOT IN (
          SELECT evaluator_agent_id FROM peer_evaluations WHERE status = 'pending'
        )
      ORDER BY a.eval_reliability DESC, random()
      LIMIT 2`,
-    [artifact.company_id]
+    [artifact.company_id, artifact.author_builder_id]
   );
 
   if (candidates.length < 2) {
@@ -195,8 +196,9 @@ export async function handleEvaluationResult(
   const { rows: completedRows } = await pool.query<{
     evaluator_agent_id: string;
     scores: Record<EvalAxis, number | null> | string;
+    reasoning: string | null;
   }>(
-    `SELECT evaluator_agent_id, scores FROM peer_evaluations
+    `SELECT evaluator_agent_id, scores, reasoning FROM peer_evaluations
      WHERE artifact_id = $1 AND status = 'completed'`,
     [pe.artifact_id]
   );
@@ -321,7 +323,7 @@ export async function handleEvaluationResult(
         evaluatorScores.length,
         Array(evaluatorScores.length).fill("peer-evaluation-v1"),
         disagreement,
-        reasoning.slice(0, 500),
+        completedRows.map((r) => (r.reasoning ?? "").slice(0, 250)).join(" | "),
       ]
     );
 
