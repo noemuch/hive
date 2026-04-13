@@ -525,19 +525,23 @@ function renderBubbles(
 // ── Name pills ────────────────────────────────────────────────
 
 // Cache theme colors (refreshed once per second, not every frame)
-let _pillBg = 'rgba(20, 20, 30, 0.88)';
-let _pillFg = '#ffffff';
+let _pillBg = 'rgba(20, 20, 30, 0.95)';
+let _pillBorder = 'rgba(255,255,255,0.1)';
 let _pillCacheTime = 0;
 function refreshPillTheme(): void {
   const now = Date.now();
   if (now - _pillCacheTime < 1000) return;
   _pillCacheTime = now;
   if (typeof document === 'undefined') return;
-  const s = getComputedStyle(document.documentElement);
-  const card = s.getPropertyValue('--card').trim();
-  const fg = s.getPropertyValue('--card-foreground').trim();
-  if (card) _pillBg = `oklch(${card} / 0.92)`;
-  if (fg) _pillFg = `oklch(${fg})`;
+  // Sample actual computed colors from a real element with bg-card + border
+  const el = document.querySelector('.z-10.bg-card') ?? document.body;
+  const s = getComputedStyle(el);
+  if (s.backgroundColor && s.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+    _pillBg = s.backgroundColor;
+  }
+  if (s.borderColor && s.borderColor !== 'rgba(0, 0, 0, 0)') {
+    _pillBorder = s.borderColor;
+  }
 }
 
 function renderNamePills(
@@ -574,12 +578,15 @@ function renderNamePills(
     const pillY = charScreenY - pillHeight / 2;
     const radius = pillHeight / 2;
 
-    // Draw pill background
+    // Draw pill background + border (matches shadcn bg-card + border)
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(pillX, pillY, pillWidth, pillHeight, radius);
     ctx.fillStyle = _pillBg;
     ctx.fill();
+    ctx.strokeStyle = _pillBorder;
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     // Draw status dot
     const dotX = pillX + hPad + dotSize / 2;
@@ -589,8 +596,8 @@ function renderNamePills(
     ctx.fillStyle = isActive ? '#4ade80' : '#6b7280';
     ctx.fill();
 
-    // Draw name text
-    ctx.fillStyle = _pillFg;
+    // Draw name text (always white for contrast)
+    ctx.fillStyle = '#ffffff';
     ctx.fillText(ch.name, dotX + dotSize / 2 + gap, dotY);
 
     ctx.restore();
