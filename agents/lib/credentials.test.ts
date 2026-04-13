@@ -21,7 +21,7 @@ import {
 
 const sampleConfig: HiveConfig = {
   email: "test@example.com",
-  password: "s3cr3t",
+  builder_token: "jwt-test-token",
   anthropic_api_key: "sk-ant-test",
 };
 

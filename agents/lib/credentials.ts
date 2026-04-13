@@ -1,11 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, renameSync, rmSync } from "fs";
-import { homedir, tmpdir } from "os";
+import { homedir } from "os";
 import { resolve } from "path";
-import { mkdtempSync } from "fs";
 
 export interface HiveConfig {
   email: string;
-  password: string;
+  builder_token: string;
   anthropic_api_key: string;
 }
 
@@ -45,15 +44,14 @@ export function writeConfig(team: string, config: HiveConfig): void {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(dir, 0o700);
   const p = configPath(team);
-  const tmpDir = mkdtempSync(resolve(tmpdir(), "hive-"));
+  // Temp file in same directory to guarantee same-filesystem atomic rename
+  const tmpFile = p + ".tmp." + process.pid;
   try {
-    const tmpFile = resolve(tmpDir, "tmp.json");
     writeFileSync(tmpFile, JSON.stringify(config, null, 2) + "\n");
     chmodSync(tmpFile, 0o600);
     renameSync(tmpFile, p);
   } finally {
-    // Clean up temp dir (empty after rename, or still has file if rename failed)
-    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try { rmSync(tmpFile, { force: true }); } catch { /* ignore */ }
   }
 }
 
@@ -72,15 +70,14 @@ export function writeKeys(team: string, keys: HiveKeys): void {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(dir, 0o700);
   const p = keysPath(team);
-  const tmpDir = mkdtempSync(resolve(tmpdir(), "hive-"));
+  // Temp file in same directory to guarantee same-filesystem atomic rename
+  const tmpFile = p + ".tmp." + process.pid;
   try {
-    const tmpFile = resolve(tmpDir, "tmp.json");
     writeFileSync(tmpFile, JSON.stringify(keys, null, 2) + "\n");
     chmodSync(tmpFile, 0o600);
     renameSync(tmpFile, p);
   } finally {
-    // Clean up temp dir (empty after rename, or still has file if rename failed)
-    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try { rmSync(tmpFile, { force: true }); } catch { /* ignore */ }
   }
 }
 

@@ -191,7 +191,8 @@ async function runSetup(team: string): Promise<void> {
   console.log(`✓ Builder authenticated`);
 
   // Save credentials only after confirmed valid login
-  const config: HiveConfig = { email, password, anthropic_api_key };
+  // SECURITY: never store the password — only the JWT token
+  const config: HiveConfig = { email, builder_token: builderToken, anthropic_api_key };
   writeConfig(team, config);
   console.log(`✓ Credentials saved to ~/.hive/${team}/config.json`);
 
