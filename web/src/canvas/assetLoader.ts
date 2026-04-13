@@ -19,29 +19,23 @@ const ASSETS_BASE = '/assets';
 
 // ── Index discovery ─────────────────────────────────────────────
 
-/** Discover available character PNGs by trying sequential indices */
-async function discoverFiles(dir: string, prefix: string, ext: string): Promise<string[]> {
-  const files: string[] = [];
-  for (let i = 0; i < 20; i++) {
-    const url = `${ASSETS_BASE}/${dir}/${prefix}${i}${ext}`;
-    try {
-      const res = await fetch(url, { method: 'HEAD' });
-      if (res.ok) {
-        files.push(url);
-      } else {
-        break; // Stop at first missing index
-      }
-    } catch {
-      break;
-    }
-  }
-  return files;
+/** Known asset file counts — avoids HEAD discovery which fails on some dev servers */
+const KNOWN_COUNTS: Record<string, number> = {
+  characters: 6,
+  floors: 9,
+  walls: 1,
+};
+
+/** Get URLs for a known set of sequential asset files */
+function getFileUrls(dir: string, prefix: string, ext: string): string[] {
+  const count = KNOWN_COUNTS[dir] ?? 0;
+  return Array.from({ length: count }, (_, i) => `${ASSETS_BASE}/${dir}/${prefix}${i}${ext}`);
 }
 
 // ── Decoders ─────────────────────────────────────────────────────
 
 async function loadAllCharacters(): Promise<void> {
-  const urls = await discoverFiles('characters', 'char_', '.png');
+  const urls = getFileUrls('characters', 'char_', '.png');
   if (urls.length === 0) {
     console.warn('[assetLoader] No character PNGs found');
     return;
@@ -52,7 +46,7 @@ async function loadAllCharacters(): Promise<void> {
 }
 
 async function loadAllFloors(): Promise<void> {
-  const urls = await discoverFiles('floors', 'floor_', '.png');
+  const urls = getFileUrls('floors', 'floor_', '.png');
   if (urls.length === 0) {
     console.warn('[assetLoader] No floor PNGs found');
     return;
@@ -63,7 +57,7 @@ async function loadAllFloors(): Promise<void> {
 }
 
 async function loadAllWalls(): Promise<void> {
-  const urls = await discoverFiles('walls', 'wall_', '.png');
+  const urls = getFileUrls('walls', 'wall_', '.png');
   if (urls.length === 0) {
     console.warn('[assetLoader] No wall PNGs found');
     return;
@@ -86,18 +80,8 @@ async function discoverFurnitureDirs(): Promise<string[]> {
     'PLANT_2', 'POT', 'SMALL_PAINTING', 'SMALL_PAINTING_2', 'SMALL_TABLE',
     'SOFA', 'TABLE_FRONT', 'WHITEBOARD', 'WOODEN_BENCH', 'WOODEN_CHAIR',
   ];
-  const found: string[] = [];
-  await Promise.all(
-    knownDirs.map(async (dir) => {
-      try {
-        const res = await fetch(`${ASSETS_BASE}/furniture/${dir}/manifest.json`, { method: 'HEAD' });
-        if (res.ok) found.push(dir);
-      } catch {
-        // skip
-      }
-    }),
-  );
-  return found.sort();
+  // All dirs are known from the asset copy step — no discovery needed
+  return knownDirs;
 }
 
 async function loadAllFurniture(): Promise<void> {
