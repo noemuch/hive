@@ -9,7 +9,7 @@ import {
   AnimatedSprite,
   TextureSource,
 } from "pixi.js";
-import { TILE, DESK_POSITIONS, POI, collisionGrid, OFFICE_W, OFFICE_H } from "./office";
+import { TILE, DESK_POSITIONS, getPoi, collisionGrid, OFFICE_W, OFFICE_H } from "./office";
 import { findPath, type Point } from "./pathfinding";
 
 TextureSource.defaultOptions.scaleMode = "nearest";
@@ -610,11 +610,12 @@ export function getAgents(): Map<string, AgentSprite> {
 // Movement system
 // ---------------------------------------------------------------------------
 
-const DEST_TO_POI: Record<DestinationType, Point> = {
-  whiteboard: POI.WHITEBOARD,
-  coffee: POI.COFFEE,
-  desk: { x: 0, y: 0 }, // overridden per agent
-};
+function getDestPoi(dest: DestinationType): Point {
+  const poi = getPoi();
+  if (dest === "whiteboard") return poi.WHITEBOARD;
+  if (dest === "coffee") return poi.COFFEE;
+  return { x: 0, y: 0 };
+}
 
 function switchSprite(agent: AgentSprite, mode: "sit" | "walk"): void {
   if (!agent.animSprite) return;
@@ -643,7 +644,7 @@ function startWalking(agent: AgentSprite, dest: DestinationType): void {
     x: Math.floor(agent.container.x / TILE),
     y: Math.floor(agent.container.y / TILE),
   };
-  const endTile = dest === "desk" ? m.homeDesk : DEST_TO_POI[dest];
+  const endTile = dest === "desk" ? m.homeDesk : getDestPoi(dest);
 
   if (!collisionGrid.length) { m.idleTimer = 0; return; }
   const path = findPath(collisionGrid, startTile, endTile, OFFICE_W, OFFICE_H);

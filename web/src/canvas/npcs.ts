@@ -8,7 +8,7 @@ import {
   TextureSource,
   Ticker,
 } from "pixi.js";
-import { TILE, OFFICE_W, OFFICE_H, collisionGrid, POI } from "./office";
+import { TILE, OFFICE_W, OFFICE_H, collisionGrid, getPoi } from "./office";
 import { findPath, randomWalkableTile, type Point } from "./pathfinding";
 
 TextureSource.defaultOptions.scaleMode = "nearest";
@@ -99,10 +99,10 @@ function pickDestination(_npc: NPC): Point | null {
 
   if (roll < 0.3) {
     // Coffee
-    target = POI.COFFEE;
+    target = getPoi().COFFEE;
   } else if (roll < 0.4) {
     // Whiteboard
-    target = POI.WHITEBOARD;
+    target = getPoi().WHITEBOARD;
   } else if (roll < 0.5) {
     // Wander to random walkable tile
     const wt = randomWalkableTile(collisionGrid, OFFICE_W, OFFICE_H);
