@@ -645,9 +645,9 @@ function startWalking(agent: AgentSprite, dest: DestinationType): void {
   };
   const endTile = dest === "desk" ? m.homeDesk : DEST_TO_POI[dest];
 
-  if (!collisionGrid.length) return;
+  if (!collisionGrid.length) { m.idleTimer = 0; return; }
   const path = findPath(collisionGrid, startTile, endTile, OFFICE_W, OFFICE_H);
-  if (!path || path.length === 0) return;
+  if (!path || path.length === 0) { m.idleTimer = 0; return; }
 
   m.state = "WALKING";
   m.destination = dest;
