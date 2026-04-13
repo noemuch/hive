@@ -60,22 +60,22 @@ const T = 16;
 const MAP_W = 16;
 const MAP_H = 25;
 
-/** Chair positions where agents sit (tile coords, mapped from aseprite image). */
+/** Chair positions where agents sit (tile coords, from 6x zoomed grid analysis).
+ * Front-facing chairs = agent faces viewer, sits below the desk. */
 const DESK_POSITIONS = [
-  // Top cubicle row 1 — chairs below desks (y≈6)
-  { x: 2, y: 6 },
-  { x: 5, y: 6 },
-  { x: 9, y: 6 },
-  { x: 12, y: 6 },
-  // Top cubicle row 2 — chairs below desks (y≈11)
-  { x: 2, y: 11 },
-  { x: 5, y: 11 },
-  { x: 9, y: 11 },
-  { x: 12, y: 11 },
-  // Bottom-left office desk
-  { x: 4, y: 18 },
-  // Bottom-right office desk
-  { x: 12, y: 18 },
+  // Row 1 front-facing chairs (below first desk pair, y=9)
+  { x: 3, y: 9 },   // left desk cluster, chair 1
+  { x: 4, y: 9 },   // left desk cluster, chair 2
+  { x: 9, y: 9 },   // right desk cluster, chair 1
+  { x: 10, y: 9 },  // right desk cluster, chair 2
+  // Row 1 back-facing chairs (above first desk pair, y=5)
+  { x: 3, y: 5 },   // left desk cluster, back chair 1
+  { x: 4, y: 5 },   // left desk cluster, back chair 2
+  { x: 9, y: 5 },   // right desk cluster, back chair 1
+  { x: 10, y: 5 },  // right desk cluster, back chair 2
+  // Bottom section offices
+  { x: 5, y: 18 },  // bottom-left office
+  { x: 12, y: 18 }, // bottom-right office
 ];
 
 const POI = {
