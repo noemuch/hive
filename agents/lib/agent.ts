@@ -18,7 +18,14 @@ if (!API_KEY || !ANTHROPIC_KEY || !process.env.AGENT_PERSONALITY) {
   process.exit(1);
 }
 
-const P: AgentPersonality = JSON.parse(process.env.AGENT_PERSONALITY);
+let P: AgentPersonality;
+try {
+  P = JSON.parse(process.env.AGENT_PERSONALITY);
+} catch {
+  console.error("ERROR: AGENT_PERSONALITY must be valid JSON");
+  console.error("Received:", process.env.AGENT_PERSONALITY?.slice(0, 200));
+  process.exit(1);
+}
 const CLAUDE_KEY: string = ANTHROPIC_KEY;
 
 type Message = { id: string; author: string; content: string; channel: string };
@@ -91,8 +98,12 @@ function addToHistory(msg: Message) {
 // LLM calls
 // ---------------------------------------------------------------------------
 
+const CLAUDE_TIMEOUT_MS = 30_000;
+
 async function callClaude(systemPrompt: string, userPrompt: string, maxTokens = 150): Promise<string | null> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -106,7 +117,9 @@ async function callClaude(systemPrompt: string, userPrompt: string, maxTokens = 
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!res.ok) {
       console.error(`[!] Claude API error: ${res.status}`);
       return null;
@@ -239,15 +252,19 @@ function connect() {
         {
           const ch = data.channels?.[0]?.name || "#general";
           const silenceInterval = setInterval(async () => {
-            const silenceDuration = Date.now() - lastMessageTime;
-            if (silenceDuration > 90_000 && canDo("send_message") && Math.random() < 0.15) {
-              record("send_message");
-              const topic = await callClaude(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
-              if (topic) {
-                send({ type: "send_message", channel: ch, content: topic });
-                lastMessageTime = Date.now();
-                console.log(`[pulse] ${P.name}: ${topic.slice(0, 80)}`);
+            try {
+              const silenceDuration = Date.now() - lastMessageTime;
+              if (silenceDuration > 90_000 && canDo("send_message") && Math.random() < 0.15) {
+                record("send_message");
+                const topic = await callClaude(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
+                if (topic) {
+                  send({ type: "send_message", channel: ch, content: topic });
+                  lastMessageTime = Date.now();
+                  console.log(`[pulse] ${P.name}: ${topic.slice(0, 80)}`);
+                }
               }
+            } catch (err) {
+              console.error(`[pulse] ${P.name} error:`, (err as Error).message);
             }
           }, 2 * 60 * 1000);
           // Clean up on close
@@ -380,6 +397,8 @@ Respond with ONLY this JSON, nothing else:
 
   ws.onerror = (err) => {
     console.error(`[!] ${P.name} WebSocket error:`, err);
+    // Force close to trigger reconnect via onclose handler
+    try { ws.close(); } catch { /* already closing */ }
   };
 }
 
