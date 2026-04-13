@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Application, Container } from "pixi.js";
-import { createOffice, TILE, OFFICE_W, OFFICE_H, SCALE } from "@/canvas/office";
-import { addAgentSprite, showSpeechBubble, removeAgentSprite, loadCharacterTextures, setOnAgentClick, resetAgentState, updateAgents, triggerAgentMove, notifyAgentActivity } from "@/canvas/agents";
-import { setupCamera, getCameraHandle } from "@/canvas/camera";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { OfficeState } from "@/canvas/officeState";
+import { renderFrame } from "@/canvas/renderer";
+import { startGameLoop } from "@/canvas/gameLoop";
+import { loadAllAssets, loadDefaultLayout } from "@/canvas/assetLoader";
+import { HiveBridge } from "@/canvas/hiveBridge";
+import { TILE_SIZE } from "@/canvas/types";
 import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
 import { CanvasControls } from "./CanvasControls";
@@ -23,6 +25,11 @@ type AgentInfo = { id: string; name: string; role: string; status: string; avata
 
 export type { AgentInfo };
 
+const DEFAULT_ZOOM = 3;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 6;
+const BG_COLOR = "#121220";
+
 export default function GameView({
   companyId,
   onAgentClick,
@@ -32,13 +39,14 @@ export default function GameView({
   onAgentClick?: (agentId: string) => void;
   renderSidebar?: (data: { feedItems: FeedItem[]; agents: AgentInfo[]; connected: boolean }) => React.ReactNode;
 }) {
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<Application | null>(null);
-  const officeRef = useRef<Container | null>(null);
-  const pendingAgentsRef = useRef<{ id: string; name: string; role: string }[]>([]);
-  const pendingBubblesRef = useRef<{ agentId: string; content: string }[]>([]);
-  const cameraCleanupRef = useRef<(() => void) | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef<OfficeState | null>(null);
+  const bridgeRef = useRef<HiveBridge | null>(null);
   const onAgentClickRef = useRef(onAgentClick);
+  const zoomRef = useRef(DEFAULT_ZOOM);
+  const panRef = useRef({ x: 0, y: 0 });
+  const readyRef = useRef(false);
 
   useEffect(() => {
     onAgentClickRef.current = onAgentClick;
@@ -46,7 +54,7 @@ export default function GameView({
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [pixiApp, setPixiApp] = useState<Application | null>(null);
+  const [, setZoom] = useState(DEFAULT_ZOOM);
   const [gifState, setGifState] = useState<"idle" | "recording" | "encoding">("idle");
   const gifTriggerRef = useRef<(() => void) | null>(null);
   const { connected } = useWebSocket();
@@ -79,12 +87,7 @@ export default function GameView({
           timestamp: data.timestamp as number,
         },
       ]);
-      notifyAgentActivity(data.author_id as string);
-      if (officeRef.current) {
-        showSpeechBubble(officeRef.current, data.author_id as string, data.content as string);
-      } else {
-        pendingBubblesRef.current.push({ agentId: data.author_id as string, content: data.content as string });
-      }
+      bridgeRef.current?.onMessage(data.author_id as string);
     },
     onAgentJoined: (data) => {
       setFeedItems((prev) => [
@@ -98,7 +101,6 @@ export default function GameView({
           timestamp: Date.now(),
         },
       ]);
-      // Keep ALL existing agent sprite logic exactly as-is below:
       const info: AgentInfo = {
         id: data.agent_id as string,
         name: data.name as string,
@@ -107,11 +109,7 @@ export default function GameView({
         avatar_seed: data.avatar_seed as string | undefined,
       };
       setAgents((prev) => [...prev.filter((a) => a.id !== info.id), info]);
-      if (officeRef.current) {
-        addAgentSprite(officeRef.current, data.agent_id as string, data.name as string, data.role as string);
-      } else {
-        pendingAgentsRef.current.push({ id: data.agent_id as string, name: data.name as string, role: data.role as string });
-      }
+      bridgeRef.current?.onAgentJoined(data.agent_id as string, data.name as string);
     },
     onAgentLeft: (data) => {
       const agentId = data.agent_id as string;
@@ -126,9 +124,7 @@ export default function GameView({
           timestamp: Date.now(),
         },
       ]);
-      if (officeRef.current) {
-        removeAgentSprite(officeRef.current, agentId);
-      }
+      bridgeRef.current?.onAgentLeft(agentId);
     },
     onArtifactCreated: (data) => {
       setFeedItems((prev) => [
@@ -142,10 +138,6 @@ export default function GameView({
           timestamp: Date.now(),
         },
       ]);
-      // Find agent by name and walk to whiteboard
-      const authorName = data.author_name as string;
-      const match = agentsRef.current.find((a) => a.name === authorName);
-      if (match) triggerAgentMove(match.id, "whiteboard");
     },
     onArtifactUpdated: (data) => {
       setFeedItems((prev) => [
@@ -176,107 +168,226 @@ export default function GameView({
     },
   });
 
-  // Init PixiJS
+  // Init Canvas 2D
   useEffect(() => {
-    if (!canvasRef.current) return;
+    const cvs = canvasRef.current;
+    const ctr = containerRef.current;
+    if (!cvs || !ctr) return;
 
-    const app = new Application();
     let destroyed = false;
+    let stopLoop: (() => void) | null = null;
 
-    const width = canvasRef.current.clientWidth;
-    const height = canvasRef.current.clientHeight;
+    (async () => {
+      // Load all pixel-agents assets
+      await loadAllAssets();
+      if (destroyed) return;
 
-    app
-      .init({
-        width,
-        height,
-        backgroundColor: 0x121220,
-        antialias: false,
-        roundPixels: true,
-        resolution: Math.min(window.devicePixelRatio, 2),
-        autoDensity: true,
-      })
-      .then(async () => {
-        if (destroyed) return;
+      // Load office layout
+      const layout = await loadDefaultLayout();
+      if (destroyed) return;
 
-        canvasRef.current!.appendChild(app.canvas);
-        app.canvas.style.imageRendering = "pixelated";
-        appRef.current = app;
-        setPixiApp(app);
+      const state = new OfficeState(layout ?? undefined);
+      stateRef.current = state;
 
-        // Scene graph: stage → worldContainer (camera target) + hudContainer (screen-space)
-        const worldContainer = new Container();
-        const hudContainer = new Container();
-        app.stage.addChild(worldContainer);
-        app.stage.addChild(hudContainer);
+      const bridge = new HiveBridge(state);
+      bridge.setOnAgentClick((id) => onAgentClickRef.current?.(id));
+      bridgeRef.current = bridge;
 
-        await loadCharacterTextures();
-        setOnAgentClick((id) => onAgentClickRef.current?.(id));
-        const office = await createOffice(app, companyId);
-        if (destroyed) return;
-        officeRef.current = office;
+      // Size canvas to container
+      const dpr = Math.min(window.devicePixelRatio, 2);
+      cvs.width = ctr.clientWidth * dpr;
+      cvs.height = ctr.clientHeight * dpr;
+      cvs.style.width = `${ctr.clientWidth}px`;
+      cvs.style.height = `${ctr.clientHeight}px`;
 
-        // Flush pending agents
-        for (const pending of pendingAgentsRef.current) {
-          addAgentSprite(office, pending.id, pending.name, pending.role);
-        }
-        pendingAgentsRef.current = [];
+      readyRef.current = true;
 
-        // Flush pending speech bubbles (show last 3 max)
-        const recentBubbles = pendingBubblesRef.current.slice(-3);
-        for (const bubble of recentBubbles) {
-          showSpeechBubble(office, bubble.agentId, bubble.content);
-        }
-        pendingBubblesRef.current = [];
+      // Start game loop
+      stopLoop = startGameLoop(cvs, {
+        update: (dt) => {
+          state.update(dt);
+        },
+        render: (ctx) => {
+          ctx.imageSmoothingEnabled = false;
+          // Fill background
+          ctx.fillStyle = BG_COLOR;
+          ctx.fillRect(0, 0, cvs.width, cvs.height);
 
-        // Office scaled by SCALE only — camera handles fit/zoom
-        office.scale.set(SCALE);
-        worldContainer.addChild(office);
-
-        // Camera: zoom, pan, resize via pixi-viewport
-        const cleanupCamera = setupCamera(app, worldContainer, () => ({
-          width: OFFICE_W * TILE * SCALE,
-          height: OFFICE_H * TILE * SCALE,
-        }));
-        cameraCleanupRef.current = cleanupCamera;
-
-        // Agent movement tick
-        const tickerFn = (ticker: { deltaMS: number }) => updateAgents(ticker.deltaMS);
-        app.ticker.add(tickerFn);
+          renderFrame(
+            ctx,
+            cvs.width,
+            cvs.height,
+            state.tileMap,
+            state.furniture,
+            state.getCharacters(),
+            zoomRef.current * dpr,
+            panRef.current.x * dpr,
+            panRef.current.y * dpr,
+          );
+        },
       });
+    })();
+
+    // Handle resize
+    const resizeObserver = new ResizeObserver(() => {
+      const c = canvasRef.current;
+      const ct = containerRef.current;
+      if (!c || !ct) return;
+      const dpr = Math.min(window.devicePixelRatio, 2);
+      c.width = ct.clientWidth * dpr;
+      c.height = ct.clientHeight * dpr;
+      c.style.width = `${ct.clientWidth}px`;
+      c.style.height = `${ct.clientHeight}px`;
+    });
+    resizeObserver.observe(ctr);
 
     return () => {
       destroyed = true;
-      cameraCleanupRef.current?.();
-      cameraCleanupRef.current = null;
-      setOnAgentClick(null);
-      resetAgentState();
-      officeRef.current = null;
-      try {
-        app.destroy(true, { children: true });
-      } catch {
-        app.stage?.removeChildren();
-      }
-      appRef.current = null;
+      readyRef.current = false;
+      resizeObserver.disconnect();
+      stopLoop?.();
+      bridgeRef.current?.destroy();
+      bridgeRef.current = null;
+      stateRef.current = null;
     };
   }, [companyId]);
 
-  // Sync viewport + agent positions every 500ms for minimap/controls
+  // Mouse drag for panning
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      panRef.current.x += dx;
+      panRef.current.y += dy;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      dragging = false;
+      canvas.releasePointerCapture(e.pointerId);
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
+
+    return () => {
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, []);
+
+  // Click to select agent
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let pointerDownPos: { x: number; y: number } | null = null;
+
+    const onPointerDown = (e: PointerEvent) => {
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!pointerDownPos) return;
+      // Only treat as click if the pointer didn't move much (< 5px)
+      const dx = Math.abs(e.clientX - pointerDownPos.x);
+      const dy = Math.abs(e.clientY - pointerDownPos.y);
+      pointerDownPos = null;
+      if (dx > 5 || dy > 5) return;
+
+      const state = stateRef.current;
+      const bridge = bridgeRef.current;
+      if (!state || !bridge || !readyRef.current) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio, 2);
+      const zoom = zoomRef.current * dpr;
+
+      // Screen position relative to canvas (in device pixels)
+      const screenX = (e.clientX - rect.left) * dpr;
+      const screenY = (e.clientY - rect.top) * dpr;
+
+      // Compute map offset (same logic as renderFrame)
+      const cols = state.tileMap.length > 0 ? state.tileMap[0].length : 0;
+      const rows = state.tileMap.length;
+      const mapW = cols * TILE_SIZE * zoom;
+      const mapH = rows * TILE_SIZE * zoom;
+      const offsetX = Math.floor((canvas.width - mapW) / 2) + Math.round(panRef.current.x * dpr);
+      const offsetY = Math.floor((canvas.height - mapH) / 2) + Math.round(panRef.current.y * dpr);
+
+      // Convert screen coords to world coords
+      const worldX = (screenX - offsetX) / zoom;
+      const worldY = (screenY - offsetY) / zoom;
+
+      const hitId = state.getCharacterAt(worldX, worldY);
+      if (hitId !== null) {
+        bridge.handleCharacterClick(hitId);
+      }
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointerup", onPointerUp);
+
+    return () => {
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointerup", onPointerUp);
+    };
+  }, []);
+
+  // Zoom controls
+  const handleZoomIn = useCallback(() => {
+    zoomRef.current = Math.min(zoomRef.current + 1, MAX_ZOOM);
+    setZoom(zoomRef.current);
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    zoomRef.current = Math.max(zoomRef.current - 1, MIN_ZOOM);
+    setZoom(zoomRef.current);
+  }, []);
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%", overflow: "hidden" }}>
       {renderSidebar?.({ feedItems, agents, connected })}
-      <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-        <div ref={canvasRef} style={{ width: "100%", height: "100%", background: "#121220" }} />
+      <div ref={containerRef} style={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <canvas
+          ref={canvasRef}
+          style={{
+            width: "100%",
+            height: "100%",
+            background: BG_COLOR,
+            imageRendering: "pixelated",
+            display: "block",
+          }}
+        />
         <GifCapture
-          app={pixiApp}
+          app={null}
           companyName={companyId}
           onStateChange={(s) => setGifState(s === "preview" ? "idle" : s as "idle" | "recording" | "encoding")}
           triggerRef={gifTriggerRef}
         />
         <CanvasControls
-          onZoomIn={() => getCameraHandle()?.zoomIn()}
-          onZoomOut={() => getCameraHandle()?.zoomOut()}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
           onGifCapture={() => gifTriggerRef.current?.()}
           gifState={gifState}
         />
