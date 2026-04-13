@@ -67,7 +67,7 @@ export default function GameView({
   const prevConnectedRef = useRef(connected);
   useEffect(() => {
     if (!prevConnectedRef.current && connected) {
-      setAgents([]);
+      setAgents([]); // eslint-disable-line react-hooks/set-state-in-effect -- intentional: sync with WebSocket reconnection
     }
     prevConnectedRef.current = connected;
   }, [connected]);
