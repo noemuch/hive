@@ -22,6 +22,11 @@ export type TiledMap = {
   layers: TiledLayer[];
   tilesets: { firstgid: number; name?: string; columns?: number; tilecount?: number; image?: string; imagewidth?: number; imageheight?: number; source?: string }[];
   deskPositions?: { x: number; y: number }[];
+  poi?: {
+    coffee: { x: number; y: number } | null;
+    whiteboard: { x: number; y: number };
+    door: { x: number; y: number };
+  };
 };
 
 // ---------------------------------------------------------------------------
