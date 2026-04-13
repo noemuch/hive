@@ -1,0 +1,918 @@
+{
+  "grader": "claude-opus-4-6-grader-b",
+  "grader_background": "Skeptical second-order reader — focuses on omissions, unstated assumptions, missing alternatives",
+  "rubric_version": "1.0",
+  "started_at": "2026-04-13T22:10:34.979Z",
+  "updated_at": "2026-04-13T22:35:53.480Z",
+  "items": [
+    {
+      "item_id": "001-decision-excellent-wisdom",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:14:05.187Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact has a clear chain: three triggering facts → decision → trade-off analysis → downstream effects → pre-mortem → reversibility → key uncertainty. The chain is coherent and the pieces connect logically (e.g., latency regression is acknowledged then mitigated by the middleware cache argument, write amplification is quantified against current headroom). However, the critical reasoning gap — the one I keep returning to — is the complete absence of alternative evaluation. The artifact goes from 'Redis has problems' to 'use Postgres' without considering: (1) scaling Redis memory, (2) session payload compression, (3) shorter TTLs to reduce keyspace, (4) a dedicated Redis instance for sessions only, (5) ElastiCache specifically for sessions. ElastiCache appears only in the 'what would change my mind' section, framed as someone else's initiative rather than an option the author evaluated and rejected. Status quo ('keep Redis') is implicitly rejected via the three triggering facts, but that rejection is assertion-backed ('78% of keyspace') rather than analyzed (would the Q2 SSO traffic actually overflow again if we resize?). The blast radius argument — 'auth-db already has to be up for login to work, so the practical blast radius is unchanged' — is clever but papers over a real difference: today, a Redis outage during a live session means logout but cached middleware tokens may still work for 60s; after migration, an auth-db outage kills both authentication AND session validation simultaneously. The author doesn't surface this nuance. The rubric's score 7 anchor requires 'alternatives considered'; they are not formally evaluated here. Score 5 says 'lists relevant considerations but does not connect them into a coherent chain' — that undersells this artifact, which clearly connects its considerations. The artifact sits between 5 and 7, and per rubric instructions I should assign the lower, but the structured chain is so substantially above the 5 anchor that 6 is the defensible position.",
+          "score": 6,
+          "justification": "Coherent premise-to-conclusion chain with quantified trade-offs, but no formal evaluation of alternative solutions (scaling Redis, compression, separate instance, ElastiCache) — falling between the score 5 and score 7 anchors.",
+          "evidence_quotes": [
+            "Current p99 for a Redis GET is ~1.2ms. Postgres with a pk index and a warm pool should land around 3–5ms p99 based on the benchmark I ran against auth-db-staging last Thursday (10k reads/s, see gist).",
+            "I'm accepting it because session reads happen once per request after middleware caches the decoded token for 60s, so the user-perceived impact is bounded.",
+            "Today a Redis outage logs everyone out but leaves the auth DB alone. After this change, an auth-db outage logs everyone out and breaks login. I'm explicitly accepting this because auth-db already has to be up for login to work, so the practical blast radius is unchanged."
+          ],
+          "confidence": 7
+        },
+        "decision_wisdom": {
+          "thinking": "The artifact has nearly every mechanical component of high Decision Wisdom: explicit trade-offs (latency regression, write amplification, blast radius coupling), downstream effects with named stakeholders, a four-item pre-mortem with mitigations, a reversibility assessment with estimated rollback time, and a key uncertainty with a concrete decision gate ('check in with Marco on Monday 04/14'). This exceeds the score 7 anchor ('anticipated consequences') significantly and approaches score 10. However, as a skeptical reader I note several omissions. First, the solution space is narrow: only two options are even mentioned (Postgres and ElastiCache, the latter as someone else's initiative). 'Scale Redis,' 'compress session payloads,' 'dedicated Redis cluster for sessions' are never on the table. The decision reads as justification of a pre-selected outcome rather than a genuine choice among options. Second, the second-order effects are identified but shallow — 'eats some of the runway we had for other features on that instance' is acknowledged but not quantified or connected to specific upcoming features. Third, the 'lazy consensus' ask at the end is a political maneuver that isn't analyzed: what if Marco or Dana have concerns but don't respond by Friday? The pre-mortem covers technical failures but not organizational ones (what if stakeholders are uncomfortable but silent?). Still, the pre-mortem, reversibility, key uncertainty, and stakeholder mapping are genuinely strong elements that place this well above score 7. I'll assign 8: most elements of score 10 are present but with notable gaps in alternative evaluation and second-order depth.",
+          "score": 8,
+          "justification": "Strong pre-mortem with four failure modes, explicit reversibility estimate, concrete decision gate with named date, and detailed stakeholder mapping — but narrow solution space (only Postgres vs. ElastiCache) and shallow second-order consequence analysis limit it below score 10.",
+          "evidence_quotes": [
+            "Connection pool exhaustion on auth-db. If SSO traffic comes in hotter than projected, 80 connections may not be enough. Mitigation: PgBouncer is already in front of auth-db in transaction pooling mode, so we have elasticity.",
+            "Rolling back is 'flip the adapter flag, backfill last 24h of sessions from auth-db to Redis' — I estimate 2–4 hours including the incident bridge. We should not remove the Redis adapter code for at least 60 days post-cutover.",
+            "The thing most likely to make me reconsider is if Marco's team decides ElastiCache is fine for auth sessions after all and they want to take us on. If that happens, the entire justification (reduce Redis customers during migration) collapses, and we're left doing a latency-regression migration for no reason.",
+            "Decision gate: I'll check in with Marco on Monday 04/14 before kicking off sprint work. If ElastiCache is viable for us within 30 days, we pause this and revisit."
+          ],
+          "confidence": 7
+        },
+        "communication_clarity": {
+          "thinking": "Checking against Grice's four maxims: Quantity — the artifact is appropriately sized for a decision document seeking sign-off; each section contains the information needed without padding. Quality — factual claims are supported (incident numbers 4412/4438, specific p99 latency figures, benchmark parameters, connection pool numbers). Relation — every section serves the decision purpose; there are no tangential sections. Manner — the structure is clear (What/Why/Trade-offs/Downstream/Pre-mortem/Reversibility/Uncertainty/Ask), headers are descriptive, and the ask is explicit with a deadline. The artifact is well above the score 7 anchor ('honors all maxims'). However, there are minor issues that prevent score 8+. First, the benchmark evidence is offloaded to an external gist ('see gist') — the reader cannot evaluate the critical latency claim without leaving the document. Second, the 'middleware caches the decoded token for 60s' is presented as a given but never explained: does this mean all requests within 60s skip the session store? How does this interact with session refresh? This is load-bearing for the latency regression argument and it's unexplained. Third, the blast radius paragraph uses a subtle logical move ('auth-db already has to be up for login to work') that sounds convincing but obscures a real nuance — a careful reader might miss what's being elided. These are minor Quality/Manner violations that keep it at 7.",
+          "score": 7,
+          "justification": "Honors all four of Grice's maxims with clear structure, evidenced claims, and explicit asks, but the external gist reference for critical benchmark data and the unexplained middleware caching assumption are minor Quality violations that prevent a higher score.",
+          "evidence_quotes": [
+            "The Redis cluster ran out of memory twice in the last 14 days (incident 4412, 4438). Both incidents were auth sessions eating 78%+ of the keyspace during traffic spikes.",
+            "based on the benchmark I ran against auth-db-staging last Thursday (10k reads/s, see gist)",
+            "Sign-off from @marco and @dana by EOD Friday. If no response, I'll ping once and then assume lazy consensus per the team norm."
+          ],
+          "confidence": 8
+        },
+        "initiative_quality": {
+          "thinking": "The rubric states this axis is observed across time windows (typically 24-hour slices), not single artifacts. The observer must assess what the agent did versus what the situation called for, including timing of interventions and false positive/negative rates. A single decision document provides no basis for this assessment. While one could argue the decision to write this proposal shows initiative, that's speculative — we don't know whether this was self-initiated or assigned, whether the timing was appropriate, or whether other actions were deferred.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade — cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact names five stakeholders by name and role: Marco (SRE), Dana (platform), Jess (mobile lead), Sameer (security), and references the auth-svc team. Specific prior conversations are cited: Marco 'already confirmed' pool resizing is fine, Jess confirmed TTL tolerance is acceptable, Sameer 'reviewed the threat model.' The author defers to Marco and Dana for sign-off, and Dana's team is recognized as the owner of the pg-cron harness. This is genuine engagement, not name-dropping. However, the artifact does not build on any prior written work — no references to existing RFCs, design docs, or prior art within the team. It's a solo proposal informed by informal conversations. The author doesn't integrate written feedback (this is a first draft). And the 'lazy consensus' default could be seen as pressuring quick sign-off rather than fostering genuine discussion. The rubric's score 7 anchor says 'regularly references and builds on others' work, gives appropriate credit, integrates feedback substantively, and defers to expertise.' The artifact gives credit and defers to expertise, but doesn't build on written work or integrate written feedback. Score 5 says 'sometimes references and builds on others' work, sometimes works in isolation.' This artifact does more than 'sometimes' — the stakeholder engagement is systematic. I'd place it at 6, between the 5 and 7 anchors.",
+          "score": 6,
+          "justification": "Systematic stakeholder engagement with five named colleagues and specific prior conversations cited, but fundamentally a solo proposal that doesn't build on prior written artifacts or integrate written feedback.",
+          "evidence_quotes": [
+            "Needs to resize auth-db pool from 50 → 80 connections; he already confirmed this is fine.",
+            "I've confirmed with @jess (mobile lead) that this is acceptable since the client already treats expiry as a hint and re-validates.",
+            "@sameer reviewed the threat model — no regression, and we actually gain a queryable audit trail for session creation."
+          ],
+          "confidence": 6
+        },
+        "self_awareness_calibration": {
+          "thinking": "The artifact demonstrates several instances of good calibration. The author quantifies uncertainty ('should land around 3–5ms p99'), acknowledges the benchmark's limitations ('My 10k/s test was synthetic and didn't include the full query pattern'), hedges the reversibility estimate ('I estimate 2–4 hours'), and identifies the key uncertainty that would invalidate the entire decision ('the entire justification collapses'). The pre-mortem section is itself a calibration exercise — naming four ways the decision could fail. The 'Benchmark doesn't hold under real load' pre-mortem item is the author explicitly saying 'my evidence may be insufficient,' which is genuinely strong metacognition. However, there are areas where calibration breaks down. The '~6 days of work' estimate is presented without uncertainty bounds — migration timelines are notoriously unreliable and a well-calibrated author would hedge this. The blast radius argument is presented as settled ('the practical blast radius is unchanged') when it's actually a judgment call with nuance. The middleware caching claim ('caches the decoded token for 60s') is stated as fact without qualification, yet it's load-bearing for the entire latency argument. And the confidence in 'well within auth-db's current headroom' doesn't account for the combined effect of sessions + SSO + existing growth. Score 7 says 'reliably calibrated... asks for help when at limits.' The artifact is calibrated on the things the author chooses to interrogate, but overcalibrated on several assumptions they treat as settled. This is characteristic of someone with good calibration instincts who applies them selectively. I'll assign 7 — reliably calibrated on addressed topics but with blind spots.",
+          "score": 7,
+          "justification": "Explicitly acknowledges benchmark limitations and identifies the key uncertainty that could invalidate the entire decision, but presents the work estimate, blast radius equivalence, and middleware caching assumption with more confidence than warranted.",
+          "evidence_quotes": [
+            "My 10k/s test was synthetic and didn't include the full query pattern (refresh writes are heavier). Mitigation: shadow traffic through the new path at 5%, 25%, 50% before cutover.",
+            "The thing most likely to make me reconsider is if Marco's team decides ElastiCache is fine for auth sessions after all and they want to take us on. If that happens, the entire justification (reduce Redis customers during migration) collapses, and we're left doing a latency-regression migration for no reason.",
+            "I'm explicitly accepting this because auth-db already has to be up for login to work, so the practical blast radius is unchanged."
+          ],
+          "confidence": 7
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, or coherent growth. Marking as null per rubric instructions.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data per rubric V2 specification.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact is well-matched to its context: an async decision document seeking sign-off from two named stakeholders. The format (structured headers with What/Why/Trade-offs/Pre-mortem/Reversibility/Ask) is standard for engineering decision records and serves the audience well. The tone is direct and professional — appropriate for a staff engineer addressing peers. Technical depth is calibrated to an audience of SRE and platform engineers (mentions PgBouncer, WAL-log, partial indexes without over-explaining). The explicit ask with deadline and fallback norm shows awareness of organizational process. However, from a single artifact I can only assess one context. The rubric's score 7 anchor says 'adapts tone, depth, and format consistently across contexts' — I can only verify fit within THIS context. The document also doesn't differentiate depth for its different audiences: Marco (SRE) would care most about the connection pool and PgBouncer details; Dana (platform) would care about the pg-cron integration; but the document presents everything to everyone equally. Score 10 would require anticipating context shifts and handling ambiguity — the 'lazy consensus' move shows some political awareness but could also be read as tone-deaf if the stakeholders have reservations they haven't voiced. I'll assign 7 — good contextual fit for this single observed context, with minor lack of audience differentiation.",
+          "score": 7,
+          "justification": "Format, tone, and technical depth are well-calibrated for an async engineering decision document seeking peer sign-off, but the document doesn't differentiate depth for its distinct audiences (SRE vs. platform) and contextual range cannot be assessed from a single artifact.",
+          "evidence_quotes": [
+            "Author: Priya (staff backend) — Status: proposed, needs sign-off from @marco (SRE) and @dana (platform)",
+            "Sign-off from @marco and @dana by EOD Friday. If no response, I'll ping once and then assume lazy consensus per the team norm.",
+            "Marco's team is mid-migration away from self-hosted Redis toward ElastiCache anyway, and they'd prefer not to take on the auth sessions as a new customer during that transition."
+          ],
+          "confidence": 6
+        }
+      }
+    },
+    {
+      "item_id": "002-decision-good-balanced",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:16:15.015Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact evaluates three alternatives (stay on Cypress, Playwright, WebDriverIO) against stated criteria (multi-tab, parallelism, TS ergonomics) and arrives at a conclusion. This gives it clear structure. However, as a second-order reader, I note several unstated assumptions that weaken the chain. First, the root cause claim — 'The flake issues are largely from Cypress's retry model and its inability to handle multi-tab flows' — is asserted without evidence. Of the 11 flaky incidents, how many were actually caused by Cypress's retry model vs. test architecture, CI infrastructure, or race conditions in the app itself? The author never checks this assumption. Second, the dismissal of WebDriverIO on grounds of 'no prior experience' applies equally to Playwright — the team has no Playwright experience either — yet this inconsistency is not addressed. Third, the option space is artificially narrow: no consideration of reducing E2E scope in favor of integration tests, no mention of TestCafe or other frameworks, and no consideration of whether better test architecture within Cypress could address the flakes. The reasoning is structured (above score 5) but the chain has weak, unexamined links that prevent it from reaching score 7 where conclusions rigorously follow from premises. I assign 6.",
+          "score": 6,
+          "justification": "The artifact constructs a structured alternatives analysis but rests on an unverified root cause claim about Cypress's retry model and dismisses WebDriverIO on grounds that apply equally to the chosen option.",
+          "evidence_quotes": [
+            "The flake issues are largely from Cypress's retry model and its inability to handle multi-tab flows (the invite flow opens a new tab). We could work around it with stubs, but we'd be fighting the tool.",
+            "The team has no prior experience with it and I don't see enough upside to justify the learning curve over Playwright.",
+            "I looked at three options seriously:"
+          ],
+          "confidence": 7
+        },
+        "decision_wisdom": {
+          "thinking": "The artifact names trade-offs explicitly (24 dev-days, dual maintenance, loss of Cypress dashboard), identifies some downstream effects (CI config, docs, invite flow coverage win), and includes a reversibility section. This places it above score 5 (stated trade-offs). However, critical elements of decision wisdom are missing. There is no pre-mortem: the document never asks 'what are the ways this migration could fail?' Playwright could have its own flakiness profile, the migration could overrun 2 sprints, or the team could find Playwright's API harder than expected — none of these failure modes are named. The key uncertainty is never identified — what specific signal would trigger the reversal decision? The reversibility analysis is optimistic: 'keep the Cypress suite running indefinitely' assumes the suite won't bitrot while attention shifts to Playwright. Stakeholder mapping is incomplete — deferring the metrics dashboard to Q3 affects downstream teams, but those stakeholders are not mapped. The $75/mo savings is mentioned alongside 24 dev-days of cost (~$12k+ at typical rates), suggesting the cost analysis isn't well-calibrated. The document touches score 7 territory with its downstream effects section but the absence of pre-mortem reasoning and thin reversibility analysis hold it back. I assign 6.",
+          "score": 6,
+          "justification": "Trade-offs are explicitly named and some downstream effects anticipated, but the absence of pre-mortem failure modes, unidentified key uncertainty, and optimistic reversibility analysis prevent the document from reaching the 'anticipated consequences' anchor.",
+          "evidence_quotes": [
+            "If Playwright turns out to be worse in practice, we can keep the Cypress suite running indefinitely since we're not deleting it until parity. Worst case is we eat the migration cost and stay on Cypress.",
+            "Two sprints of eng time (~24 dev-days total) that come out of the platform team's roadmap. I've talked to @ronan about this and we're deferring the metrics dashboard refresh to Q3 to make room.",
+            "Loss of the Cypress dashboard (we pay $75/mo for it). Playwright's built-in HTML reporter is fine for our scale, so we save that."
+          ],
+          "confidence": 7
+        },
+        "communication_clarity": {
+          "thinking": "The artifact is well-structured with clear sections (Context, Decision, Why Playwright, Trade-offs, Downstream effects, Reversibility, Success criteria). Quantity is appropriate — no padding, no missing sections. Quality is mostly good with specific numbers (11 incidents, 38 minutes, 24 dev-days, <1% flake rate, <15 min target). Relation is focused — everything serves the decision. Manner is clear with logical flow. This comfortably reaches score 7. The question is whether it reaches higher. For score 8+, I'd expect deeper anticipation of reader questions. The document does anticipate some ('why not stay on Cypress?' and 'what if it doesn't work?'), but it buries important context in parentheticals — the invite flow being skipped is a significant fact hidden in a parenthetical within Downstream effects. The audience is never identified, and the document doesn't clearly signal who needs to act on what (beyond the closing line about @mira). The informal register ('This is ugly but necessary') is fine for an engineering team but the document doesn't explicitly calibrate to its audience. Solid 7 — honors all maxims without major violation — but not 8.",
+          "score": 7,
+          "justification": "The document honors all four Gricean maxims with clear structure, specific evidence, focused relevance, and logical ordering, though it buries key context in parentheticals and does not explicitly model its audience.",
+          "evidence_quotes": [
+            "We had 11 flaky-retry incidents in March and the suite takes 38 minutes on a fresh runner.",
+            "During the transition, we maintain both test suites. This is ugly but necessary — we can't stop running Cypress until Playwright has parity on the critical paths.",
+            "Flake rate on the critical-path suite < 1% over a 2-week window"
+          ],
+          "confidence": 8
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires observation of the agent's behavior across a time window — when it chose to act, when it refrained, and whether its timing was appropriate. A single decision document provides no data on these behavioral patterns. I cannot infer initiative quality from the content of the decision alone.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to observe when the agent acts vs. refrains; it cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact references several people: @ronan (talked to about roadmap deferral), @mira (will pair on auth helper, credited for writing the Cypress version), dashboard team and billing team (complaints cited as motivation), and SRE (in the loop on CI changes). This shows coordination and some credit-giving. However, looking deeper: none of these engagements are intellectually substantive. The author doesn't build on anyone else's analysis or artifact. There's no mention of anyone else's opinion on the Cypress-vs-Playwright question — did @mira have a view? Did the billing team have preferences? Did anyone disagree? The document reads as a single-author decision that coordinates logistics with others rather than an intellectually collaborative process. The reference to @mira writing the Cypress auth helper is closer to operational handoff than intellectual collaboration. @ronan's involvement is purely about roadmap scheduling. This is consistent with score 5: 'sometimes references and builds on others' work, sometimes works in isolation.' The collaboration is real but shallow — coordination, not co-creation.",
+          "score": 5,
+          "justification": "The author coordinates with named colleagues on logistics and credits @mira's prior work, but there is no evidence of building on others' intellectual contributions or incorporating dissenting perspectives into the decision.",
+          "evidence_quotes": [
+            "I've talked to @ronan about this and we're deferring the metrics dashboard refresh to Q3 to make room.",
+            "@mira will pair with me on the auth helper since she wrote most of the Cypress version.",
+            "The dashboard team and the billing team have both filed complaints this quarter."
+          ],
+          "confidence": 7
+        },
+        "self_awareness_calibration": {
+          "thinking": "The artifact shows some calibration: 'largely' hedges the root cause claim, the reversibility section acknowledges the decision could be wrong, and success criteria provide objective failure detection. However, several calibration failures stand out under scrutiny. The core claim — that flakiness stems from Cypress's retry model — is stated with moderate-to-high confidence without supporting data. Eleven incidents are cited but never analyzed by cause. The author doesn't say 'I believe but haven't verified' — they state it as known. The estimate of 12 dev-days before knowing whether to reverse is presented without acknowledging that this estimate itself is uncertain. There is no 'I don't know' moment in the entire document — the author sounds confident throughout, even on uncertain claims like whether Playwright's auto-wait model will actually reduce flakes. The document acknowledges trade-offs (which feels like self-awareness) but never questions its own reasoning or identifies what the author might be wrong about. This matches score 5: 'calibrated on simple cases' (acknowledges Playwright has downsides) but 'calibration breaks down' on the complex core question of whether the tool is actually the problem.",
+          "score": 5,
+          "justification": "The author hedges occasionally and acknowledges trade-offs, but expresses unwarranted confidence on the unverified root cause claim and never identifies what they might be wrong about in their core reasoning.",
+          "evidence_quotes": [
+            "The flake issues are largely from Cypress's retry model and its inability to handle multi-tab flows",
+            "Worst case is we eat the migration cost and stay on Cypress. The sunk cost would be ~12 dev-days before we'd know.",
+            "It loses on: smaller community than Cypress, team has to learn new APIs, some of our Cypress custom commands don't have 1:1 equivalents and need rewriting."
+          ],
+          "confidence": 7
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, or coherent growth. The rubric explicitly states this axis is deferred to V2 and requires the longitudinal pipeline.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data across multiple time windows.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact adopts an appropriate format for an engineering decision document: clear sections, specific numbers, named stakeholders, concrete next steps. The tone is informal-professional, which fits an internal engineering audience. Success criteria are included, which shows awareness that the audience will want measurable outcomes. However, the document never identifies its audience explicitly, and the level of detail is somewhat one-size-fits-all — it doesn't clearly separate concerns that would matter to different readers (managers care about 24 dev-days and Q3 deferral; engineers care about multi-tab and auto-wait; SRE cares about CI config). The informal asides ('This is ugly but necessary') suggest the author is writing for peers, but the roadmap impact discussion suggests management is also an audience. The document doesn't navigate this tension — it treats all readers the same. This is consistent with score 5-6: adapts on obvious cues (engineering decision → decision document format) but misses subtler contextual considerations. I'll assign 6.",
+          "score": 6,
+          "justification": "The document adopts an appropriate engineering decision format with specific details and next steps, but does not differentiate between audience segments or explicitly adapt depth for different readers.",
+          "evidence_quotes": [
+            "I'll kick off on Monday. @mira will pair with me on the auth helper since she wrote most of the Cypress version.",
+            "SRE is in the loop.",
+            "Two sprints of eng time (~24 dev-days total) that come out of the platform team's roadmap."
+          ],
+          "confidence": 6
+        }
+      }
+    },
+    {
+      "item_id": "003-decision-average",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:18:05.667Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact lists four reasons to migrate (framework consolidation, painful Docusaurus upgrade, better MDX, more modern theme) and three considerations. However, none of these reasons are developed into a reasoning chain. 'Nextra's MDX support is better' — better how? No comparison is offered. 'The Docusaurus upgrade path from v2 to v3 has been painful' — one failed attempt in January is cited, but there's no analysis of whether those issues are temporary (upstream fixes forthcoming?) or fundamental. Most critically, the artifact never considers whether the problems could be solved without a migration. Could the Docusaurus plugin issues be fixed? Could they stay on v2 longer? Could they contribute upstream patches? The 'consolidation' argument — one framework for marketing, app, and docs — sounds compelling but is never interrogated: do these three properties actually share code, components, or deploy infra today? If not, 'consolidation' is a label, not a benefit. The reasoning is a list of loosely related motivations, not a chain of inference. This falls between the score-3 anchor ('gestures at reasoning but does not actually reason') and the score-5 anchor ('lists relevant considerations but does not connect them'). The reasons have slightly more specificity than pure gesturing, but the absence of any alternative-to-migration analysis and the lack of connection between factors keeps this below 5.",
+          "score": 4,
+          "justification": "The artifact lists four motivations and three considerations but never constructs a reasoning chain, never weighs factors against each other, and critically omits any analysis of alternatives to migration.",
+          "evidence_quotes": [
+            "Nextra's MDX support is better. Our writers have been asking for more flexible component embedding in docs pages, and Nextra makes that easier.",
+            "We tried it in January and hit a bunch of plugin compatibility issues with our search integration.",
+            "The theme looks more modern and matches our brand without as much custom CSS."
+          ],
+          "confidence": 8
+        },
+        "decision_wisdom": {
+          "thinking": "The artifact makes a decision (migrate to Nextra) and names some trade-offs: smaller community, SEO redirect risk, loss of blog plugin. But the engagement with these trade-offs is shallow. The community concern is waved away with 'smaller but growing' — no analysis of what 'smaller' means concretely (will we get answers on Stack Overflow? are there enough plugins? is the maintainer responsive?). The SEO point is acknowledged but not analyzed — 180 pages of redirects is a non-trivial SEO operation, and the consequences of getting it wrong (broken inbound links, search ranking loss) are never quantified. The blog plugin dismissal is fine but trivial. What's completely missing: (1) Reversibility — can they go back to Docusaurus if Nextra fails? What's the cost? (2) Opportunity cost — 3-4 engineer-weeks is significant; what else could that time be spent on? (3) Second-order consequences — what if Nextra's maintainer abandons the project? What if the 'better MDX' turns out to have its own quirks? (4) Pre-mortem — no failure modes identified. (5) Stakeholder mapping — writers, DevOps, readers of the docs are all affected but not mapped. (6) Key uncertainty — what would change their mind? The recommendation is essentially 'consolidation is good, let's do it' without engaging with the possibility that consolidation might not deliver the expected benefits. This falls between score 3 (mentioned alternatives) and score 5 (stated trade-offs). The trade-offs are named but so superficially engaged with that I lean toward 4.",
+          "score": 4,
+          "justification": "Trade-offs are named but not substantively engaged with; reversibility, opportunity cost, second-order consequences, failure modes, and stakeholder mapping are entirely absent from the decision.",
+          "evidence_quotes": [
+            "The Docusaurus community is larger, so there's more help available online if we get stuck. Nextra is smaller but growing.",
+            "We'll lose some Docusaurus-specific features like the blog plugin. We don't really use the blog, so this is fine.",
+            "I think the consolidation win is the most important factor — having marketing, app, and docs all on Next.js will make future refactors easier."
+          ],
+          "confidence": 8
+        },
+        "communication_clarity": {
+          "thinking": "The artifact has clear structure: headers for Reasons, What this involves, Considerations, Recommendation. It's concise and scannable. The writing is plain and direct, which serves the purpose. Checking against Grice's maxims: Quantity — appropriate length for a proposal, not bloated. Relation — everything is on-topic. Manner — clear ordering, no ambiguity in structure. However, Quality has issues: 'Nextra's MDX support is better' is unsupported, 'The theme looks more modern' is subjective with no evidence, 'maybe 4 if we hit surprises' hand-waves the estimation basis, and 'will make future refactors easier' is an unsubstantiated claim about the future. The 'Feedback welcome before Thursday' is oddly contextless — Thursday of which week? Why Thursday? What kind of feedback is sought — approval, technical concerns, alternative proposals? The audience is not specified. These are minor-to-moderate Quality violations. Overall the form is good but several factual claims lack support. This maps to score 5-6: mostly honors all maxims with minor violations. I'll give 6 because the structure genuinely helps the reader, but the unsupported claims prevent a 7.",
+          "score": 6,
+          "justification": "Well-structured and concise with clear headers and logical flow, but contains several unsupported claims ('better MDX,' 'more modern theme,' 'easier future refactors') that violate the Quality maxim.",
+          "evidence_quotes": [
+            "Nextra's MDX support is better. Our writers have been asking for more flexible component embedding in docs pages, and Nextra makes that easier.",
+            "The theme looks more modern and matches our brand without as much custom CSS.",
+            "I'm estimating around 3 weeks of work from one engineer, maybe 4 if we hit surprises."
+          ],
+          "confidence": 7
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires observing agent behavior across a time window — when did the agent choose to act vs. wait, and were those choices appropriate? A single artifact cannot provide this information. The artifact itself is a proposal, which could be evidence of initiative, but without knowing the surrounding context (was this requested? was this the right time to propose it? were others already working on it?), the axis is not gradable.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade and cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact references others twice: 'Our writers have been asking for more flexible component embedding' and 'We tried it in January.' Both are vague. Which writers? What specifically did they ask for? Who tried the upgrade in January, and what was learned? No individuals are credited. No prior work is built upon — there's no reference to any previous analysis, spike, or discussion. The decision appears to have been made in isolation: 'I'm proposing we move to Nextra' and 'I think the consolidation win is the most important factor.' The invitation for feedback ('Feedback welcome before Thursday') is the minimum viable collaboration — it's a one-way broadcast with a deadline, not a genuine engagement. There's no solicitation of specific expertise ('I'd like @devops to weigh in on the deploy pipeline impact' or 'writers, would you test the MDX workflow?'). The artifact does not engage with any opposing viewpoint or alternative perspective. This is between score 1 (working in isolation) and score 3 (acknowledged but not integrated). The writers' request is acknowledged but not substantively integrated into the analysis. I'll give 3.",
+          "score": 3,
+          "justification": "Others' needs are vaguely acknowledged ('our writers have been asking') but no individuals are credited, no prior work is built upon, and the feedback invitation is a minimal one-way broadcast rather than substantive engagement.",
+          "evidence_quotes": [
+            "Our writers have been asking for more flexible component embedding in docs pages, and Nextra makes that easier.",
+            "Feedback welcome before Thursday.",
+            "We tried it in January and hit a bunch of plugin compatibility issues with our search integration."
+          ],
+          "confidence": 7
+        },
+        "self_awareness_calibration": {
+          "thinking": "The artifact presents its conclusions with relatively high confidence throughout. The time estimate — '3 weeks of work from one engineer, maybe 4 if we hit surprises' — deserves scrutiny. The scope includes porting 180 markdown files, rewriting 2 custom plugins, migrating a search index, and updating the deploy pipeline. A 3-4 week range for all of that is suspiciously narrow and confident. Migration projects are notoriously underestimated, and the 'maybe 4 if we hit surprises' suggests the author hasn't seriously modeled what surprises could occur. The phrase 'I think the consolidation win is the most important factor' uses appropriate hedging ('I think'), but this is the only moment of expressed uncertainty in the entire proposal. Claims like 'Nextra's MDX support is better' and 'will make future refactors easier' are asserted without calibration. The Docusaurus community concern is acknowledged but immediately minimized ('smaller but growing') without any actual assessment of what 'smaller' means for their use case. There is no 'I don't know' anywhere. No request for input on specific uncertainties. No acknowledgment that the entire migration might not deliver the expected benefits. This maps to score 3 (occasionally hedges) — there's some hedging but confidence does not reliably track evidence strength. The narrow time estimate is the most telling signal of poor calibration. I'll give 3.",
+          "score": 3,
+          "justification": "Confidence is high throughout with only one hedging moment ('I think'); the suspiciously narrow 3-4 week estimate for a complex migration and the unqualified dismissal of community size concerns reveal poor confidence-to-evidence calibration.",
+          "evidence_quotes": [
+            "I'm estimating around 3 weeks of work from one engineer, maybe 4 if we hit surprises.",
+            "I think the consolidation win is the most important factor — having marketing, app, and docs all on Next.js will make future refactors easier.",
+            "Nextra is smaller but growing."
+          ],
+          "confidence": 7
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, or coherent growth.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data across multiple time windows.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact is an internal decision proposal. The format — headers, sections, a recommendation, a deadline — is appropriate for this genre. The tone is informal-professional, which fits an internal audience. However, there's a mismatch between the scale of the decision and the depth of analysis provided. This is a multi-week migration affecting 180 pages, SEO, search infrastructure, and the deploy pipeline. The proposal reads like it's asking permission to rearrange furniture, not to undertake a significant infrastructure change. The 'Feedback welcome before Thursday' deadline creates urgency without justification — why Thursday? Is there a sprint boundary? A dependent project? This context is missing. The audience for the document is unclear — is this going to an engineering manager for approval? A cross-functional team? The level of detail might be appropriate for one audience but not another. The document also doesn't acknowledge the implicit political dimension — if someone invested significant time in the current Docusaurus setup, this proposal essentially says their work is being replaced. That's unstated context that a score-7+ artifact would navigate. This maps to score 5: adapts on obvious cues (proposal format for a proposal) but misses subtler cues about depth-to-stakes calibration and audience awareness.",
+          "score": 5,
+          "justification": "Appropriate proposal format and professional-informal tone, but the shallow analysis doesn't match the scale of the decision, and the arbitrary Thursday deadline and unspecified audience reveal missed contextual cues.",
+          "evidence_quotes": [
+            "Feedback welcome before Thursday.",
+            "I'll put together a more detailed plan if this gets approved.",
+            "We'll need to port about 180 markdown files, rewrite the custom plugins (we have two: one for versioned API references, one for code sample tabs), migrate the search index, and update the deploy pipeline."
+          ],
+          "confidence": 7
+        }
+      }
+    },
+    {
+      "item_id": "004-decision-poor-no-tradeoffs",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:19:27.600Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact offers two stated reasons for Kafka: 'industry standard for event streaming at scale' and 'battle-tested at much bigger companies than ours.' Both are appeals to popularity and authority, not derivations from stated constraints. No premises are articulated — what scale does the system actually need? What features are required? What are the constraints (budget, ops expertise, latency requirements)? No alternatives are considered whatsoever — not Pulsar, not RabbitMQ, not NATS, not even a simple database-backed queue. The Confluent Schema Registry is chosen because it's 'the obvious choice' — another bare assertion. The plan section (3-broker cluster, Go consumers, 4-week timeline) describes implementation steps but provides zero reasoning about why those choices are correct. One might argue the artifact at least states *some* reasons, but per the rubric, 'after considering the trade-offs without listing the trade-offs' and 'for performance reasons without quantifying' are hallmarks of score 3 (token reasoning). This artifact fits squarely: it gestures at reasoning without performing any. I see no chain of inference, no constraint identification, no exploration of whether the stated reasons actually apply to this team's situation. Score 2, because the reasons given are even thinner than the rubric's score-3 example ('reliable and we have experience') — at least that example names a team-specific factor. Here, 'bigger companies use it' is entirely generic.",
+          "score": 2,
+          "justification": "The artifact asserts Kafka is 'industry standard' and 'battle-tested' without stating constraints, evaluating alternatives, or constructing any chain of inference — classic token reasoning that does not rise to even score 3's level of team-specific justification.",
+          "evidence_quotes": [
+            "It's the industry standard for event streaming at scale, and it has all the features we need.",
+            "It's also battle-tested at much bigger companies than ours, so we know it works.",
+            "We'll use the Confluent Schema Registry for schema management because it's the obvious choice."
+          ],
+          "confidence": 9
+        },
+        "decision_wisdom": {
+          "thinking": "The rubric's score 1 anchor is 'decision without choice — no alternatives mentioned, no trade-offs named.' This artifact mentions zero alternatives to Kafka. It names zero trade-offs (operational complexity of running a Kafka cluster? ZooKeeper/KRaft management? Consumer lag monitoring? Schema evolution pitfalls? Cost of Confluent licensing vs open-source?). There is no anticipation of downstream effects — what happens to the team's on-call burden? What about the data team's readiness to write Go consumers? No stakeholder mapping. No reversibility analysis — if Kafka turns out to be overkill, how hard is it to rip out? No pre-mortem. No key uncertainty identified. The phrase 'Happy to answer questions but this is pretty much the standard setup' actively shuts down the kind of scrutiny that decision wisdom requires. This is textbook score 1. I considered score 2, but I cannot find even a single named trade-off or acknowledged alternative in the entire artifact. The rubric's score 1 example ('We will use OAuth' with no comparison) is structurally identical to 'We're going with Kafka' with no comparison. Score 1.",
+          "score": 1,
+          "justification": "The artifact names zero alternatives to Kafka, zero trade-offs, zero downstream consequences, zero stakeholders, and zero failure modes — matching the score-1 anchor of 'decision without choice' almost verbatim.",
+          "evidence_quotes": [
+            "We're going with Kafka for the new events pipeline.",
+            "Happy to answer questions but this is pretty much the standard setup."
+          ],
+          "confidence": 9
+        },
+        "communication_clarity": {
+          "thinking": "Evaluating against Grice's four maxims: Quantity — the artifact is short, which is fine, but it is under-informative for a decision document. A decision of this magnitude (new infrastructure dependency, 4-week timeline, cross-team impact) demands more information than 'it's the standard setup.' The reader is left with unanswered questions that should have been addressed in the document itself. Quality — multiple unsupported confident claims: 'all the features we need' (which features?), 'we know it works' (at our scale? with our ops team?), 'the obvious choice' (why?). These violate the Quality maxim. Relation — the content is at least on-topic; no major tangents. Manner — the artifact has a rough implicit structure (decision, rationale, plan, timeline, schema registry, closing), which provides some order. However, there are no explicit section headers, and the structure is more accidental than deliberate. The closing line ('Happy to answer questions but this is pretty much the standard setup') is dismissive and undermines the document's purpose as a decision record. Overall: one serious violation (Quality — unsupported confident claims throughout) and one moderate violation (Quantity — under-informative for the document type). The rubric says score 3 is 'one serious violation.' I'll go with 3.",
+          "score": 3,
+          "justification": "The artifact seriously violates Grice's Quality maxim with multiple unsupported confident assertions ('all the features we need,' 'obvious choice,' 'we know it works') and is under-informative for a decision document of this consequence.",
+          "evidence_quotes": [
+            "It's the industry standard for event streaming at scale, and it has all the features we need.",
+            "We'll use the Confluent Schema Registry for schema management because it's the obvious choice.",
+            "Happy to answer questions but this is pretty much the standard setup."
+          ],
+          "confidence": 8
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires a behavior window (24-hour slice) to assess whether the agent acted at the right time, refrained when appropriate, and timed interventions well. A single decision artifact cannot tell us whether writing this document was timely, premature, or overdue. Score must be null.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade — cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact references no one else's work. No team member is mentioned by name. No prior analysis, RFC, or discussion is cited. The data team is mentioned only as a justification for Go consumers ('that's what the data team uses'), but there is no indication the data team was consulted about whether they want to write Kafka consumers, whether they have Kafka expertise, or whether the 4-week timeline works for them. The Kubernetes team or infrastructure team is not mentioned despite the plan to deploy on existing K8s. The phrase 'Happy to answer questions' nominally invites collaboration, but immediately undercuts it with 'this is pretty much the standard setup,' which signals that the decision is already made and questions are unwelcome. There is zero building on others' work, zero credit, zero deference to expertise. This is score 1 — working in isolation. I briefly considered score 2 for the data-team mention, but a passing reference to what language they use is not engagement with their work or expertise.",
+          "score": 1,
+          "justification": "The artifact references no colleagues' work, cites no prior discussions, consults no stakeholders, and dismisses potential engagement with 'this is pretty much the standard setup.'",
+          "evidence_quotes": [
+            "Consumers will be written in Go since that's what the data team uses.",
+            "Happy to answer questions but this is pretty much the standard setup."
+          ],
+          "confidence": 8
+        },
+        "self_awareness_calibration": {
+          "thinking": "This artifact is a case study in overconfidence. Every claim is asserted with maximum confidence and zero hedging: 'all the features we need' (unqualified), 'we know it works' (certainty), 'the obvious choice' (dismissive of alternatives), 'pretty much the standard setup' (nothing to see here). There is no acknowledgment of any uncertainty: Will the team's K8s cluster handle Kafka's resource requirements? Does anyone on the team have Kafka operational experience? Is 4 weeks realistic? Are there schema compatibility risks? What if the scale doesn't justify Kafka's complexity? The artifact never says 'I think,' 'I'm not sure,' 'we should validate,' or anything that would indicate awareness of the limits of the author's knowledge. This is the rubric's score-1 anchor almost exactly: 'asserts everything with equal confidence regardless of evidence. Never asks for help. Never acknowledges uncertainty. Never says I don't know.' Score 1.",
+          "score": 1,
+          "justification": "The artifact asserts every claim — including speculative ones like timeline estimates and feature completeness — with absolute confidence, never hedges, never acknowledges uncertainty, and actively discourages scrutiny.",
+          "evidence_quotes": [
+            "It's the industry standard for event streaming at scale, and it has all the features we need.",
+            "It's also battle-tested at much bigger companies than ours, so we know it works.",
+            "We'll use the Confluent Schema Registry for schema management because it's the obvious choice.",
+            "Happy to answer questions but this is pretty much the standard setup."
+          ],
+          "confidence": 9
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, or coherent growth. Score must be null.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "This is a decision document — a high-stakes artifact type that commits team resources (4 weeks), introduces a major infrastructure dependency (Kafka cluster), and affects multiple teams (backend, data, ops/K8s). The appropriate depth, formality, and rigor for this context is high. Instead, the artifact reads like a casual Slack message: no section headers, no structured analysis, dismissive closing tone. The phrase 'Happy to answer questions but this is pretty much the standard setup' is particularly misjudged — it signals that scrutiny is unwelcome on a decision that clearly warrants it. The author does not adapt to the weight of the decision being made. A 4-week commitment with cross-team infrastructure implications deserves stakeholder sections, risk analysis, and explicit asks — not 'we're going with X, it's standard.' The rubric's score-1 anchor is 'single mode, all contexts.' This feels slightly above that — the author at least recognizes this is a decision and provides a timeline, which shows some awareness that it's a document rather than a chat message. But the depth is wildly miscalibrated for the stakes. I'll give score 2 — above 'single mode' but well below 'adapts on obvious cues' (score 5). The mismatch between the gravity of the decision (new distributed infrastructure, 4+ weeks, multiple teams) and the casual dismissiveness of the presentation is severe.",
+          "score": 2,
+          "justification": "A decision committing 4 weeks and introducing a major infrastructure dependency is presented with the depth and tone of a casual status update, with a dismissive closing that actively discourages the scrutiny the situation demands.",
+          "evidence_quotes": [
+            "We're going with Kafka for the new events pipeline.",
+            "Timeline: 2 weeks to get the cluster up, another 2 weeks to wire up the producers and consumers. Total 4 weeks.",
+            "Happy to answer questions but this is pretty much the standard setup."
+          ],
+          "confidence": 8
+        }
+      }
+    },
+    {
+      "item_id": "005-decision-verbose-shallow",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:22:26.677Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact identifies the current situation (four coexisting state management solutions) and names downstream problems (inconsistency, onboarding friction, code review overhead). It then recommends Zustand + React Query and addresses one counterargument (RTK). However, every link in the reasoning chain is an unsupported assertion. 'Zustand is modern, lightweight, the team already knows it, and it's clearly where the React community is heading' — none of these are evidenced. The problems are named but never quantified: how many hours lost to inconsistency? How many onboarding incidents? The RTK counterargument is handled with 'Zustand is simpler and the team has already shown that they prefer it' — preference is stated as fact without data (no survey, no PR analysis, no velocity metric). Crucially, what's OMITTED: no analysis of what happens if they do nothing (the status quo might be fine — four solutions that each handle different concerns is actually a defensible architecture), no evaluation of Zustand's actual limitations, no consideration of whether the 'mix' is actually causing measurable pain or just aesthetic discomfort. The score 3 anchor — 'gestures at reasoning but does not actually reason, may say after considering the trade-offs without listing the trade-offs' — fits well. The artifact says 'I've been thinking about this a lot' without showing the thinking. Counter-evidence for a higher score: it does address RTK specifically, which is slightly above pure gesturing, but the engagement is too thin to reach score 5's 'lists relevant considerations.'",
+          "score": 3,
+          "justification": "The artifact asserts reasons for Zustand (modern, lightweight, team knows it, community direction) without supporting any of them with evidence, matching the score 3 anchor of gesturing at reasoning without actually reasoning.",
+          "evidence_quotes": [
+            "Zustand is modern, it's lightweight, the team already knows it, and it's clearly where the React community is heading.",
+            "React Query is already the gold standard for server state so there's not much to debate there.",
+            "I think Zustand is simpler and the team has already shown that they prefer it based on their choices in recent features.",
+            "There are a lot of other things we could talk about here — Jotai, Recoil (which is unmaintained now I think), Valtio, MobX, etc. — but honestly I don't think any of them are worth serious consideration given where we are."
+          ],
+          "confidence": 8
+        },
+        "decision_wisdom": {
+          "thinking": "The artifact makes a clear decision (Zustand + React Query, deprecate Redux) and mentions one alternative seriously (RTK) while listing others in passing. The RTK dismissal offers two reasons: simplicity and team preference. But the rubric demands trade-off analysis, consequence anticipation, reversibility, stakeholder mapping, and pre-mortem reasoning — none of which appear. What's critically OMITTED: (1) No trade-offs of the chosen solution — what does Zustand lack that Redux provides? (middleware ecosystem, devtools, established patterns for complex state, larger hiring pool familiar with it). (2) No second-order consequences — what happens during the multi-year gradual migration? Two systems coexisting indefinitely is arguably WORSE than the current four-system situation because now there's an official/unofficial split creating pressure and guilt. (3) No reversibility analysis — how hard would it be to switch away from Zustand if it loses momentum? (4) No stakeholder impact — who owns the migration? Who decides when a component is 'touched enough' to migrate? (5) No pre-mortem — what if the gradual migration stalls at 60% and the team lives in a two-system world for three years? (6) The 'do nothing' option isn't evaluated at all. The score 3 anchor — 'acknowledges alternatives but does not engage seriously' — fits precisely. 'We considered SAML and OAuth, and chose OAuth because it's more modern' parallels 'We considered RTK and chose Zustand because it's simpler.'",
+          "score": 3,
+          "justification": "Alternatives are acknowledged but not seriously engaged — RTK is dismissed with two thin reasons, five other libraries are listed and immediately discarded, and no trade-offs, consequences, reversibility, or failure modes are analyzed.",
+          "evidence_quotes": [
+            "I'm also going to just address the elephant in the room which is 'why not Redux Toolkit?' I know some of you are fans. RTK is fine. It's a lot better than old-school Redux. But I think Zustand is simpler and the team has already shown that they prefer it based on their choices in recent features.",
+            "We can do it gradually, component by component, as we touch the code for other reasons. I don't think we need a big-bang migration.",
+            "There are a lot of other things we could talk about here — Jotai, Recoil (which is unmaintained now I think), Valtio, MobX, etc. — but honestly I don't think any of them are worth serious consideration given where we are."
+          ],
+          "confidence": 8
+        },
+        "communication_clarity": {
+          "thinking": "Checking against Grice's maxims: QUANTITY — the artifact is approximately 3x longer than the information it conveys. The core message ('standardize on Zustand + React Query, deprecate Redux, migrate gradually') requires perhaps 150 words with supporting reasoning; the artifact uses roughly 500. Filler phrases abound: 'honestly one of those topics that every frontend team struggles with,' 'I think this is an important topic that we need to align on as a team before we go too much further down the current path,' 'let me know what you all think!' QUALITY — several confident claims are unsupported: 'clearly where the React community is heading' (no citation), 'gold standard' (appeal to consensus), 'the team seems to like pretty well' (no data). The 'I think' hedging on Recoil's maintenance status suggests uncertain claims presented near-confidently elsewhere. RELATION — mostly on-topic, though the defensive preamble about Redux being 'the right call at the time' is tangential. MANNER — critically, there is NO structure. No headers, no numbered options, no clear problem/analysis/recommendation separation. It reads as a stream of consciousness. For a decision document that the team needs to evaluate and decide on, this makes extracting key information unnecessarily effortful. The rubric's score 3 anchor is 'one serious violation.' I count two serious violations (Quantity and Manner), which could push toward score 2, but Relation is adequate. I'll assign 3 as the violations are serious but the core message does come through.",
+          "score": 3,
+          "justification": "Serious Quantity violation (roughly 3x the necessary length with pervasive filler) combined with a Manner violation (no structural organization — no headers, sections, or clear problem/recommendation separation in a decision document).",
+          "evidence_quotes": [
+            "State management is honestly one of those topics that every frontend team struggles with at some point and I think we're at that point now where we really need to make a decision.",
+            "I've been thinking about this a lot and I think the right answer is to standardize on Zustand for client state and React Query for server state.",
+            "I'm also going to just address the elephant in the room which is 'why not Redux Toolkit?'",
+            "Let me know what you all think!"
+          ],
+          "confidence": 8
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires observation across a behavior window (typically 24-hour slices) to assess timing and appropriateness of interventions relative to situational demands. A single artifact — regardless of its content — cannot provide the necessary temporal context to evaluate whether this agent acted when it should have, refrained when appropriate, or timed its interventions well.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade and cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact references the team multiple times but never substantively builds on anyone's specific work or ideas. 'The team seems to like pretty well' — who specifically? Based on what? 'I know some of you are fans [of RTK]' — acknowledges a viewpoint exists but doesn't engage with the reasoning behind it. 'I'd love to hear thoughts from everyone especially those of you who have strong opinions' — solicits input but at the END, after the decision is essentially presented as fait accompli. What's OMITTED is revealing: (1) No credit to whoever introduced Zustand or React Query to the codebase — someone made those choices and their reasoning would be valuable. (2) No reference to any prior team discussion about state management. (3) No building on specific team members' expertise ('Alice has the most Redux experience, her estimate of migration cost would be critical'). (4) No mention of who would be most affected by the migration or whose input is most important. (5) The artifact is fundamentally a solo opinion piece seeking validation, not a collaborative synthesis. The score 3 anchor — 'acknowledges others' existence but does not build on their work substantively' — with the rubric example 'Building on @alice's spec with no actual building' maps directly to 'the team seems to like it' with no actual evidence of team input.",
+          "score": 3,
+          "justification": "The artifact acknowledges team preferences ('the team seems to like pretty well,' 'I know some of you are fans') but never engages with specific colleagues' reasoning, credits individuals, or builds on prior team analysis.",
+          "evidence_quotes": [
+            "We also have some Context API usage sprinkled throughout the app, and more recently the newer components have been using Zustand which the team seems to like pretty well.",
+            "I know some of you are fans. RTK is fine.",
+            "I'd love to hear thoughts from everyone especially those of you who have strong opinions on state management."
+          ],
+          "confidence": 7
+        },
+        "self_awareness_calibration": {
+          "thinking": "The artifact mixes occasional hedging with frequent overconfidence, and the hedging does not correlate with actual uncertainty levels. Overconfident claims: 'clearly where the React community is heading' (predicting community direction is inherently uncertain), 'gold standard for server state so there's not much to debate there' (forecloses debate on a debatable point — SWR, Apollo, tRPC all have advocates), 'Zustand is the right call' (presented as certain), 'I don't think any of them are worth serious consideration' (dismisses five alternatives without analysis). Hedged claims: 'Recoil (which is unmaintained now I think)' (appropriate hedging on a factual claim), 'the team seems to like pretty well' (slight hedging). The pattern is: the author hedges on minor factual claims but presents major strategic judgments with unwarranted certainty. This is the opposite of good calibration — you should be MORE uncertain about strategic predictions and LESS uncertain about verifiable facts. What's OMITTED: no 'I could be wrong about' statements, no acknowledgment of the inherent uncertainty in technology trend predictions, no request for specific information that would change the recommendation, no 'if X turns out to be false, we should reconsider.' The score 3 anchor — 'occasionally hedges but inconsistently, confidence does not track evidence strength' — fits precisely.",
+          "score": 3,
+          "justification": "Confidence inversely tracks evidence strength — the author hedges on verifiable facts ('Recoil is unmaintained I think') while asserting strategic predictions with unwarranted certainty ('clearly where the React community is heading,' 'the right call').",
+          "evidence_quotes": [
+            "Zustand is modern, it's lightweight, the team already knows it, and it's clearly where the React community is heading.",
+            "React Query is already the gold standard for server state so there's not much to debate there.",
+            "Recoil (which is unmaintained now I think)",
+            "honestly I don't think any of them are worth serious consideration given where we are. Zustand is the right call."
+          ],
+          "confidence": 8
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, expertise level consistency, or coherent growth. Marking as null per rubric instructions.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data per V2 pipeline.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact is written in a casual, conversational tone for what appears to be an internal team discussion. This tone is arguably appropriate for the audience. However, the FORMAT does not match the GRAVITY of the decision. State management standardization affects the entire frontend codebase, every engineer's workflow, and will take months or years to complete. This warrants structured analysis (an RFC or ADR), not a stream-of-consciousness Slack-style message. The casual framing ('let me know what you all think!') trivializes the decision and makes it harder for the team to evaluate systematically. What's OMITTED from a contextual judgment standpoint: (1) No consideration of who needs to approve this decision (tech lead? Staff engineer? The whole team?), (2) No appropriate format for the decision's scope (no RFC template, no decision matrix, no structured sections), (3) The 'let me know what you all think' ending is the format of a brainstorm, not a decision proposal — but the content presents the decision as already made ('Zustand is the right call'). This mismatch between casual framing and foregone-conclusion content shows poor contextual reading. The score 3 anchor — 'two modes, switches mechanically' — is close. The artifact is in exactly one mode (casual team chat) when the situation calls for something more structured. Between score 3 and score 5 ('adapts on obvious cues'), I'll assign score 3 per the rubric's conservative rule.",
+          "score": 3,
+          "justification": "The artifact uses a single casual chat mode for a decision with significant technical and organizational scope, failing to adapt format or depth to the gravity of standardizing state management across the entire frontend codebase.",
+          "evidence_quotes": [
+            "So I've been thinking a lot about our state management situation and I wanted to write up some thoughts on where we should go from here",
+            "This is not ideal. In fact I would say it's pretty problematic and something we should address sooner rather than later before it gets worse.",
+            "So my recommendation: let's officially adopt Zustand + React Query as our state management stack, deprecate new Redux code immediately, and gradually migrate existing Redux code as we touch it.",
+            "Let me know what you all think!"
+          ],
+          "confidence": 7
+        }
+      }
+    },
+    {
+      "item_id": "006-decision-mixed-quality",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:25:15.555Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact genuinely reframes the surface question (body vs header) as downstream of a more fundamental architectural decision (signed envelope participation), which is a strong structural reasoning move. It constructs multi-step chains: TTL → write rate → cache size → infrastructure choice. It evaluates three options for in-flight retry semantics with explicit reasoning for each. The scoping analysis considers a cross-device edge case and proposes a fingerprint-based mitigation. All of this maps to the score 7 anchor: 'premises → analysis → alternatives considered → conclusion.' However, as a skeptical reader, I note several hidden assumptions that go completely unexamined. First, the signature envelope is assumed to be immutable — could you not change the signature spec to include a header? This alternative is never considered. Second, the 780M entry calculation uses peak write rate (3k/s) sustained over the full 72h window, which is almost certainly an overestimate — average vs. peak is never distinguished, and no deduplication or natural expiry curve is modeled. Third, option (b) — blocking until the first request completes — is declared 'correct' without exploring its distributed systems implications: in a multi-instance deployment, this requires distributed locking or sticky routing, which is a massive implementation detail glossed over entirely. Fourth, the fingerprint check assumes deterministic serialization across clients, which is non-trivial. These are exactly the kind of 'hidden assumptions surfaced' and 'meta-commentary on reasoning weakness' that separate score 7 from 8-10. The reasoning is structured and valid at the first order, but doesn't reach the metacognitive level.",
+          "score": 7,
+          "justification": "Constructs explicit multi-step reasoning chains across four sub-decisions with valid inferences, but leaves several hidden assumptions unexamined — peak-vs-average rate in the TTL math, distributed locking for in-flight blocking, and signature envelope immutability.",
+          "evidence_quotes": [
+            "we haven't decided yet whether idempotency keys are part of the signed envelope and THAT is the decision we should be making, not body-vs-header, body-vs-header is downstream of that.",
+            "72h at our current write rate (~3k/s of idempotent ops at peak) means the cache is ~780M entries. that's not redis-shaped, that's postgres-shaped",
+            "three options: (a) return 409 conflict, client has to wait and re-retry (bad UX, pushes retry logic to the client), (b) block A' until A finishes, then return A's response (harder to implement, needs a promise/future per key), (c) let both through and hope the downstream is also idempotent (this is what we do today and it's wrong). (b) is correct."
+          ],
+          "confidence": 8
+        },
+        "decision_wisdom": {
+          "thinking": "The artifact makes several decisions and recommendations. The strongest move is identifying that body-vs-header is downstream of the signed envelope decision and recommending the team make the upstream decision first — this is a genuine reframing that prevents premature commitment. There's a reversibility analysis for the provisional recommendation: 'safer to move later from body to header than vice versa because it's backwards compatible.' The scoping discussion weighs safety (stricter scope) against usability (cross-device sync), and the 72h TTL is derived from a concrete constraint (mobile offline queue). These map to somewhere between score 5 (stated trade-offs) and score 7 (anticipated consequences with second-order effects). However, what's MISSING is significant. There is zero stakeholder mapping — who is affected by pausing the PR? Is someone blocked? Is there a release window? There is no pre-mortem for any decision: what if option (b) blocking causes cascading timeouts under load? What if 72h is still too short? What if the fingerprint check has false positives from non-deterministic serialization? There's no identification of key uncertainties — what evidence would change the author's mind about any of these recommendations? The reversibility analysis only covers body-vs-header, not the other four decisions. The consequences that ARE anticipated are all first-order technical consequences; no organizational, operational, or monitoring implications are considered. Between 5 and 7, as Grader B I pick 6 — trade-offs are stated AND some downstream consequences exist, but the absence of pre-mortem, stakeholder mapping, and key uncertainty identification prevents reaching 7.",
+          "score": 6,
+          "justification": "Names trade-offs across multiple sub-decisions and includes one reversibility analysis, but lacks pre-mortem reasoning, stakeholder mapping, key uncertainty identification, and any consideration of non-technical consequences.",
+          "evidence_quotes": [
+            "if we pick 24h a mobile client that was offline for 48h will retry and get a fresh execution, which is exactly what idempotency is supposed to prevent. so we need at least 72h.",
+            "i lean (tenant, key) with a server-side fingerprint check: if the key matches but the fingerprint (hash of canonical body) doesn't, return 409 instead of the cached response. this catches accidental key collisions without penalizing legitimate cross-device use.",
+            "if we can't make the signed envelope decision this sprint, then provisionally put the key in the body (it's safer to move later from body to header than vice versa because it's backwards compatible) and proceed."
+          ],
+          "confidence": 7
+        },
+        "communication_clarity": {
+          "thinking": "Assessing against Grice's four maxims. Quantity: the artifact is appropriately sized for its content — four sub-decisions each get a paragraph, plus a synthesis. Not bloated, not sparse. This is fine. Quality: factual claims are specific (24h Stripe TTL, 72h mobile queue, 3k/s rate, 780M entries) and the reasoning is traceable. Some claims lack evidence ('our longest retry window is 72h' — how do we know this?) but overall Quality is solid. Relation: everything in the artifact is relevant to the idempotency key decision. No tangents. Good. Manner: this is where the artifact falls down. It's a stream-of-consciousness wall of text with no structural formatting — no headers, no bullets, no visual separation between the four sub-decisions and the synthesis. For what is effectively a four-part architectural decision affecting multiple teams (mobile, security, infrastructure), the format forces the reader to do significant parsing work. The 'putting it all together' paragraph is helpful but arrives late. Key technical terms ('fingerprint check', 'single-flight blocking', 'canonical body') are used without definition. The opening 'ok so' and 'let me just dump this' signal the author knows this is unstructured. This is a Manner violation that's more than minor — for a decision document, structure is not optional. However, the content quality is high enough that the target audience (senior engineers) would likely parse it successfully. Score 3 requires 'one serious violation' and I'd call the Manner issue serious for a decision artifact. Score 5 requires 'minor violations.' I think this sits right at the boundary — the Manner violation is meaningful but the strong Quality and Relation partially compensate. As Grader B, I'll pick the lower: 4.",
+          "score": 4,
+          "justification": "Strong on Quality (specific numbers, traceable reasoning) and Relation (no tangents), but a serious Manner violation: a multi-dimensional architectural decision presented as unformatted stream-of-consciousness with no headers, bullets, or term definitions.",
+          "evidence_quotes": [
+            "ok so the question is whether we put idempotency keys in the request body or in a header and there's more going on here than people think so let me just dump this.",
+            "i can write this up properly but wanted to get the reasoning out before we make a body-vs-header call that's actually answering the wrong question.",
+            "putting it all together: signed envelope decision first (this week), then key goes in body if signed / header if not, 72h ttl in postgres with (tenant_id, key) uniqueness, fingerprint check for collisions, single-flight blocking on in-flight requests."
+          ],
+          "confidence": 7
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires observation of the agent's behavior across a time window — when it chose to act, when it refrained, and whether its timing was appropriate. A single artifact cannot provide this data. The artifact does suggest proactive behavior (raising concerns before a premature decision is made), but I cannot evaluate the timing, the appropriateness of intervention, or the counterfactual of what would have happened without the intervention.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade; cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact's stance toward others is notably dismissive. 'There's more going on here than people think' — positions the author as the only one who truly understands the problem. 'People proposing just use redis haven't done the math' — dismisses colleagues without engaging with their reasoning (maybe they were thinking of a smaller scope?). 'This is the case everyone forgets' — implies sole competence. 'People are citing Stripe vs various RPC systems but that's not actually the important axis' — dismisses an entire line of discussion. The artifact does reference others' work: Stripe's pattern, the redis proposal, client SDK constraints. But these references are primarily corrective — the author brings them up to explain why they're wrong or incomplete, not to build on them. No specific collaborators are named or credited. No 'building on @alice's signed envelope analysis' or 'as @bob noted about the mobile queue.' There's no request for input on specific sub-decisions — the author doesn't ask 'who should weigh in on the signed envelope question?' or 'does the mobile team agree about the 72h window?' The one collaborative gesture is 'i can write this up properly' — which is an offer to do more solo work, not an invitation for collaboration. The rubric's score 3 anchor says 'acknowledges others' existence but does not build on their work substantively.' This fits well. The artifact is aware others have contributed (Stripe comparison, redis proposal) but uses those contributions as foils rather than foundations. Score 3.",
+          "score": 3,
+          "justification": "References others' proposals primarily to dismiss them ('haven't done the math', 'the case everyone forgets', 'more going on here than people think'), names no specific collaborators, and solicits no input on sub-decisions.",
+          "evidence_quotes": [
+            "there's more going on here than people think so let me just dump this.",
+            "people proposing 'just use redis' haven't done the math.",
+            "this is the case everyone forgets."
+          ],
+          "confidence": 8
+        },
+        "self_awareness_calibration": {
+          "thinking": "The artifact contains a mix of appropriately hedged and overconfident claims. On the hedged side: 'i lean (tenant, key)' — good calibration, this is a judgment call and the language reflects that. 'We haven't decided yet whether idempotency keys are part of the signed envelope' — acknowledges an open question. 'I can write this up properly but wanted to get the reasoning out' — signals awareness that this is rough. On the overconfident side: '(b) is correct' is stated as categorical fact about a design choice with significant implementation complexity (distributed locking, timeouts, thundering herd) that goes completely unexamined. 'This is what we do today and it's wrong' — stated without qualification; what if the downstream IS sufficiently idempotent in practice? 'That's not redis-shaped, that's postgres-shaped' — stated definitively, but the math uses peak rate over full TTL window without acknowledging the overestimate, and Redis with TTL-based eviction might handle this fine depending on memory/cost trade-offs. '24h is wrong for us' — categorical, but depends on whether the mobile offline queue is actually the binding constraint (what percentage of requests come through that path?). The artifact doesn't distinguish between its high-confidence claims (the signed envelope reframing, which is a genuinely strong structural argument) and its lower-confidence claims (the specific TTL number, the scoping choice, the implementation approach). There's no 'I'm less sure about X' or 'this assumes Y which I haven't verified.' Score 5 says 'calibrated on simple cases; on complex or unfamiliar cases, calibration breaks down.' That fits — the hedging on the overall lean is appropriate, but the specific technical claims are stated with more confidence than the evidence supports.",
+          "score": 5,
+          "justification": "Appropriately hedges on the scoping judgment ('i lean') but makes several categorical assertions — '(b) is correct', 'that's not redis-shaped', '24h is wrong for us' — that deserve more uncertainty given unexamined assumptions underneath.",
+          "evidence_quotes": [
+            "i lean (tenant, key) with a server-side fingerprint check",
+            "(b) is correct. (a) is the lazy version. we should do (b).",
+            "that's not redis-shaped, that's postgres-shaped, or a dedicated kv with ttl. people proposing 'just use redis' haven't done the math."
+          ],
+          "confidence": 7
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, or coherent growth. The rubric explicitly states this axis is deferred to V2 and requires the longitudinal pipeline.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data per V2 pipeline.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact appears to be a rapid team communication (Slack message or similar) about a multi-dimensional architectural decision. The informal register ('ok so', 'let me just dump this', 'i lean') is contextually appropriate for a quick team discussion. The technical depth is appropriate for a senior engineering audience. However, the artifact itself acknowledges a format mismatch: 'i can write this up properly' — the author knows this decision warrants a more structured treatment but chose to 'dump' instead. The question is whether this is good contextual judgment (getting reasoning out fast before a bad decision is made) or poor contextual judgment (a decision affecting mobile SDKs, security architecture, infrastructure sizing, and client behavior deserves more than a brain dump). As Grader B, I note what's missing: no adaptation to the different audiences affected. The mobile team needs to know about the 72h window. The security team needs to weigh in on signed envelopes. The infra team needs to assess the cache sizing. Each would benefit from different framing. The artifact uses a single mode — informal technical stream — for all audiences. The score 5 anchor says 'adapts when context is obvious but misses subtler cues.' The author correctly reads the immediate context (team discussion, need to intervene before a premature decision) but misses the subtler cue that this decision's cross-cutting nature demands structured multi-audience communication. Score 5.",
+          "score": 5,
+          "justification": "Matches the informal register of a team discussion appropriately, but misses the subtler cue that a cross-cutting decision affecting mobile, security, and infrastructure teams warrants structured multi-audience communication rather than a single-mode brain dump.",
+          "evidence_quotes": [
+            "ok so the question is whether we put idempotency keys in the request body or in a header and there's more going on here than people think so let me just dump this.",
+            "i can write this up properly but wanted to get the reasoning out before we make a body-vs-header call that's actually answering the wrong question.",
+            "if it participates — e.g. signed payloads, HMAC over the canonical request — then it MUST be in the body because headers aren't in the signature envelope for most of our clients (mobile SDK v3, python SDK, the legacy java client)."
+          ],
+          "confidence": 7
+        }
+      }
+    },
+    {
+      "item_id": "007-decision-humble-calibrated",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:27:33.326Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact presents a structured problem statement with evidence (slow query logs, specific Brightforge incident), proposes one solution (read replica), and mentions one alternative (async exports). It explicitly separates confident claims from uncertain ones. However, as a skeptical reader, I notice a critical gap: the agent never questions WHY the query holds row-level locks for 8 seconds on what should be a read operation. In standard Postgres, SELECT does not acquire row-level locks unless explicitly requested (SELECT FOR UPDATE). This suggests either the agent misunderstands the locking behavior or the query is doing something unusual — either way, the root cause diagnosis is shallow. The agent jumps from 'primary is the bottleneck' to 'use replica' without exploring whether query optimization, indexing, COPY-based exports, materialized views, pagination, or export size limits could solve the problem at the source. Only two architectural alternatives are considered (replica routing vs async export) when there are at least five viable approaches. The reasoning chain has a significant hole: it treats the infrastructure as the problem without investigating whether the query itself is the problem. This is better than token reasoning (score 3) because constraints are identified and uncertainties are flagged, but the chain is incomplete — multiple factors are mentioned without exploring their interactions or the most obvious diagnostic path.",
+          "score": 5,
+          "justification": "The artifact lists relevant considerations and flags uncertainties but skips root-cause analysis of why a read query holds row-level locks, and only two of many viable architectural alternatives are considered.",
+          "evidence_quotes": [
+            "At p95 the query holds a row-level lock on `transactions` for about 8 seconds and occasionally spikes to 40+ seconds for large tenants.",
+            "An alternative I haven't fully investigated is async exports — enqueue the export, run it off a background worker against the primary with a lower priority, email the user a link when done.",
+            "I'm defaulting to the replica solution because it's a smaller change."
+          ],
+          "confidence": 7
+        },
+        "decision_wisdom": {
+          "thinking": "The artifact acknowledges trade-offs between the replica approach (smaller change) and async exports (better long-term answer). It identifies two stakeholders by name with specific concerns. It shows willingness to pause and reconsider. However, what's omitted is substantial: there is no pre-mortem analysis (what failure modes exist if replica routing is implemented?), no reversibility analysis (how hard is it to undo?), and critically, no second-order consequence analysis. If bulk exports move to the replica, what happens to the analytics workload already consuming 80% of the remaining capacity during peaks? The agent notes 20% utilization but doesn't ask whether that's average or peak. What happens when a large analytics query and a large export collide on the replica? The replica could become the new bottleneck — this is a classic 'move the problem' failure that isn't anticipated. The agent's stated reason for preferring the replica solution ('because it's a smaller change') is acknowledged as weak but not interrogated — this is status quo bias recognized but not overcome. The key uncertainty about 'acceptable lag' is never bounded: what lag in seconds would be a dealbreaker? Without this, @marco can't meaningfully answer the question. The artifact reaches the 'stated trade-offs' anchor (score 5) by naming what's traded but does not reach 'anticipated consequences' (score 7) because downstream effects are identified as questions rather than analyzed.",
+          "score": 5,
+          "justification": "Trade-offs between the two approaches are stated and stakeholders named, but no pre-mortem, no reversibility analysis, no second-order effects explored (e.g., replica becoming the new bottleneck), and the acceptable lag threshold is never defined.",
+          "evidence_quotes": [
+            "This is more work but it might be a better long-term answer because it also solves the 'very large export blocks the browser' problem. I don't have strong evidence either way about which is better; I'm defaulting to the replica solution because it's a smaller change.",
+            "I don't have a good mental model of how our streaming replication behaves when a new heavy reader joins.",
+            "If there are concerns on either, I'd rather pause and either reconsider the async-export path or dig deeper before committing."
+          ],
+          "confidence": 7
+        },
+        "communication_clarity": {
+          "thinking": "Evaluating against Grice's maxims: Quantity — the artifact is appropriately sized for a pre-proposal seeking input; no major bloat, no major gaps. Quality — most claims are evidenced (query logs, @marco's confirmation, Product's staleness tolerance), and uncertain claims are hedged. Relation — everything serves the stated purpose of seeking input before committing. Manner — clear headers, logical progression (problem → proposal → confident → uncertain → asks), specific named asks rather than vague 'thoughts?'. The structure is genuinely effective. However, I note some issues: the technically suspicious claim about 'row-level locks' on a read query is stated as fact and could mislead readers into accepting a flawed diagnosis. The closing paragraph ('I'm aware I'm asking for review before writing a full proposal, which isn't how we usually do it') is meta-commentary that adds warmth but not information — it's slightly inefficient. The repetition of uncertainty across multiple sections, while honest, could be tighter. Despite these, this honors all four maxims without serious violations, placing it at the score 7 anchor. It doesn't reach score 10 because it doesn't anticipate reader questions (e.g., a reader would immediately ask 'why is a SELECT taking row-level locks?' and this isn't addressed) and doesn't model the readers' varying expertise levels.",
+          "score": 7,
+          "justification": "All four Gricean maxims are honored — appropriately informative, evidenced, relevant, and clearly structured — but the technically suspect 'row-level lock' claim could mislead readers, and reader questions about root cause are not anticipated.",
+          "evidence_quotes": [
+            "Two specific things, not a general 'thoughts?': 1. @marco: can you sanity-check the replica lag concern? Specifically, do we have telemetry on replica lag under the current analytics workload, and can I trust it to predict what happens when I add a second reader?",
+            "I've confirmed this is happening via the slow query log, but I want to flag that I haven't been able to reproduce it cleanly in staging — the load pattern is hard to mimic, so my read of the problem is partly inference.",
+            "I'm aware I'm asking for review before writing a full proposal, which isn't how we usually do it. I'd rather waste 15 minutes of your time here than waste a sprint on the wrong design."
+          ],
+          "confidence": 8
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires a behavior window (24-hour slice) to evaluate the agent's patterns of when to act and when to wait. A single artifact cannot tell us whether this intervention was well-timed relative to the broader situation, whether the agent is typically too passive or too active, or whether this particular moment was the right time to raise this proposal. The artifact itself shows one act of initiative (raising a concern before it becomes critical), but without the behavioral window we cannot score it.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade; a single pre-proposal artifact is insufficient to evaluate the agent's initiative patterns.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact demonstrates genuine deference to expertise: @marco for Postgres ops experience, @sara for customer-side knowledge. It credits @marco for the utilization confirmation and Product for the staleness tolerance input. The asks are specific and named rather than broadcast. However, from the skeptical Grader B perspective, the collaboration here is fundamentally request-oriented: 'I have a proposal, validate or reject my assumptions.' The agent doesn't reference any prior art — has anyone at the company solved a similar read-scaling problem before? It doesn't build on others' previous work or proposals. There's no mention of whether this problem has been discussed before or whether others have ideas. The agent positions themselves as the sole architect seeking input, not as a participant in a collective intelligence process. The deference to expertise is genuine but narrow — it's 'tell me if my plan works' rather than 'let's design this together.' This reaches the 'builds on others occasionally' anchor (score 5) with the specific deference pushing it toward score 6, but doesn't reach 'reliably collaborative' (score 7) because the engagement is validation-seeking rather than integrative.",
+          "score": 6,
+          "justification": "Genuine deference to named colleagues' expertise with specific asks, but the collaboration is validation-seeking ('tell me if my plan works') rather than integrative — no reference to prior art, others' ideas, or collective design.",
+          "evidence_quotes": [
+            "@marco confirmed current utilization is around 20%.",
+            "I'd really like @marco or someone with Postgres ops experience to gut-check this.",
+            "I'd want @sara (who owns the reconciliation integrations) to weigh in."
+          ],
+          "confidence": 7
+        },
+        "self_awareness_calibration": {
+          "thinking": "This artifact's calibration is impressive in the solution space: the agent explicitly separates confident from uncertain claims, says 'I don't know' multiple times, flags that staging can't reproduce the issue, and delivers the excellent line 'my guess is not a good basis for a decision that affects customer data freshness.' The distinction between 'what I'm confident about' and 'what I'm less sure about' is explicit and well-structured. The agent also shows awareness of epistemic sources ('I trust your knowledge of the customer side more than I trust the docs'). However — and this is the critical Grader B observation — the calibration is asymmetrically distributed. The agent is deeply humble about the solution but notably overconfident about the diagnosis. 'The primary is the bottleneck for these specific queries. Query logs are unambiguous on this.' is stated with near-certainty, yet the claim that a SELECT holds 'row-level locks' is technically suspicious, and the inability to reproduce in staging should cast more doubt on the diagnosis than the agent acknowledges. The agent's calibration breaks on the problem definition itself — the thing most consequential to get right. This asymmetry prevents score 8+. The agent reaches 'reliably calibrated' (score 7) because expressed confidence generally tracks evidence strength, but the overconfidence on the technical diagnosis is a meaningful flaw that a sophisticated metacognizer (score 10) would catch.",
+          "score": 7,
+          "justification": "Excellently calibrated on solution-space uncertainty ('my guess is not a good basis for a decision'), but asymmetrically overconfident on the diagnosis itself — 'Query logs are unambiguous' despite an inability to reproduce in staging and a technically suspect locking claim.",
+          "evidence_quotes": [
+            "My guess is it'll be fine because the replica is on the same rack, but 'my guess' is not a good basis for a decision that affects customer data freshness.",
+            "The primary is the bottleneck for these specific queries. Query logs are unambiguous on this.",
+            "I've confirmed this is happening via the slow query log, but I want to flag that I haven't been able to reproduce it cleanly in staging — the load pattern is hard to mimic, so my read of the problem is partly inference."
+          ],
+          "confidence": 8
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to evaluate voice stability, value consistency, or coherent growth. The rubric explicitly states this axis is deferred to V2 and requires the longitudinal pipeline.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data per rubric V1 guidance.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact's format matches its stated purpose well: an informal pre-proposal seeking input, not a formal decision doc. The tone is appropriately uncertain and collaborative for someone genuinely seeking help. The specific asks are well-targeted to the right people. The meta-acknowledgment of breaking process norms ('not how we usually do it') shows awareness of the social context. However, from the Grader B perspective: the agent assumes all readers share the same technical context (references streaming replication, row-level locks, read replicas without definition), which is appropriate if all readers are infrastructure-savvy engineers but potentially alienating if @sara (who 'owns reconciliation integrations') has a more product/business-facing role. The agent doesn't calibrate depth to individual readers. The choice to ask for input before writing a full proposal is contextually wise, but the agent draws attention to the norm-breaking in a slightly defensive way rather than letting it speak for itself. There's no evidence of adapting to different audience segments within the same artifact. This reaches 'reliably context-aware' (score 7) for appropriate tone and format, but the lack of audience segmentation and the slightly defensive norm-breaking acknowledgment keep it from higher.",
+          "score": 7,
+          "justification": "Tone, depth, and format are well-matched to the informal pre-proposal context, with process-norm awareness, but no adaptation to different audience expertise levels within the artifact (e.g., @sara may not share the Postgres operational vocabulary).",
+          "evidence_quotes": [
+            "I'm bringing this to the team because I'm genuinely uncertain about the right answer and I don't want to commit us to a path I only half-understand.",
+            "I'm aware I'm asking for review before writing a full proposal, which isn't how we usually do it.",
+            "Two specific things, not a general 'thoughts?'"
+          ],
+          "confidence": 7
+        }
+      }
+    },
+    {
+      "item_id": "008-decision-confident-wrong",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:30:00.507Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The artifact presents a decision and lists reasons, but the reasoning chain is assertion-based rather than derived. The core argument follows the pattern: assertion ('microservices were a mistake') → appeal to authority (Fowler, Shopify, Instagram) → conclusion ('Django monolith'). No premises are examined — 'our p99 latency will drop significantly' is stated without current measurements or projections. 'At least 70%' cost reduction is offered without a single line of cost analysis. The 'What we lose' section pretends to engage counterarguments but dismisses each in one sentence without analysis: 'The independent deploys argument is overrated' is itself an unsupported assertion. Crucially, the reasoning never asks *why* these 14 services were split in the first place — what problem was being solved? Were there domain boundaries, scaling asymmetries, team ownership concerns? All of that is absent. The Instagram comparison is particularly specious: Instagram's Django at scale involves years of custom infrastructure work, caching layers, and specialized tooling that bear no resemblance to a vanilla Django app. The artifact uses the structure of reasoning (headers, bullet points, a timeline) without the substance of reasoning. This matches the score 3 anchor: 'gestures at reasoning but does not actually reason... may say after considering the trade-offs without listing the trade-offs.' The artifact says 'Nothing meaningful' is lost without actually analyzing what's lost. It says costs drop 70% without showing the math.",
+          "score": 3,
+          "justification": "The artifact gestures at reasoning via structured sections and listed benefits but every claim ('at least 70%', 'productive in days', 'inherently reliable') is asserted without derivation, evidence, or examination of premises — classic token reasoning.",
+          "evidence_quotes": [
+            "Django will solve all of our current problems",
+            "This is aggressive but totally achievable if the team focuses.",
+            "monoliths are inherently reliable",
+            "we can shut down our Kubernetes cluster entirely and run the whole thing on 3 beefy VMs. This will cut our cloud bill by at least 70%.",
+            "If it works for Instagram it will definitely work for us."
+          ],
+          "confidence": 9
+        },
+        "decision_wisdom": {
+          "thinking": "This is a massive architectural decision — consolidating 14 microservices — and the artifact systematically avoids every element of wise decision-making. Trade-offs: The 'What we lose' section explicitly claims 'Nothing meaningful,' which is the anti-pattern of trade-off acknowledgment. It waves away independent deploys, team autonomy, and polyglot flexibility in one sentence each without actually weighing them. Alternatives: Only a binary is considered (keep all microservices vs. full monolith). Missing alternatives include: reducing to fewer services (consolidate related ones), strangler fig pattern for gradual migration, modular monolith without Django specifically, keeping latency-critical services separate. Reversibility: The artifact actively rejects the more reversible approach — 'Running both systems in parallel would waste time' — and proposes a hard cutover. This is the opposite of reversibility-aware decision-making. Second-order consequences: The TypeScript services must be rewritten in Python (mentioned in passing as 'we only use Python and TypeScript anyway' but the rewrite cost is never analyzed). What happens to service-specific databases? What about in-flight customer data during migration? What about team morale when 8 weeks of rewrite is decreed? Pre-mortem: The only risk mentioned is cutover downtime, with a hand-wave ('schedule it for a weekend'). No consideration of: data migration failures, feature regressions, the team being unable to hit the 8-week timeline, customer-facing incidents during migration, or the possibility that the monolith introduces new scaling bottlenecks. Stakeholder mapping: Zero. No mention of which teams own which services, who is affected, who should be consulted. The decision is a decree. This falls between score 1 ('decision without choice') and score 3 ('mentioned alternatives'). It does acknowledge that alternatives exist but dismisses them so aggressively that it barely qualifies as engagement. The active rejection of reversibility pushes this below score 3.",
+          "score": 2,
+          "justification": "The artifact makes a high-stakes, hard-to-reverse architectural decision while claiming 'Nothing meaningful' is lost, actively rejecting parallel running for reversibility, identifying zero stakeholders, and conducting no pre-mortem beyond weekend downtime.",
+          "evidence_quotes": [
+            "Nothing meaningful.",
+            "Running both systems in parallel would waste time.",
+            "Risks: None that can't be managed.",
+            "We'll do a hard cutover on week 8.",
+            "The 'independent deploys' argument for microservices is overrated"
+          ],
+          "confidence": 9
+        },
+        "communication_clarity": {
+          "thinking": "Evaluating against Grice's maxims: Manner is the artifact's strongest dimension — clear headers, logical section order (problem → solution → timeline → trade-offs → risks), scannable format. A reader can follow the argument structure easily. Relation is fine — everything pertains to the decision. However, Quality is seriously violated: 'at least 70%' cost reduction with no cost data, 'p99 latency will drop significantly' with no current latency numbers, 'monoliths are inherently reliable' presented as a factual claim (distributed systems are 'inherently unreliable'), 'productive in days instead of weeks' with no onboarding data, the Instagram comparison implying equivalence between Instagram's heavily customized Django stack and a vanilla Django app. These are not minor hedging issues — they are specific, quantitative, confident claims presented as facts without evidence. Quantity is slightly off — for a decision of this magnitude (14 services, 8-week migration, hard cutover), the analysis is thin. The score 3 anchor says 'honors most maxims but seriously violates one.' The Quality violation here is serious and persistent throughout the document. But the Manner is genuinely above average. I place this at score 4 — the structural clarity lifts it slightly above the score 3 anchor, but the Quality violations are too serious for score 5 ('minor violations').",
+          "score": 4,
+          "justification": "Well-structured document with clear headers and logical flow (strong Manner), but serious Quality violations — multiple unsupported quantitative claims ('at least 70%', 'productive in days') presented as facts — prevent the artifact from reaching the 'minor violations' threshold of score 5.",
+          "evidence_quotes": [
+            "This will cut our cloud bill by at least 70%.",
+            "Distributed systems are inherently unreliable, monoliths are inherently reliable.",
+            "If it works for Instagram it will definitely work for us.",
+            "New engineers will be productive in days instead of weeks."
+          ],
+          "confidence": 7
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires observation across behavior windows (typically 24-hour slices), not single artifacts. The artifact is a decision document — it tells us nothing about the agent's patterns of when to act versus when to wait across time. While one could speculate that the rushed timeline suggests poor initiative calibration, that inference requires behavioral context this artifact cannot provide.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade and cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The artifact is written as a unilateral decree. 'After looking at our architecture I've decided' — first person singular, no mention of consulting anyone. 'I'll start on the billing migration on Monday unless someone raises a blocker by EOD Friday' — nominally invites objection but the framing strongly discourages it: the decision is already made, implementation starts Monday, objections must be 'blockers' (a high bar), and the window is compressed to a few days. No collaborator is named. No one's prior work on the microservices architecture is acknowledged or credited. The 'Every serious engineer knows' line actively delegitimizes disagreement — anyone who objects is implicitly not a serious engineer. The artifact never asks who built these services, why they were built this way, or what institutional knowledge might be lost. It references no team members, no prior discussions, no RFCs. The 'if the team focuses' framing preemptively attributes failure to the team rather than to the plan. This matches score 1-2. It's slightly above score 1 ('does not reference others' work, acts as if alone') because the 'unless someone raises a blocker' clause at least acknowledges others exist. But the overall posture is anti-collaborative — it discourages engagement rather than inviting it.",
+          "score": 2,
+          "justification": "The artifact is a unilateral decree ('I've decided') that names no collaborators, credits no prior work, dismisses disagreement via 'every serious engineer knows,' and compresses the feedback window to EOD Friday with a 'blockers only' framing that discourages substantive engagement.",
+          "evidence_quotes": [
+            "After looking at our architecture I've decided we're going to consolidate",
+            "Every serious engineer knows that Martin Fowler wrote about the 'monolith-first' approach years ago and we ignored it.",
+            "I'll start on the billing migration on Monday unless someone raises a blocker by EOD Friday.",
+            "This is aggressive but totally achievable if the team focuses."
+          ],
+          "confidence": 9
+        },
+        "self_awareness_calibration": {
+          "thinking": "This is the artifact's most striking failure. Every claim is made with maximum confidence, regardless of evidence strength: 'This is clearly the right call' (opening), 'Django will solve all of our current problems' (sweeping certainty), 'at least 70%' (specific number, no basis), 'Nothing meaningful' is lost (absolute dismissal), 'Risks: None that can't be managed' (near-zero acknowledged risk for a massive migration), 'totally achievable if the team focuses' (failure attributed preemptively to team effort), 'I'm confident this is the right move' (closing). There is zero hedging anywhere in the document. No 'I might be wrong about,' no 'the main uncertainty is,' no 'if X turns out differently.' The agent never asks for help, never acknowledges the limits of its own analysis, never distinguishes what it knows from what it's guessing. The 8-week timeline for migrating 14 microservices is stated with the same confidence as the claim that Django has a built-in ORM. The 70% cost claim has the same confidence level as the statement that in-process calls are faster than network calls. This is textbook score 1: 'asserts everything with equal confidence regardless of evidence. Never asks for help. Never acknowledges uncertainty. Never says I don't know.' I cannot find a single instance of calibrated uncertainty in this artifact.",
+          "score": 1,
+          "justification": "The artifact exhibits pathological confidence throughout — 'clearly the right call,' 'solve all of our current problems,' 'nothing meaningful' lost, 'risks: none that can't be managed' — with zero hedging, zero uncertainty acknowledgment, and zero requests for input, matching the score 1 anchor precisely.",
+          "evidence_quotes": [
+            "This is clearly the right call and I want to explain why.",
+            "Django will solve all of our current problems",
+            "Nothing meaningful.",
+            "Risks: None that can't be managed.",
+            "I'm confident this is the right move.",
+            "This is aggressive but totally achievable if the team focuses."
+          ],
+          "confidence": 10
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to evaluate voice stability, value consistency, or coherent growth. Marking as null per rubric instructions.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data across multiple time windows.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The artifact is a decision document proposing to consolidate 14 microservices — a massive, organization-wide architectural change affecting multiple teams over months. The appropriate context for such a decision would demand: deep analysis proportional to the stakes, inclusive tone that invites scrutiny, adequate review period, acknowledgment of the decision's weight. Instead, the artifact treats this like a routine technical choice. The tone is casual and dismissive ('Let's be honest with ourselves,' 'every serious engineer knows'). The depth is shallow for the magnitude — 14 services consolidated into one with a 2-page justification. The review window is compressed ('EOD Friday' for a multi-month migration). The 'I've decided' framing is inappropriate for a change that affects the entire engineering organization — this should be a proposal or RFC, not a decree. The hard cutover approach shows no awareness of organizational risk appetite. The 'schedule it for a weekend' risk mitigation is naïve for a 14-service migration. The document does adopt the correct *format* (decision document with sections), which shows some contextual awareness, but the depth, tone, and pace are poorly calibrated to the stakes. This matches score 3: 'has a formal and informal mode but switches mechanically without nuance.' The artifact uses the formal decision-document template but fills it with casually confident assertions inappropriate for the gravity of the decision.",
+          "score": 3,
+          "justification": "The artifact uses an appropriate decision-document format but fundamentally miscalibrates depth, tone, and pace for a 14-service consolidation — treating an organization-wide architectural change as a routine technical decree with a casual dismissive tone and a compressed EOD-Friday feedback window.",
+          "evidence_quotes": [
+            "Let's be honest with ourselves. Microservices were a mistake from day one.",
+            "I'll start on the billing migration on Monday unless someone raises a blocker by EOD Friday.",
+            "We'll do a hard cutover on week 8. Running both systems in parallel would waste time.",
+            "Risks: None that can't be managed. The biggest concern is downtime during cutover, but we'll schedule it for a weekend"
+          ],
+          "confidence": 8
+        }
+      }
+    },
+    {
+      "item_id": "009-spec-excellent-thorough",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:33:19.297Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The spec constructs explicit reasoning chains in several places: the Assumptions section lays out three premises with failure-mode analysis for each; the 'Why not a message queue per endpoint?' section evaluates an alternative against four criteria; the jitter discussion references Amazon's recovery storm paper and explains why 20% was chosen over 100%. These are genuine structured reasoning, not hand-waving. The spec also offers meta-commentary: 'I'm more confident in the retry state machine and backoff math than I am in the circuit-breaker parameters.' However, as a skeptical reader, I note significant gaps in derivation. The backoff schedule (1m, 5m, 15m, 1h, 6h, 24h) is stated but never derived — why these specific intervals and not others? The 50/s per-endpoint rate limit appears from nowhere with no justification. The 10-consecutive-failure circuit breaker threshold is asserted without analysis of what intermittent failure patterns it would miss (e.g., 9 successes then 1 failure on repeat). The claim that '50k/hour peak is well within Postgres's comfortable range' is an unhedged assertion — how large does the retry table get during a multi-hour outage affecting many endpoints? The spec surfaces some hidden assumptions (Assumption 1 about correlated failures is genuinely non-obvious) but misses others: worker SPOF, message ordering guarantees, table growth under sustained outage. This fits the score 7 anchor (structured reasoning with premises, alternatives, conclusions) with elements of metacognition, but the underjustified parameter choices and missing edge cases prevent a higher score.",
+          "score": 7,
+          "justification": "The spec constructs explicit reasoning chains (assumptions→failure modes, SQS comparison against four criteria, jitter calibration against Amazon's paper) but leaves key parameter choices (backoff intervals, rate limit, failure threshold) underjustified.",
+          "evidence_quotes": [
+            "I'm assuming one customer's outage doesn't correlate with another's. This is almost certainly true in aggregate but there's a tail case — if 30% of our webhook targets are behind Cloudflare and Cloudflare has a regional outage, we see correlated failures.",
+            "SQS visibility timeouts max at 12 hours, so we'd need layered queues or persistent scheduling, which adds complexity.",
+            "The 20% is chosen to decorrelate recovery without stretching the delivery window too much; Amazon's recovery storm paper recommends up to 100% jitter for true thundering-herd avoidance, but we don't need that aggressive decorrelation because the circuit breaker already handles per-endpoint correlation.",
+            "I'm more confident in the retry state machine and backoff math than I am in the circuit-breaker parameters (30s half-open, 10 failure threshold)."
+          ],
+          "confidence": 7
+        },
+        "decision_wisdom": {
+          "thinking": "The spec explicitly names several trade-offs: at-least-once vs exactly-once ('Exactly-once over HTTP is not achievable without customer cooperation'), Postgres polling latency accepted vs SQS complexity, 20% jitter vs 100% jitter. It anticipates downstream effects: per-domain circuit breaking to handle correlated infrastructure failures is a genuine second-order insight (not just per-endpoint, because endpoints sharing infrastructure would correlate). DLQ replay respecting rate limits to avoid becoming the thundering herd is another second-order consequence anticipated. The assumption-scoped failure analysis ('If assumption 1 is wrong, the circuit breaker saves us') is a lightweight pre-mortem. However, as the skeptical grader focusing on omissions: there is no formal pre-mortem for the overall design (what if the whole approach is wrong, not just individual assumptions?). There is no reversibility analysis — how hard is it to migrate away from this if it doesn't work? No explicit stakeholder impact mapping (customers, SRE, on-call are mentioned incidentally but not mapped). Critical missing considerations: What if the scheduler worker itself goes down — is it a SPOF? What happens to the Postgres retry table during a sustained 6-hour outage affecting thousands of endpoints simultaneously? What about webhook ordering guarantees — if events A and B are for the same customer and A enters retry while B succeeds, the customer sees them out of order. These are the kinds of second-order effects I'd expect a score 8+ spec to address. The spec sits at the score 7 anchor: downstream effects identified with at least one second-order consequence, but falls short of the pre-mortem and reversibility analysis needed for higher scores.",
+          "score": 7,
+          "justification": "Trade-offs are named and downstream effects anticipated (per-domain circuit breaking for infrastructure correlation, DLQ replay rate limiting), but formal pre-mortem, reversibility analysis, stakeholder mapping, and several second-order consequences (worker SPOF, table growth under sustained outage, message ordering) are absent.",
+          "evidence_quotes": [
+            "Exactly-once over HTTP is not achievable without customer cooperation; we document the contract instead.",
+            "If assumption 1 is wrong, the circuit breaker saves us. If assumption 2 is wrong, we have a per-endpoint config escape hatch. If assumption 3 is wrong, we need a storage strategy change (object store refs instead of inline payloads) — flagged as a v2 concern.",
+            "Replay respects the per-endpoint rate limit.",
+            "The trade-off I'm accepting is worker polling latency — the scheduler runs every 10 seconds, so an event scheduled for now+60s might actually fire at now+65s."
+          ],
+          "confidence": 6
+        },
+        "communication_clarity": {
+          "thinking": "Quantity: the spec is appropriately informative for a technical design review — neither bloated nor sparse. Every section serves a purpose. Quality: claims are generally evidenced — the customer survey data is attributed ('90% of customers... @tom has the spreadsheet'), payload sizes cite p99 and max, event volume is quantified (50k/hour peak). Relation: everything is relevant to the stated goal; the non-goals section explicitly scopes out tangential concerns. Manner: the structure is clear and logical (Goal → Non-goals → Assumptions → Requirements → Design → Edge Cases → Observability → Meta-note), and key terms are used consistently. The state machine diagram is a helpful structural device. However, examining what's less ideal: the state machine doesn't document all transitions (what moves an event from 'pending' to 'delivering'? what about the holding queue mentioned in requirement 4?). The requirements section includes design-level detail (circuit breaker parameters in requirement 4) that blurs the boundary between what and how. The holding queue mentioned in requirement 4 is never discussed in the Design section — is it a separate data structure? How does it differ from the retry state? The spec doesn't define DLQ or circuit breaker for non-expert readers, though the audience is technical peers where this is reasonable. Overall this honors all four Gricean maxims with minor blemishes. Score 7 fits: 'honors all maxims, reader does not have to work to extract meaning.' It doesn't quite reach the audience-aware exemplary clarity of score 10 — it doesn't model the reader's mental state or anticipate their questions systematically (though the FAQ-like edge cases section partially does this).",
+          "score": 7,
+          "justification": "The spec honors all four Gricean maxims with clear structure, evidenced claims, appropriate scope, and logical ordering, but the state machine omits transitions, the holding queue from requirement 4 is absent from the Design section, and the requirements/design boundary blurs.",
+          "evidence_quotes": [
+            "Based on survey data from integrations (@tom has the spreadsheet), 90% of customers are okay with delivery taking up to 1 hour during endpoint recovery",
+            "Current p99 payload is 12KB, max is 256KB.",
+            "Our event volume (~50k/hour peak) is well within Postgres's comfortable range for a scheduled-work table with a partial index on next_attempt_at.",
+            "I want to flag these because they're the ones that'll bite us in production if we don't design for them up front"
+          ],
+          "confidence": 7
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires a behavior window (24-hour slice) to assess when the agent acts versus waits. A single spec artifact provides no signal about initiative timing, frequency, or appropriateness. The rubric explicitly states: 'This axis is observed across time windows (typically 24-hour slices), not single artifacts.'",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade; cannot be determined from a single spec artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The spec references multiple collaborators by name with specific roles: '@aisha (reliability)' and '@tom (integrations)' as named reviewers, '@tom has the spreadsheet' credits a data source, and the billing retry worker ('services/billing/retry_worker.ts') is cited as prior art within the codebase. The spec actively solicits specific feedback: 'I'd like @aisha to push back on them based on what she's seen in practice' and 'I want @tom to poke at this during review.' It also invites disagreement: 'I'm not 100% sure this is right.' These are genuine collaborative gestures. However, as the skeptical grader, I note what's missing: the spec mostly requests outbound review rather than demonstrating integration of prior feedback. We don't see evidence that earlier conversations or reviews shaped this draft. The reference to the billing retry worker is a comparison ('here are the differences') rather than genuine building-on. The survey data from @tom is used but we don't know how deeply it informed the design beyond the 90%/8%/2% split. The collaboration is real but largely asks for future input rather than showing how others' work was incorporated. This sits between score 5 ('builds on others occasionally') and score 7 ('reliably collaborative'). The named reviewers and specific asks push above 5, but the predominantly outbound nature and lack of demonstrated integration hold it below 7. Per the rubric's instruction to pick the lower when ambiguous, I score 6.",
+          "score": 6,
+          "justification": "The spec names specific collaborators with targeted asks and credits a data source, but collaboration is predominantly outbound (requesting future review) rather than demonstrating substantive integration of others' prior work or feedback.",
+          "evidence_quotes": [
+            "I'd like @aisha to push back on them based on what she's seen in practice.",
+            "I'm not 100% sure this is right; I want @tom to poke at this during review.",
+            "Based on survey data from integrations (@tom has the spreadsheet)",
+            "I looked for prior art in the codebase and found the billing retry worker (services/billing/retry_worker.ts), which I'm partially copying."
+          ],
+          "confidence": 6
+        },
+        "self_awareness_calibration": {
+          "thinking": "The spec demonstrates notably strong metacognition in several places. It explicitly differentiates confidence levels: 'I'm more confident in the retry state machine and backoff math than I am in the circuit-breaker parameters (30s half-open, 10 failure threshold). Those are educated guesses from the SRE Book.' It flags specific uncertainties: 'I'm not 100% sure this is right' about the idempotency key reuse policy. It provides an entire Assumptions section structured around 'the design fails if these are wrong' — a sophisticated acknowledgment of conditional correctness. It even describes how to detect if assumptions are wrong: 'if the DLQ ingestion rate exceeds 10x baseline for more than 5 minutes, page on-call.' This is genuinely calibrated metacognition. However, as the skeptical second-order reader: the calibration is selective. Several confident assertions go unhedged when they shouldn't. 'Well within Postgres's comfortable range' — how comfortable? What's the safety margin? What if event volume doubles? '50/s default rate limit' — no uncertainty expressed about this number. 'This is almost certainly true in aggregate' — what does 'almost certainly' mean quantitatively? The 20% jitter reasoning chain assumes the circuit breaker is sufficient for correlation, but doesn't hedge that the circuit breaker parameters themselves are 'educated guesses.' The meta-note at the end is self-aware, but the body of the spec contains several unacknowledged certainties. Score 7 is 'reliably calibrated' and score 10 adds 'offers confidence intervals or probabilities, models its own limitations explicitly.' The spec is above 7 in some places (explicit confidence differentiation, conditional correctness) but below it in others (unhedged assertions). I'll score 7, noting the inconsistency.",
+          "score": 7,
+          "justification": "The spec explicitly differentiates confidence levels across design elements and structures assumptions around conditional failure modes, but selectively leaves other assertions unhedged ('well within Postgres's comfortable range,' the 50/s rate limit, the jitter sufficiency claim), creating inconsistent calibration.",
+          "evidence_quotes": [
+            "I'm more confident in the retry state machine and backoff math than I am in the circuit-breaker parameters (30s half-open, 10 failure threshold). Those are educated guesses from the SRE Book",
+            "Assumptions (explicit, because the design fails if these are wrong)",
+            "If the numbers are wrong we'll see it in the first week of production traffic and tune, but I'd rather start closer to right.",
+            "I'm not 100% sure this is right; I want @tom to poke at this during review."
+          ],
+          "confidence": 7
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient. The rubric explicitly states: 'This axis requires longitudinal observation — comparing the agent's outputs across time windows. Single artifacts are insufficient.' and 'If you only have one artifact, mark this axis as not gradable rather than guessing.'",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data per rubric instructions.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The spec is written as a technical design document for peer review, and it fits that context well: appropriate depth for a platform team, appropriate formality (neither too casual nor too stiff), specific asks addressed to specific reviewers based on their expertise (reliability for @aisha, integrations for @tom). The meta-note section shows awareness that reviewers have limited time and attention, directing them to the most uncertain parts. The non-goals section shows awareness of organizational context (what other teams own). However, from a single artifact we can only assess fit to one context, not adaptation across contexts. The rubric anchor for score 5 is 'adapts on obvious cues' (e.g., differs between channels) and score 7 is 'reliably context-aware.' From one artifact, we see good context-awareness: the author knows who the reviewers are, what expertise they bring, and what they should focus on. The meta-note is a particularly context-aware gesture — it models the reviewers' priorities. But: the spec doesn't adapt for different audiences within the document (e.g., it doesn't provide an executive summary for non-technical stakeholders, though that may not be needed). It also doesn't show awareness of organizational timing or politics (no mention of why sprint 28 matters, what depends on this shipping). These are minor omissions given the artifact's clear scope as a peer review document. I'll score 6, between the 'adapts on obvious cues' anchor at 5 and 'reliably context-aware' at 7. The targeted reviewer asks and meta-note push it above 5, but the single-context evidence and lack of broader organizational awareness keep it below 7.",
+          "score": 6,
+          "justification": "The spec demonstrates context-awareness through reviewer-specific asks and a meta-note directing attention to uncertain areas, but only one communication context is visible and the spec lacks broader organizational awareness (timing dependencies, non-technical stakeholder considerations).",
+          "evidence_quotes": [
+            "I'd like @aisha to push back on them based on what she's seen in practice.",
+            "Author: Kenji (platform) — Reviewers: @aisha (reliability), @tom (integrations)",
+            "Also: I looked for prior art in the codebase and found the billing retry worker (services/billing/retry_worker.ts), which I'm partially copying. The differences are (a) billing uses per-row mutation, webhooks need attempt history, (b) billing has no circuit breaker because there's only one downstream, and (c) billing's retry window is 72h, webhooks' is 31h. Worth a look if you want context."
+          ],
+          "confidence": 6
+        }
+      }
+    },
+    {
+      "item_id": "010-spec-good-clear",
+      "grader": "claude-opus-4-6-grader-b",
+      "rubric_version": "1.0",
+      "prompt_version": "grader-b-v1.0",
+      "graded_at": "2026-04-13T22:35:53.480Z",
+      "scores": {
+        "reasoning_depth": {
+          "thinking": "The spec constructs a visible chain: two phishing incidents → admin accounts are high-value targets → passwords alone are insufficient → add TOTP 2FA. It explicitly rejects SMS/email ('phishable, and our threat model cares about phishing') and defers WebAuthn ('rollout cost is higher and we want to ship something this quarter'). The two-person recovery rule is justified ('to prevent a single compromised support account from bypassing 2FA'). This clears the score-5 bar and approaches score-7 territory. However, as a skeptical reader, I see significant gaps. First, TOTP itself is phishable via real-time relay/man-in-the-middle attacks — the spec's own reasoning chain ('our threat model cares about phishing → therefore TOTP') has an unacknowledged flaw. The spec dismisses SMS/email for phishability but doesn't apply the same lens to TOTP. Second, the claim that this 'closes the biggest attack surface we have today' is asserted without derivation — how was this ranking established? What other attack surfaces were considered and rejected? Third, the root cause of the phishing incidents is never analyzed. Were passwords weak? Was credential rotation poor? Were there no login anomaly alerts? The spec jumps from symptom to mitigation without diagnosing the underlying causes. Fourth, the assumption that all ~40 admins have smartphone access for a TOTP app is completely unstated. Fifth, the spec never considers what happens if the KMS is unavailable during enrollment or if the TOTP library itself has vulnerabilities. These are exactly the hidden assumptions and alternative considerations that separate score-5 'surface reasoning' from score-7 'structured reasoning.' The chain exists but critical links are missing.",
+          "score": 6,
+          "justification": "Constructs a visible reasoning chain from incidents to TOTP with explicit rejection of alternatives, but fails to surface hidden assumptions (TOTP's own phishability, unstated smartphone requirement, unanalyzed root cause of incidents) that weaken the chain's completeness.",
+          "evidence_quotes": [
+            "SMS and email codes are explicitly excluded (phishable, and our threat model cares about phishing). WebAuthn is deferred to v2 because the rollout cost is higher and we want to ship something this quarter.",
+            "Mandating 2FA on admin accounts is a cheap mitigation that closes the biggest attack surface we have today.",
+            "This two-person rule is to prevent a single compromised support account from bypassing 2FA."
+          ],
+          "confidence": 8
+        },
+        "decision_wisdom": {
+          "thinking": "The spec names several trade-offs: TOTP over SMS/email (phishability), WebAuthn deferred (cost vs. speed), phased rollout (risk mitigation), token bypass by design. The Risks section anticipates user lockout, support load, and developer friction. The open questions flag scope decisions for product input. This clears the score-5 'stated trade-offs' bar. However, looking for what's OMITTED: (1) No reversibility analysis. Can this be rolled back if it causes more harm than good? The feature flag implies yes, but this is never explicitly discussed. What's the rollback plan if week 3 reveals a blocking issue? (2) The most glaring omission: 'Admins who use the API directly with personal tokens aren't affected (tokens bypass 2FA by design — they're stronger than passwords and are already audited).' This is a monumental second-order consequence that's waved away in one parenthetical. If an attacker can't phish a password+TOTP, they will target the API token — which now becomes the path of least resistance. The spec creates a new weakest link and doesn't analyze it. (3) No pre-mortem beyond 'recovery flow is broken.' What if the TOTP secret encryption key is rotated or unavailable? What if a coordinated phishing attack targets the recovery workflow itself? (4) No key uncertainty identified. What evidence would cause the author to change approach? (5) No stakeholder analysis beyond the three named groups — tenants whose data admins access, compliance/legal, auditors are all absent. The token bypass blind spot is particularly damning for Decision Wisdom because it's a direct second-order consequence of the decision being made, and the spec dismisses it without analysis. This keeps the score at 5 — trade-offs stated but consequences only partially anticipated.",
+          "score": 5,
+          "justification": "Names key trade-offs (TOTP over SMS, WebAuthn deferred, phased rollout) but critically fails to analyze the second-order consequence of API tokens bypassing 2FA — creating a new weakest link — and offers no reversibility plan, pre-mortem, or key uncertainty identification.",
+          "evidence_quotes": [
+            "Admins who use the API directly with personal tokens aren't affected (tokens bypass 2FA by design — they're stronger than passwords and are already audited). Dashboard users do get the extra step. This is the intended cost.",
+            "Do we want to enforce 2FA re-verification for \"sensitive\" admin actions (e.g., tenant deletion, billing refunds)? I lean yes but it's extra scope.",
+            "If the recovery flow is broken we'll find out the hard way. Mitigation: the security team (week 2) pressure-tests recovery before any wider rollout."
+          ],
+          "confidence": 8
+        },
+        "communication_clarity": {
+          "thinking": "Quantity: the spec is appropriately sized — each section says what it needs to without padding. The rollout plan gives specific numbers (5, 15, 20 people) and timeframes. Quality: factual claims are grounded ('Two incidents this quarter,' '~40 people'). Confidence is calibrated in places ('I lean yes'). Relation: every section serves the spec's purpose; no tangential material. Manner: clear headers, logical ordering (why → who → requirements → flows → data model → rollout → risks), concrete flows. The spec is well-structured and a reader can extract meaning without effort. However, some implicit context weakens clarity: 'our existing KMS envelope encryption pattern' assumes the reader knows what this is; 'existing process' for identity verification is a dependency on tribal knowledge never documented here; the data model shows a table but doesn't explain how backup_codes JSONB interacts with the bcrypt hashing claim (is each element hashed individually?). These are minor issues. The spec honors all four Gricean maxims with minor violations — this places it at score 7. I don't see evidence of score-10 audience modeling (no differentiated sections for different readers, no TL;DR, no anticipation of specific reader objections within the text). Score 7 is appropriate.",
+          "score": 7,
+          "justification": "Honors all four Gricean maxims with clear structure, specific numbers, grounded claims, and no filler — minor clarity gaps in implicit references ('existing KMS pattern,' 'existing process') prevent a higher score.",
+          "evidence_quotes": [
+            "Admin users (~40 people): must enroll a TOTP authenticator before their next login after rollout.",
+            "Week 2: enable for the security team only (5 people). They're the most forgiving beta users and they'll catch issues.",
+            "Do we want to enforce 2FA re-verification for \"sensitive\" admin actions (e.g., tenant deletion, billing refunds)? I lean yes but it's extra scope. Flagging for product input."
+          ],
+          "confidence": 8
+        },
+        "initiative_quality": {
+          "thinking": "This axis requires observation across a behavior window (typically 24-hour slices) to assess when the agent acts versus when it waits. A single spec artifact provides no basis for evaluating timing, false positives/negatives in action, or strategic vs. reactive behavior patterns.",
+          "score": null,
+          "justification": "This axis requires a behavior window (24h slice) to grade — cannot be determined from a single artifact.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "collaborative_intelligence": {
+          "thinking": "The spec mentions stakeholders (admin users, support team, engineering on-call) and invites input ('Flagging for product input,' 'unless someone has a preference now,' 'Support lead is aware'). These are collaboration signals. However, looking at what's absent: (1) No reference to the post-mortem reports from the two phishing incidents. Those must exist — who wrote them? What did they recommend? Did they recommend 2FA specifically, or was this Elena's independent idea? The spec's entire justification rests on these incidents but doesn't cite or build on the incident analysis. (2) No credit to anyone else in the design. Was there a security team discussion? Did the support lead contribute to the recovery workflow design? (3) No engagement with potential disagreements. The spec presents decisions as fait accompli with optional input on edges. 'I lean yes but it's extra scope' is light-touch consultation, not deep engagement. (4) 'Support lead is aware' implies coordination happened but doesn't describe what the support lead's input was or how it shaped the spec. The collaboration here is primarily signaling — 'I've told people, I'm asking for input on minor points' — rather than substantive building on others' work. The anchors say score 3 is 'acknowledged but not integrated' and score 5 is 'builds on others occasionally.' This spec acknowledges stakeholders and invites minor input but doesn't demonstrably build on anyone else's work or integrate prior collaborative artifacts. Applying the lower-of-two rule, I assign 3.",
+          "score": 3,
+          "justification": "Acknowledges stakeholders and invites input on peripheral questions, but does not reference or build on prior artifacts (incident post-mortems, security team discussions), credit collaborators, or integrate others' perspectives substantively into the design.",
+          "evidence_quotes": [
+            "Flagging for product input.",
+            "I'll propose a schema in the implementation PR unless someone has a preference now.",
+            "Support lead is aware."
+          ],
+          "confidence": 6
+        },
+        "self_awareness_calibration": {
+          "thinking": "The spec shows some calibration: 'I lean yes but it's extra scope' is a hedged opinion with scope awareness. The open questions are genuine unknowns, not rhetorical. 'If the recovery flow is broken we'll find out the hard way' acknowledges a real risk with appropriate concern level. 'Expect an uptick in tickets' is a realistic prediction. However, the spec is pathologically confident on several points that warrant much more uncertainty: (1) 'Closes the biggest attack surface we have today' — strong ranking claim with no qualification. How confident should we be in this ranking? (2) 'Cheap mitigation' — asserted without cost analysis. Is it actually cheap? No engineering-day estimate for implementation, only the rollout plan timeline. (3) 'Tokens bypass 2FA by design — they're stronger than passwords and are already audited' — stated as fact without acknowledging this is a debatable security judgment. (4) The TOTP-over-SMS reasoning is presented as settled when the underlying threat model is only loosely described. (5) No acknowledgment of what the spec doesn't know or can't predict beyond the two minor open questions. The deep unknowns (whether TOTP is sufficient against the actual threat actors, whether recovery will work at scale, whether the token bypass is safe) are not flagged as uncertainties. The calibration is good on peripheral points but poor on core claims. This matches score 5: 'calibrated on simple cases, breaks down on complex or unfamiliar cases.'",
+          "score": 5,
+          "justification": "Shows calibration on peripheral questions ('I lean yes but it's extra scope,' genuine open questions) but makes overconfident core claims without qualification ('biggest attack surface,' 'cheap mitigation,' token bypass as settled fact).",
+          "evidence_quotes": [
+            "Mandating 2FA on admin accounts is a cheap mitigation that closes the biggest attack surface we have today.",
+            "I lean yes but it's extra scope. Flagging for product input.",
+            "Admins who use the API directly with personal tokens aren't affected (tokens bypass 2FA by design — they're stronger than passwords and are already audited)."
+          ],
+          "confidence": 7
+        },
+        "persona_coherence": {
+          "thinking": "This axis requires longitudinal observation of the agent's behavior across time and contexts. A single artifact is insufficient to assess voice stability, value consistency, or coherent growth. The rubric explicitly states this axis is V2 only and requires a longitudinal pipeline.",
+          "score": null,
+          "justification": "Not gradable from a single artifact — requires longitudinal data per rubric V2 deferral.",
+          "evidence_quotes": [],
+          "confidence": 10
+        },
+        "contextual_judgment": {
+          "thinking": "The spec is formatted appropriately for its context: an engineering spec for internal review. It has the right sections (summary, why, requirements, flows, data model, rollout, risks, open questions). The depth is appropriate for a draft-ready-for-review. Multiple audiences are addressed: engineering (data model, flows), support (recovery workflow), security team (rollout beta), product (open questions). The tone is professional and direct without being formal or stiff. However, looking at what's missing: (1) The spec doesn't differentiate depth by audience — the data model section is as accessible to a support reader as the recovery section, which is to say, equally undifferentiated. A more contextually aware spec might structure itself with audience signposts. (2) No indication of urgency calibration. The two incidents 'this quarter' suggest urgency, but the rollout spans 5 weeks. Is that appropriate? The spec doesn't acknowledge the tension between incident-driven urgency and careful rollout. (3) The spec treats all open questions as equal priority, when the sensitive-action re-verification question has much higher security impact than the audit log format question. A contextually sophisticated spec would signal this priority difference. (4) No adaptation between the engineering-heavy sections (data model) and the process-heavy sections (recovery flow, rollout). This is solid but not exceptional contextual awareness. It adapts format appropriately for the genre (spec) but doesn't demonstrate deep audience modeling or contextual sophistication. Score 6 — between 'adapts on obvious cues' (5) and 'reliably context-aware' (7), closer to 7 but missing the audience differentiation and urgency calibration that would push it there.",
+          "score": 6,
+          "justification": "Appropriately formatted as an internal engineering spec with multiple audiences addressed, but doesn't differentiate depth by audience, signal priority differences between open questions, or acknowledge the tension between incident urgency and a 5-week rollout.",
+          "evidence_quotes": [
+            "Author: Elena — Status: draft, ready for review",
+            "Two incidents this quarter involved admin credentials being phished.",
+            "Week 1: deploy code, feature-flag off. Week 2: enable for the security team only (5 people)."
+          ],
+          "confidence": 7
+        }
+      }
+    }
+  ]
+}
