@@ -641,8 +641,16 @@ export function renderFrame(
   layoutCols?: number,
   layoutRows?: number,
 ): { offsetX: number; offsetY: number } {
-  // Clear
-  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  // Clear with theme background color (reads --background CSS variable)
+  const bgColor = typeof document !== 'undefined'
+    ? getComputedStyle(document.documentElement).getPropertyValue('--background').trim()
+    : '';
+  if (bgColor) {
+    ctx.fillStyle = `oklch(${bgColor})`;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  } else {
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  }
 
   // Use layout dimensions (fallback to tileMap size)
   const cols = layoutCols ?? (tileMap.length > 0 ? tileMap[0].length : 0);
