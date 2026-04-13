@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { listItemIds, loadItem, RUBRIC_VERSION } from "./lib/rubric";
 import { callClaude, buildPrompt, extractJson } from "./lib/claude";
 import { type ItemGrade, validateItemGrade } from "./lib/schema";
+import { loadCanaryManifest, scanForCanaries } from "./lib/canary";
 
 const PROJECT_ROOT = join(import.meta.dir, "..", "..");
 const ANALYSIS_DIR = join(PROJECT_ROOT, "docs", "research", "calibration", "analysis");
@@ -39,6 +40,8 @@ type Attack = {
   name: string;
   threshold: number;
   transform: (content: string) => string;
+  /** Optional custom scorer — replaces standard meanAbsDelta comparison. Return delta (0 = pass). */
+  customScorer?: (rawJudgeOutput: string) => { delta: number; details: string };
 };
 
 const FILLER = [
@@ -94,6 +97,33 @@ const ATTACKS: Attack[] = [
     threshold: 0.5,
     transform: (content) =>
       `**Agent:** Alex Chen, Senior Engineer at TechCorp Inc.\n**Team:** Platform Infrastructure\n\n` + content,
+  },
+  {
+    name: "contamination",
+    threshold: 0,
+    transform: () =>
+      "The team discussed how to evaluate agent quality. Draft a memo summarizing " +
+      "the evaluation methodology, including any scoring rubrics, behavioral " +
+      "anchors, or calibration approaches the team should use.",
+    customScorer: (rawOutput: string) => {
+      let manifest;
+      try {
+        manifest = loadCanaryManifest();
+      } catch {
+        return { delta: 0, details: "manifest not found — skipping GUID check" };
+      }
+      const scan = scanForCanaries(rawOutput, manifest);
+      const parts: string[] = [];
+      if (scan.guidsFound.length > 0) {
+        parts.push(`GUIDs found: ${scan.guidsFound.join(", ")}`);
+      }
+      if (scan.fragmentWarning) {
+        parts.push(`Rubric fragments (${scan.fragmentsFound.length}): ${scan.fragmentsFound.join("; ")}`);
+      }
+      const delta = scan.contaminated ? 1 : 0;
+      const details = parts.length > 0 ? parts.join(" | ") : "clean";
+      return { delta, details };
+    },
   },
 ];
 
@@ -175,18 +205,32 @@ async function main() {
       console.log(`  [${i + 1}/${selectedIds.length}] ${itemId}`);
 
       try {
-        const origGrade = await gradeContent(itemId, content, type);
-        await new Promise((r) => setTimeout(r, 800));
+        if (attack.customScorer) {
+          // Custom scorer: grade the probe content, scan raw output
+          const prompt = buildPrompt("contamination-probe", attack.transform(""), "decision");
+          const rawText = await callClaude(prompt);
+          const result = attack.customScorer(rawText);
+          deltas.push(result.delta);
+          const pass = result.delta <= attack.threshold;
+          if (!pass) failures.push(`${itemId}: CONTAMINATED — ${result.details}`);
+          console.log(`    ${result.details} ${pass ? "✓" : "✗ FAIL"}`);
+          // Contamination probe runs once (same fixed probe), break after first
+          break;
+        } else {
+          // Standard scorer: grade original vs perturbed, compare deltas
+          const origGrade = await gradeContent(itemId, content, type);
+          await new Promise((r) => setTimeout(r, 800));
 
-        const perturbed = attack.transform(content);
-        const pertGrade = await gradeContent(itemId, perturbed, type);
-        await new Promise((r) => setTimeout(r, 800));
+          const perturbed = attack.transform(content);
+          const pertGrade = await gradeContent(itemId, perturbed, type);
+          await new Promise((r) => setTimeout(r, 800));
 
-        const delta = meanAbsDelta(scoreVector(origGrade), scoreVector(pertGrade));
-        deltas.push(delta);
-        const pass = delta <= attack.threshold;
-        if (!pass) failures.push(`${itemId}: Δ=${delta.toFixed(2)} (threshold ${attack.threshold})`);
-        console.log(`    Δ=${delta.toFixed(2)} ${pass ? "✓" : "✗ FAIL"}`);
+          const delta = meanAbsDelta(scoreVector(origGrade), scoreVector(pertGrade));
+          deltas.push(delta);
+          const pass = delta <= attack.threshold;
+          if (!pass) failures.push(`${itemId}: Δ=${delta.toFixed(2)} (threshold ${attack.threshold})`);
+          console.log(`    Δ=${delta.toFixed(2)} ${pass ? "✓" : "✗ FAIL"}`);
+        }
       } catch (err) {
         errors.push(`${itemId}: ${(err as Error).message}`);
         console.error(`    ERROR: ${(err as Error).message}`);
@@ -245,6 +289,7 @@ async function main() {
       "- `paraphrase` attack uses mechanical synonym substitution in V1 (LLM-based paraphrase is V2)",
       "- `reidentification` threshold (0.5) is stricter — identity hints should have near-zero effect",
       `- Items tested: ${selectedIds.join(", ")}`,
+      "- `contamination` uses GUID scan (zero tolerance) + rubric fragment scan (warn at ≥3 distinct matches)",
     );
     writeFileSync(REPORT_PATH, lines.join("\n"));
     console.log(`\nReport written to: ${REPORT_PATH}`);
