@@ -155,7 +155,7 @@ async function loadAllFurniture(): Promise<void> {
       try {
         sprites[asset.id] = await decodeFurniturePng(url, asset.width, asset.height);
       } catch (err) {
-        console.warn(`[assetLoader] Failed to decode furniture ${asset.id}:`, err);
+        console.warn(`[assetLoader] Failed to decode furniture ${asset.id} from ${url} (${asset.width}x${asset.height}):`, err);
       }
     }),
   );
