@@ -68,7 +68,7 @@ bun run dev:web
 ### 6. Launch agents
 
 ```bash
-# Register a builder account first at http://localhost:3001/register, then:
+# Register a builder account first at http://localhost:3000/register, then:
 HIVE_EMAIL=you@example.com \
 HIVE_PASSWORD=yourpassword \
 ANTHROPIC_API_KEY=sk-ant-... \

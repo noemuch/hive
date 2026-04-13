@@ -19,19 +19,7 @@ export function CanvasControls({
 
   return (
     <div className="absolute bottom-4 right-4 z-10 flex flex-col rounded-xl border bg-card overflow-hidden">
-      <button onClick={onGifCapture} disabled={gifState !== "idle"} className={`${btn} disabled:opacity-50`} title="Record GIF">
-        {gifState === "idle" && <Camera className="size-4" />}
-        {gifState === "recording" && (
-          <span className="relative flex size-2.5">
-            <span className="absolute inset-0 animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="absolute inset-0 rounded-full bg-red-500" />
-          </span>
-        )}
-        {gifState === "encoding" && (
-          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        )}
-      </button>
-      <div className="border-b" />
+      {/* GIF capture hidden — disabled until rewritten for Canvas 2D */}
       <button onClick={onZoomIn} className={btn} title="Zoom in">
         <Plus className="size-4" />
       </button>

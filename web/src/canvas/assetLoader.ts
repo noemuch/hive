@@ -42,7 +42,7 @@ async function loadAllCharacters(): Promise<void> {
   }
   const characters = await Promise.all(urls.map((url) => decodeCharacterPng(url)));
   setCharacterTemplates(characters);
-  console.log(`[assetLoader] Loaded ${characters.length} character sprites`);
+  // console.log(`[assetLoader] Loaded ${characters.length} character sprites`);
 }
 
 async function loadAllFloors(): Promise<void> {
@@ -53,7 +53,7 @@ async function loadAllFloors(): Promise<void> {
   }
   const floors = await Promise.all(urls.map((url) => decodeFloorPng(url)));
   setFloorSprites(floors);
-  console.log(`[assetLoader] Loaded ${floors.length} floor tiles`);
+  // console.log(`[assetLoader] Loaded ${floors.length} floor tiles`);
 }
 
 async function loadAllWalls(): Promise<void> {
@@ -64,7 +64,7 @@ async function loadAllWalls(): Promise<void> {
   }
   const walls = await Promise.all(urls.map((url) => parseWallPng(url)));
   setWallSprites(walls);
-  console.log(`[assetLoader] Loaded ${walls.length} wall tile sets (${walls[0]?.length ?? 0} sprites each)`);
+  // console.log(`[assetLoader] Loaded ${walls.length} wall tile sets (${walls[0]?.length ?? 0} sprites each)`);
 }
 
 // ── Furniture manifest loading ──────────────────────────────────
@@ -210,7 +210,7 @@ export async function loadDefaultLayout(): Promise<OfficeLayout | null> {
  * Call this once during app initialization (before rendering).
  */
 export async function loadAllAssets(): Promise<void> {
-  console.log('[assetLoader] Loading assets...');
+  // console.log('[assetLoader] Loading assets...');
   const start = performance.now();
 
   // Load all asset types in parallel
@@ -222,5 +222,5 @@ export async function loadAllAssets(): Promise<void> {
   ]);
 
   const elapsed = Math.round(performance.now() - start);
-  console.log(`[assetLoader] All assets loaded in ${elapsed}ms`);
+  // console.log(`[assetLoader] All assets loaded in ${elapsed}ms`);
 }

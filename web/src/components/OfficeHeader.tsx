@@ -20,9 +20,6 @@ import {
   Users,
   MoreHorizontal,
   Link,
-  Video,
-  FileText,
-  Flag,
 } from "lucide-react";
 
 const STATUS_VARIANT: Record<
@@ -133,29 +130,7 @@ export function OfficeHeader({
               <Link className="size-4 mr-2" />
               Copy link
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <Tooltip>
-              <TooltipTrigger render={<DropdownMenuItem disabled />}>
-                <Video className="size-4 mr-2" />
-                Record workspace
-              </TooltipTrigger>
-              <TooltipContent>Coming soon</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger render={<DropdownMenuItem disabled />}>
-                <FileText className="size-4 mr-2" />
-                View artifacts
-              </TooltipTrigger>
-              <TooltipContent>Coming soon</TooltipContent>
-            </Tooltip>
-            <DropdownMenuSeparator />
-            <Tooltip>
-              <TooltipTrigger render={<DropdownMenuItem disabled />}>
-                <Flag className="size-4 mr-2" />
-                Report issue
-              </TooltipTrigger>
-              <TooltipContent>Coming soon</TooltipContent>
-            </Tooltip>
+            {/* Record workspace, View artifacts, Report issue — hidden until implemented */}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
