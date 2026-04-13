@@ -1,279 +1,502 @@
+// server/src/engine/office-generator.ts
+
 /**
- * Procedural office generator using verified LimeZu tile GIDs.
- * Generates Tiled-compatible JSON maps that PixiJS can render.
- *
- * Uses room.png tileset (32x32 tiles, 11 columns, firstgid=1).
+ * Procedural office generator — LimeZu 16x16 tilesets.
+ * Each company gets a unique, deterministic layout based on its ID.
  */
 
-// Verified GIDs from office-tile-catalog.json
-const T = {
-  // Walls
-  WALL_TOP_L: 5,
-  WALL_TOP: 6,
-  WALL_TOP_R: 8,
-  WALL_LEFT: 27,
-  WALL_RIGHT: 30,
-  WALL_BOT_L: 60,
-  WALL_BOT: 38,
-  WALL_BOT_R: 63,
+import {
+  VOID, FLOOR, FLOOR_TILES, WALL, CHAIR, DESK, TABLE, CUBICLE,
+  PRINTER, CLUTTER, DECO_TALL, WALL_ART, TILESETS,
+} from "./office-tiles";
+import { hashString, createRng, pick, shuffle, randInt } from "./seeded-random";
 
-  // Door
-  DOOR_TL: 199, DOOR_TC: 200, DOOR_TR: 201,
-  DOOR_BL: 210, DOOR_BC: 211, DOOR_BR: 212,
-
-  // Floors
-  FLOOR_WOOD: 222,
-  FLOOR_CARPET: 244,
-  FLOOR_TILE: 245,
-
-  // Desks (3-wide front-facing)
-  DESK_L: 224, DESK_C: 225, DESK_R: 226,
-
-  // Tables (composable)
-  TABLE_L: 213, TABLE_C: 214, TABLE_R: 215,
-
-  // Chairs
-  CHAIR_OFFICE: 240,
-  CHAIR_SWIVEL: 208,
-  CHAIR_CONFERENCE: 186,
-  CHAIR_WOODEN: 153,
-
-  // Computers
-  MONITOR: 206,
-  PC_TOWER: 217,
-  LAPTOP: 218,
-  COMP_DESK_TL: 169, COMP_DESK_TR: 170,
-  COMP_DESK_BL: 180, COMP_DESK_BR: 181,
-
-  // Whiteboard (2x2)
-  WB_TL: 46, WB_TR: 47,
-  WB_BL: 57, WB_BR: 58,
-
-  // Bookshelf (2x2)
-  BOOK_TL: 97, BOOK_TR: 98,
-  BOOK_BL: 108, BOOK_BR: 109,
-
-  // Cabinet (3x2)
-  CAB_TL: 166, CAB_TC: 167, CAB_TR: 168,
-  CAB_BL: 177, CAB_BC: 178, CAB_BR: 179,
-
-  // Single items
-  COFFEE_MACHINE: 173,
-  PRINTER: 184,
-  WATER_COOLER: 187,
-  FILING_CABINET: 176,
-  PLANT_TOP: 205,
-  PLANT_BOT: 216,
-  SHELF_A: 104,
-  SHELF_B: 105,
-  CHAIR_SIDE: 185,
-};
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type OfficeSize = "small" | "medium" | "large";
 
-interface GeneratedOffice {
+interface OfficePoi {
+  coffee: { x: number; y: number } | null;
+  whiteboard: { x: number; y: number };
+  door: { x: number; y: number };
+}
+
+interface CollisionObject {
+  name: string;
+  type: string;
+  x: number;
+  y: number;
   width: number;
   height: number;
-  tilewidth: number;
-  tileheight: number;
+}
+
+export interface GeneratedOffice {
+  width: number;
+  height: number;
+  tilewidth: 16;
+  tileheight: 16;
   layers: {
     name: string;
     type: "tilelayer" | "objectgroup";
     data?: number[];
-    objects?: { name: string; x: number; y: number; width: number; height: number }[];
+    objects?: CollisionObject[];
     width?: number;
     height?: number;
     visible: boolean;
     opacity: number;
   }[];
-  tilesets: { firstgid: number; name: string; image: string; tilewidth: number; tileheight: number; columns: number; imagewidth: number; imageheight: number }[];
+  tilesets: typeof TILESETS;
   deskPositions: { x: number; y: number }[];
+  poi: OfficePoi;
 }
 
-/** Generate a Tiled-compatible office map sized for the given number of agents. */
-export function generateOffice(agentCount: number): GeneratedOffice {
-  const size: OfficeSize = agentCount <= 3 ? "small" : agentCount <= 6 ? "medium" : "large";
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-  const dims = { small: { w: 16, h: 12 }, medium: { w: 22, h: 14 }, large: { w: 30, h: 16 } };
-  const { w, h } = dims[size];
+const DIMS: Record<OfficeSize, { w: number; h: number }> = {
+  small:  { w: 20, h: 15 },
+  medium: { w: 30, h: 18 },
+  large:  { w: 40, h: 23 },
+};
 
-  const ground = new Array(w * h).fill(0);
-  const objects = new Array(w * h).fill(0);
-  const foreground = new Array(w * h).fill(0);
+function getSize(agentCount: number): OfficeSize {
+  if (agentCount <= 3) return "small";
+  if (agentCount <= 6) return "medium";
+  return "large";
+}
 
-  const set = (layer: number[], x: number, y: number, gid: number) => {
-    if (x >= 0 && x < w && y >= 0 && y < h) layer[y * w + x] = gid;
-  };
+function makeLayer(_name: string, w: number, h: number): number[] {
+  return new Array(w * h).fill(0);
+}
 
-  // === FLOOR ===
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      set(ground, x, y, T.FLOOR_WOOD);
-    }
+function set(layer: number[], w: number, x: number, y: number, gid: number): void {
+  if (x >= 0 && x < w && y >= 0) layer[y * w + x] = gid;
+}
+
+function get(layer: number[], w: number, x: number, y: number): number {
+  return layer[y * w + x] ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Wall builder
+// ---------------------------------------------------------------------------
+
+function buildWalls(
+  backdrop: number[],
+  furniture: number[],
+  w: number,
+  h: number,
+  rng: () => number,
+): void {
+  // Pick wallpaper style
+  const wallFills = rng() < 0.5
+    ? [WALL.FILL_A, WALL.FILL_B]
+    : [WALL.FILL_C, WALL.FILL_D];
+
+  // Fill entire backdrop with void
+  for (let i = 0; i < w * h; i++) backdrop[i] = VOID;
+
+  // --- Top wall (4 rows: frame, wallpaper x2, baseboard) ---
+  // Row 0: top frame
+  set(furniture, w, 0, 0, WALL.T1_L);
+  for (let x = 1; x < w - 1; x++) set(furniture, w, x, 0, pick(rng, wallFills));
+  set(furniture, w, w - 1, 0, WALL.T1_R);
+
+  // Row 1: middle frame + wallpaper
+  set(furniture, w, 0, 1, WALL.T2_L);
+  for (let x = 1; x < w - 1; x++) set(furniture, w, x, 1, pick(rng, wallFills));
+  set(furniture, w, w - 1, 1, WALL.T2_R);
+
+  // Row 2: lower frame + wallpaper
+  set(furniture, w, 0, 2, WALL.T3_L);
+  for (let x = 1; x < w - 1; x++) set(furniture, w, x, 2, pick(rng, wallFills));
+  set(furniture, w, w - 1, 2, WALL.T3_R);
+
+  // Row 3: baseboard
+  set(furniture, w, 0, 3, WALL.BASE_L);
+  for (let x = 1; x < w - 1; x++) set(furniture, w, x, 3, WALL.BASE_C);
+  set(furniture, w, w - 1, 3, WALL.BASE_R);
+
+  // --- Side walls (rows 4 to h-3) ---
+  for (let y = 4; y < h - 2; y++) {
+    set(furniture, w, 0, y, WALL.DARK_C);
+    set(furniture, w, w - 1, y, WALL.DARK_C);
   }
 
-  // Carpet in meeting area (right side)
-  if (size !== "small") {
-    const carpetX = w - 7;
-    for (let y = 3; y < h - 3; y++) {
-      for (let x = carpetX; x < w - 2; x++) {
-        set(ground, x, y, T.FLOOR_CARPET);
-      }
+  // --- Bottom wall (2 rows) ---
+  for (let x = 0; x < w; x++) {
+    set(furniture, w, x, h - 2, WALL.TRIM_C);
+    set(furniture, w, x, h - 1, WALL.BOT_A);
+  }
+  // Corners
+  set(furniture, w, 0, h - 2, WALL.TRIM_L);
+  set(furniture, w, w - 1, h - 2, WALL.TRIM_R);
+  set(furniture, w, 0, h - 1, WALL.DARK_L);
+  set(furniture, w, w - 1, h - 1, WALL.DARK_R);
+}
+
+// ---------------------------------------------------------------------------
+// Floor builder
+// ---------------------------------------------------------------------------
+
+function buildFloor(
+  floor: number[],
+  w: number,
+  h: number,
+  rng: () => number,
+): void {
+  // Pick primary and accent floor tiles (seeded, varies per company)
+  const primaryIdx = Math.floor(rng() * FLOOR_TILES.length);
+  const accentIdx = (primaryIdx + 1 + Math.floor(rng() * (FLOOR_TILES.length - 1))) % FLOOR_TILES.length;
+  const primary = FLOOR_TILES[primaryIdx];
+  const accent = FLOOR_TILES[accentIdx];
+
+  // Pre-generate a row of random offsets so each company gets a unique stripe pattern
+  const offsets: number[] = [];
+  for (let x = 0; x < w; x++) offsets.push(rng() < 0.5 ? 0 : 1);
+
+  for (let y = 4; y < h - 2; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const tile = (x + y + offsets[x]) % 2 === 0 ? primary : accent;
+      set(floor, w, x, y, tile);
     }
   }
+}
 
-  // Tile floor in kitchen area (bottom right for large)
-  if (size === "large") {
-    for (let y = h - 5; y < h - 1; y++) {
-      for (let x = w - 7; x < w - 1; x++) {
-        set(ground, x, y, T.FLOOR_TILE);
-      }
-    }
+// ---------------------------------------------------------------------------
+// Door builder
+// ---------------------------------------------------------------------------
+
+function buildDoor(
+  furniture: number[],
+  floor: number[],
+  w: number,
+  h: number,
+  rng: () => number,
+): { x: number; y: number } {
+  // Door position options: bottom-center, bottom-left-third, bottom-right-third
+  const options = [
+    Math.floor(w / 2),
+    Math.floor(w / 3),
+    Math.floor((2 * w) / 3),
+  ];
+  const doorX = pick(rng, options);
+
+  // Clear wall tiles at door position (3 tiles wide, 2 rows)
+  for (let dx = -1; dx <= 1; dx++) {
+    set(furniture, w, doorX + dx, h - 2, 0);
+    set(furniture, w, doorX + dx, h - 1, 0);
+    // Add floor where door is
+    set(floor, w, doorX + dx, h - 2, FLOOR.EDGE);
+    set(floor, w, doorX + dx, h - 1, FLOOR.EDGE);
   }
 
-  // === WALLS ===
-  // Top wall
-  set(ground, 0, 0, T.WALL_TOP_L);
-  for (let x = 1; x < w - 1; x++) set(ground, x, 0, T.WALL_TOP);
-  set(ground, w - 1, 0, T.WALL_TOP_R);
-  // Second row of wall (gives depth)
-  for (let x = 1; x < w - 1; x++) set(ground, x, 1, T.WALL_LEFT + 1); // middle wall fill
+  return { x: doorX, y: h - 2 };
+}
 
-  // Left wall
-  for (let y = 1; y < h - 1; y++) set(ground, 0, y, T.WALL_LEFT);
-  // Right wall
-  for (let y = 1; y < h - 1; y++) set(ground, w - 1, y, T.WALL_RIGHT);
-  // Bottom wall
-  set(ground, 0, h - 1, T.WALL_BOT_L);
-  for (let x = 1; x < w - 1; x++) set(ground, x, h - 1, T.WALL_BOT);
-  set(ground, w - 1, h - 1, T.WALL_BOT_R);
+// ---------------------------------------------------------------------------
+// Desk placement
+// ---------------------------------------------------------------------------
 
-  // Door (bottom center)
-  const doorX = Math.floor(w / 2) - 1;
-  set(ground, doorX, h - 2, T.DOOR_TL);
-  set(ground, doorX + 1, h - 2, T.DOOR_TC);
-  set(ground, doorX + 2, h - 2, T.DOOR_TR);
-  set(ground, doorX, h - 1, T.DOOR_BL);
-  set(ground, doorX + 1, h - 1, T.DOOR_BC);
-  set(ground, doorX + 2, h - 1, T.DOOR_BR);
+interface DeskPlacement {
+  x: number;       // left tile of desk (3-wide)
+  y: number;       // top tile of desk (2-deep)
+  chairY: number;  // y of chair (below desk)
+}
 
-  // === FURNITURE (objects layer) ===
+function placeDeskRows(
+  furniture: number[],
+  w: number,
+  h: number,
+  agentCount: number,
+  rng: () => number,
+): { x: number; y: number }[] {
+  const size = getSize(agentCount);
   const deskPositions: { x: number; y: number }[] = [];
   const desksNeeded = Math.min(agentCount, 8);
 
-  // Place desk workstations in rows
-  const deskStartY = 3;
-  const deskSpacingY = 3;
-  let desksPlaced = 0;
+  // Desk style (randomized per company)
+  const deskStyle = rng() < 0.5
+    ? { tl: DESK.S1_TL, tc: DESK.S1_TC, tr: DESK.S1_TR, bl: DESK.S1_BL, bc: DESK.S1_BC, br: DESK.S1_BR }
+    : { tl: DESK.S2_TL, tc: DESK.S2_TC, tr: DESK.S2_TR, bl: DESK.S2_BL, bc: DESK.S2_BC, br: DESK.S2_BR };
 
-  // Left column of desks
-  for (let i = 0; i < 4 && desksPlaced < desksNeeded; i++) {
-    const dx = 2;
-    const dy = deskStartY + i * deskSpacingY;
-    if (dy + 2 >= h - 2) break;
+  // Chair variant
+  const chairT = rng() < 0.5 ? CHAIR.FRONT_T1 : CHAIR.FRONT_T2;
+  const chairB = rng() < 0.5 ? CHAIR.FRONT_B1 : CHAIR.FRONT_B2;
 
-    // Desk (3 wide)
-    set(objects, dx, dy, T.DESK_L);
-    set(objects, dx + 1, dy, T.DESK_C);
-    set(objects, dx + 2, dy, T.DESK_R);
-    // Monitor on desk
-    set(objects, dx + 1, dy - 1, T.MONITOR);
-    // Chair
-    set(objects, dx + 1, dy + 1, T.CHAIR_OFFICE);
+  // Calculate desk positions based on office size
+  const placements: DeskPlacement[] = [];
 
-    deskPositions.push({ x: dx + 1, y: dy + 1 });
-    desksPlaced++;
-  }
+  // Floor area: y from 4 to h-3 (desks start at first floor row, stop 3 rows before bottom wall)
+  const floorTop = 4;
+  const floorBot = h - 3;
+  const floorLeft = 2;
 
-  // Right column of desks (if medium or large)
-  if (size !== "small") {
-    const rightDeskX = size === "medium" ? 9 : 10;
-    for (let i = 0; i < 4 && desksPlaced < desksNeeded; i++) {
-      const dx = rightDeskX;
-      const dy = deskStartY + i * deskSpacingY;
-      if (dy + 2 >= h - 2) break;
+  // Desk row spacing (desk=2 + chair=2 = 4 tiles per row, 1 tile gap between rows)
+  const rowSpacing = 4;
 
-      set(objects, dx, dy, T.DESK_L);
-      set(objects, dx + 1, dy, T.DESK_C);
-      set(objects, dx + 2, dy, T.DESK_R);
-      set(objects, dx + 1, dy - 1, T.MONITOR);
-      set(objects, dx + 1, dy + 1, T.CHAIR_OFFICE);
+  // Chair bottom is at dy+3; must stay above the bottom wall row (h-2)
+  const fitsInFloor = (dy: number) => dy + 3 < h - 2;
 
-      deskPositions.push({ x: dx + 1, y: dy + 1 });
-      desksPlaced++;
+  if (size === "small") {
+    // Single column of desks, left-aligned
+    const colX = floorLeft + randInt(rng, 0, 2);
+    for (let i = 0; i < desksNeeded && i < 3; i++) {
+      const dy = floorTop + i * rowSpacing;
+      if (!fitsInFloor(dy)) break;
+      placements.push({ x: colX, y: dy, chairY: dy + 2 });
+    }
+  } else if (size === "medium") {
+    // Two columns
+    const col1X = floorLeft + randInt(rng, 0, 1);
+    const col2X = col1X + randInt(rng, 8, 10);
+    let placed = 0;
+    for (let i = 0; i < 3 && placed < desksNeeded; i++) {
+      const dy = floorTop + i * rowSpacing;
+      if (!fitsInFloor(dy)) break;
+      placements.push({ x: col1X, y: dy, chairY: dy + 2 });
+      placed++;
+    }
+    for (let i = 0; i < 3 && placed < desksNeeded; i++) {
+      const dy = floorTop + i * rowSpacing;
+      if (!fitsInFloor(dy)) break;
+      placements.push({ x: col2X, y: dy, chairY: dy + 2 });
+      placed++;
+    }
+  } else {
+    // Large: two staggered columns + potential third
+    const col1X = floorLeft + randInt(rng, 0, 2);
+    const col2X = col1X + randInt(rng, 8, 10);
+    const col3X = col2X + randInt(rng, 8, 10);
+    let placed = 0;
+    for (const col of [col1X, col2X, col3X]) {
+      if (col + 3 >= w - 2) break; // don't overflow right wall
+      for (let i = 0; i < 3 && placed < desksNeeded; i++) {
+        const dy = floorTop + i * rowSpacing;
+        if (!fitsInFloor(dy)) break;
+        placements.push({ x: col, y: dy, chairY: dy + 2 });
+        placed++;
+      }
     }
   }
 
-  // === MEETING AREA (medium/large) ===
-  if (size !== "small") {
-    const mx = w - 6;
-    const my = 4;
-    // Meeting table (3 wide)
-    set(objects, mx, my, T.TABLE_L);
-    set(objects, mx + 1, my, T.TABLE_C);
-    set(objects, mx + 2, my, T.TABLE_R);
-    // Chairs around table
-    set(objects, mx, my - 1, T.CHAIR_CONFERENCE);
-    set(objects, mx + 2, my - 1, T.CHAIR_CONFERENCE);
-    set(objects, mx, my + 1, T.CHAIR_CONFERENCE);
-    set(objects, mx + 2, my + 1, T.CHAIR_CONFERENCE);
-    // Whiteboard on wall
-    set(objects, mx, 1, T.WB_TL);
-    set(objects, mx + 1, 1, T.WB_TR);
-    set(objects, mx, 2, T.WB_BL);
-    set(objects, mx + 1, 2, T.WB_BR);
+  // Place desk tiles
+  for (const p of placements) {
+    // Desk (3 wide, 2 deep)
+    set(furniture, w, p.x, p.y, deskStyle.tl);
+    set(furniture, w, p.x + 1, p.y, deskStyle.tc);
+    set(furniture, w, p.x + 2, p.y, deskStyle.tr);
+    set(furniture, w, p.x, p.y + 1, deskStyle.bl);
+    set(furniture, w, p.x + 1, p.y + 1, deskStyle.bc);
+    set(furniture, w, p.x + 2, p.y + 1, deskStyle.br);
+
+    // Chair (1 wide, 2 deep, centered under desk)
+    set(furniture, w, p.x + 1, p.chairY, chairT);
+    set(furniture, w, p.x + 1, p.chairY + 1, chairB);
+
+    // Desk clutter (random single item on desk)
+    if (rng() < 0.7) {
+      const clutterX = p.x + randInt(rng, 0, 2);
+      set(furniture, w, clutterX, p.y, pick(rng, [...CLUTTER]));
+    }
+
+    // Chair position is the seat — where agents sit
+    deskPositions.push({ x: p.x + 1, y: p.chairY });
   }
 
-  // === DECORATIONS ===
-  // Plants in corners
-  set(objects, 1, 1, T.PLANT_TOP);
-  set(objects, 1, 2, T.PLANT_BOT);
-  if (w > 16) {
-    set(objects, w - 2, 1, T.PLANT_TOP);
-    set(objects, w - 2, 2, T.PLANT_BOT);
+  return deskPositions;
+}
+
+// ---------------------------------------------------------------------------
+// Meeting area (medium + large only)
+// ---------------------------------------------------------------------------
+
+function placeMeetingArea(
+  furniture: number[],
+  w: number,
+  h: number,
+  size: OfficeSize,
+  rng: () => number,
+): { x: number; y: number } | null {
+  if (size === "small") return null;
+
+  // Meeting area in right portion of the office
+  const areaX = w - randInt(rng, 7, 9);
+  const areaY = randInt(rng, 6, 8);
+
+  // Table (3 wide, 2 deep)
+  const tableStyle = rng() < 0.5
+    ? { tl: TABLE.M_TL, tc: TABLE.M_TC, tr: TABLE.M_TR, bl: TABLE.M_BL, bc: TABLE.M_BC, br: TABLE.M_BR }
+    : { tl: TABLE.B_TL, tc: TABLE.B_TC, tr: TABLE.B_TR, bl: TABLE.B_BL, bc: TABLE.B_BC, br: TABLE.B_BR };
+
+  set(furniture, w, areaX, areaY, tableStyle.tl);
+  set(furniture, w, areaX + 1, areaY, tableStyle.tc);
+  set(furniture, w, areaX + 2, areaY, tableStyle.tr);
+  set(furniture, w, areaX, areaY + 1, tableStyle.bl);
+  set(furniture, w, areaX + 1, areaY + 1, tableStyle.bc);
+  set(furniture, w, areaX + 2, areaY + 1, tableStyle.br);
+
+  // Chairs around table
+  // Back chairs (above table)
+  set(furniture, w, areaX, areaY - 2, CHAIR.BACK_T1);
+  set(furniture, w, areaX, areaY - 1, CHAIR.BACK_B1);
+  set(furniture, w, areaX + 2, areaY - 2, CHAIR.BACK_T2);
+  set(furniture, w, areaX + 2, areaY - 1, CHAIR.BACK_B2);
+
+  // Front chairs (below table)
+  set(furniture, w, areaX, areaY + 2, CHAIR.FRONT_T1);
+  set(furniture, w, areaX, areaY + 3, CHAIR.FRONT_B1);
+  set(furniture, w, areaX + 2, areaY + 2, CHAIR.FRONT_T2);
+  set(furniture, w, areaX + 2, areaY + 3, CHAIR.FRONT_B2);
+
+  return { x: areaX + 1, y: areaY };
+}
+
+// ---------------------------------------------------------------------------
+// Decorations
+// ---------------------------------------------------------------------------
+
+function placeDecorations(
+  furniture: number[],
+  w: number,
+  h: number,
+  rng: () => number,
+): { whiteboard: { x: number; y: number } } {
+  // Whiteboard on top wall (row 1-2)
+  const wbX = randInt(rng, 4, w - 6);
+  const art = rng() < 0.5 ? WALL_ART.A : WALL_ART.B;
+  set(furniture, w, wbX, 1, art.tl);
+  set(furniture, w, wbX + 1, 1, art.tr);
+  set(furniture, w, wbX, 2, art.bl);
+  set(furniture, w, wbX + 1, 2, art.br);
+
+  // Tall decorations in corners
+  if (rng() < 0.8) {
+    const decoGids = shuffle(rng, [...DECO_TALL]);
+    // Left corner deco (4 tiles vertical)
+    const lx = 1;
+    for (let i = 0; i < 4 && i < decoGids.length; i++) {
+      set(furniture, w, lx, i, decoGids[i]);
+    }
   }
 
-  // Bookshelf on top wall
-  const bookX = 6;
-  set(objects, bookX, 1, T.BOOK_TL);
-  set(objects, bookX + 1, 1, T.BOOK_TR);
-  set(objects, bookX, 2, T.BOOK_BL);
-  set(objects, bookX + 1, 2, T.BOOK_BR);
-
-  // Coffee machine
-  if (size !== "small") {
-    set(objects, w - 2, h - 3, T.COFFEE_MACHINE);
-    set(objects, w - 3, h - 3, T.WATER_COOLER);
+  // Printer somewhere along a wall
+  if (w > 20 && rng() < 0.7) {
+    const px = randInt(rng, 3, w - 5);
+    const py = h - 4;
+    set(furniture, w, px, py, PRINTER.TL);
+    set(furniture, w, px + 1, py, PRINTER.TR);
+    set(furniture, w, px, py + 1, PRINTER.BL);
+    set(furniture, w, px + 1, py + 1, PRINTER.BR);
   }
 
-  // Printer near desks
-  set(objects, 7, h - 3, T.PRINTER);
+  return { whiteboard: { x: wbX, y: 2 } };
+}
 
-  // Filing cabinet
-  if (size !== "small") {
-    set(objects, 1, h - 3, T.FILING_CABINET);
+// ---------------------------------------------------------------------------
+// Collision builder
+// ---------------------------------------------------------------------------
+
+function buildCollisions(
+  furniture: number[],
+  w: number,
+  h: number,
+  deskPositions: { x: number; y: number }[],
+): CollisionObject[] {
+  const objects: CollisionObject[] = [];
+  const deskSet = new Set(deskPositions.map(p => `${p.x},${p.y}`));
+
+  // Top wall
+  objects.push({ name: "top_wall", type: "", x: 0, y: 0, width: w * 16, height: 4 * 16 });
+  // Bottom wall
+  objects.push({ name: "bot_wall", type: "", x: 0, y: (h - 2) * 16, width: w * 16, height: 2 * 16 });
+  // Left wall
+  objects.push({ name: "left_wall", type: "", x: 0, y: 0, width: 1 * 16, height: h * 16 });
+  // Right wall
+  objects.push({ name: "right_wall", type: "", x: (w - 1) * 16, y: 0, width: 1 * 16, height: h * 16 });
+
+  // Furniture collisions — any non-zero furniture tile that's not a desk chair position
+  for (let y = 4; y < h - 2; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      if (get(furniture, w, x, y) !== 0 && !deskSet.has(`${x},${y}`)) {
+        objects.push({
+          name: "furniture",
+          type: "",
+          x: x * 16,
+          y: y * 16,
+          width: 16,
+          height: 16,
+        });
+      }
+    }
   }
+
+  return objects;
+}
+
+// ---------------------------------------------------------------------------
+// Main generator
+// ---------------------------------------------------------------------------
+
+/** Generate a unique, deterministic office map for a company. */
+export function generateOffice(agentCount: number, companyId?: string): GeneratedOffice {
+  const seed = companyId ? hashString(companyId) : 42;
+  const rng = createRng(seed);
+  const size = getSize(agentCount);
+  const { w, h } = DIMS[size];
+
+  // Create layers
+  const backdrop = makeLayer("backdrop", w, h);
+  const floor = makeLayer("floor", w, h);
+  const furniture = makeLayer("furniture", w, h);
+
+  // Build walls (writes to backdrop + furniture)
+  buildWalls(backdrop, furniture, w, h, rng);
+
+  // Build floor
+  buildFloor(floor, w, h, rng);
+
+  // Place door
+  const door = buildDoor(furniture, floor, w, h, rng);
+
+  // Place desks
+  const deskPositions = placeDeskRows(furniture, w, h, agentCount, rng);
+
+  // Place meeting area (medium + large)
+  const coffeePos = placeMeetingArea(furniture, w, h, size, rng);
+
+  // Place decorations (whiteboard, plants, printer)
+  const { whiteboard } = placeDecorations(furniture, w, h, rng);
+
+  // Build collision objectgroup
+  const collisionObjects = buildCollisions(furniture, w, h, deskPositions);
 
   return {
     width: w,
     height: h,
-    tilewidth: 32,
-    tileheight: 32,
+    tilewidth: 16,
+    tileheight: 16,
     layers: [
-      { name: "ground", type: "tilelayer", data: ground, width: w, height: h, visible: true, opacity: 1 },
-      { name: "objects", type: "tilelayer", data: objects, width: w, height: h, visible: true, opacity: 1 },
-      { name: "foreground", type: "tilelayer", data: foreground, width: w, height: h, visible: true, opacity: 1 },
+      { name: "backdrop", type: "tilelayer", data: backdrop, width: w, height: h, visible: true, opacity: 1 },
+      { name: "floor", type: "tilelayer", data: floor, width: w, height: h, visible: true, opacity: 1 },
+      { name: "furniture", type: "tilelayer", data: furniture, width: w, height: h, visible: true, opacity: 1 },
+      { name: "Collisions", type: "objectgroup", objects: collisionObjects, visible: true, opacity: 1 },
     ],
-    tilesets: [{
-      firstgid: 1,
-      name: "room",
-      image: "/maps/room.png",
-      tilewidth: 32,
-      tileheight: 32,
-      columns: 11,
-      imagewidth: 352,
-      imageheight: 832,
-    }],
+    tilesets: [...TILESETS],
     deskPositions,
+    poi: {
+      coffee: coffeePos,
+      whiteboard,
+      door,
+    },
   };
 }
+
+// Suppress unused import warnings — these are re-exported from office-tiles
+// and used indirectly via the catalog. FLOOR_TILES and CUBICLE are available
+// for future use.
+void FLOOR_TILES;
+void CUBICLE;
