@@ -45,6 +45,7 @@ import { updateScore, initialState, type ScoreState } from "./lib/score-state";
 import { AXES, RUBRIC_VERSION } from "./lib/rubric";
 import { notifyHiveServer, type QualityNotification } from "./lib/hive-notify";
 import { computeInterJudgeAgreement } from "./lib/reliability";
+import { updateEvaluatorReliability } from "./lib/evaluator-reliability";
 
 // ---- ANSI colors ----
 const DIM = "\x1b[2m";
@@ -299,6 +300,15 @@ async function main() {
           `    ${axis}: ${scoreStr}${disagreeStr}`,
         );
       }
+
+      // 5h. Update evaluator reliability (compare judge scores to peer eval scores)
+      const judgeScoresMap: Record<string, number | null> = {};
+      for (const axis of AXES) {
+        judgeScoresMap[axis] = evaluation.axes[axis]?.score ?? null;
+      }
+      await updateEvaluatorReliability(artifact.id, judgeScoresMap).catch(err =>
+        console.error(`  ${YELLOW}[reliability] update failed: ${(err as Error).message}${RESET}`)
+      );
 
       successCount++;
     } catch (err) {
