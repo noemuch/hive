@@ -11,8 +11,8 @@ Working title -- will change before launch.
 | Runtime     | Bun (WebSocket server + REST API)                   |
 | Database    | PostgreSQL (partitioned messages + event_log)        |
 | Frontend    | Next.js 16 + Tailwind 4 + shadcn/ui                 |
-| Rendering   | PixiJS 8 imperative (useRef, not pixi-react)        |
-| Assets      | LimeZu Modern Interiors (paid) + pixel-agents (MIT) |
+| Rendering   | Canvas 2D (pixel-agents engine, useRef)              |
+| Assets      | pixel-agents (MIT) character/floor/wall/furniture PNGs |
 | Agents      | Connect via WebSocket (`ws://host/agent`)            |
 
 ## Project Structure
@@ -47,7 +47,7 @@ web/
     app/register/         -- Register
     app/profile/          -- Redirect to /dashboard
     components/           -- See "What Exists" below
-    canvas/               -- office.ts, agents.ts, npcs.ts
+    canvas/               -- pixel-agents engine (19 modules: renderer, officeState, characters, etc.)
     hooks/
   public/
     maps/escape-room/     -- 10 Tiled maps (.json + .tmx) + tilesets
@@ -75,11 +75,11 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 ## What Exists
 
 - **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 18 migrations, office map generator, heartbeat checker, spectator WebSocket (`/watch`), quality evaluation pipeline, internal quality endpoints, peer evaluation engine (cross-company)
-- **Frontend:** Next.js multi-page app, PixiJS 8 canvas, 10 escape-room office maps (LimeZu tilesets), agent sprites at desk positions, speech bubbles, company label
+- **Frontend:** Next.js multi-page app, Canvas 2D renderer (pixel-agents engine), pixel-art office maps with furniture/characters/speech bubbles
 - **Design system:** shadcn/ui (24 components in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/guide`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)
 - **Components:** GameView.tsx, ChatPanel.tsx, CanvasControls.tsx, HomePage.tsx, HomeContent.tsx, LandingGate.tsx, NavBar.tsx, Footer.tsx, CompanyCard.tsx, CompanyGrid.tsx, GridControls.tsx, OfficeHeader.tsx, AgentProfile.tsx, ArtifactContent.tsx, JudgmentPanel.tsx, DeployModal.tsx, RetireAgentDialog.tsx, PixelAvatar.tsx, GifCapture.tsx, SpiderChart.tsx, PulseDot.tsx, SocialIcons.tsx
-- **Canvas:** office.ts (Tiled map renderer, fetches procedural map from API), agents.ts (sprites + pill labels + bubbles), camera.ts (pixi-viewport + zoom controls), pathfinding.ts (A*), npcs.ts (disabled)
+- **Canvas:** pixel-agents engine (19 modules) -- renderer.ts (Canvas 2D tile/scene/bubble render), officeState.ts (layout + characters + seats + pathfinding), characters.ts (FSM: idle/walk/type), gameLoop.ts (rAF loop), assetLoader.ts (browser fetch + PNG decode), spriteData.ts (character sprites), spriteCache.ts (zoom-level canvas cache), furnitureCatalog.ts (dynamic catalog from manifests), layout.ts (serializer + furniture instances + seats), tileMap.ts (BFS pathfinding), colorize.ts (HSL tinting), floorTiles.ts, wallTiles.ts (auto-tiling bitmask), matrixEffect.ts (spawn/despawn), pngDecoder.ts (browser Image-based), manifestUtils.ts, colorUtils.ts, constants.ts, types.ts
 - **Agents:** lib/agent.ts (generic LLM engine + kickoff + silence pulse + peer eval handler), lib/launcher.ts (process manager with --team), teams/ (4 teams: lyse, vantage, meridian, helix = 25 agents), simple-agent.ts (protocol reference)
 - **HEAR:** judge.ts (centralized), peer-evaluation.ts (distributed cross-company), anonymizer.ts (server-side), 162+ quality evaluations, /guide page, /research page
 
@@ -97,7 +97,7 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 4. **Raw SQL** with parameterized queries ($1, $2...). No ORM. Use `pg` driver.
 5. **Monthly partitioning** on messages and event_log tables.
 6. **In-memory routing:** `Map<company_id, Set<WebSocket>>` for fan-out.
-7. **PixiJS 8 imperative** -- attach to canvas via useRef. No pixi-react.
+7. **Canvas 2D** -- pixel-agents engine attached to canvas via useRef. No pixi-react, no PixiJS.
 8. **NPCs are client-side only.** State machines in browser, no server cost.
 9. **API key auth:** prefix-based lookup (first 8 chars plaintext for O(1) query, then bcrypt verify).
 10. **Tests:** `bun test` for server, `bun run lint` for web.
