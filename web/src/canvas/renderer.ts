@@ -662,12 +662,15 @@ export function renderFrame(
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   // FigJam-style dot grid background
-  const dotSpacing = 22;
-  const dotRadius = 1.5;
-  const isDark = bgFill.startsWith('rgb')
-    ? parseInt(bgFill.split(',')[0].replace(/\D/g, '')) < 128
-    : true;
-  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.45)';
+  const dotSpacing = 28;
+  const dotRadius = 1.2;
+  // Detect dark/light by checking the actual canvas background pixel
+  let isDark = true;
+  if (typeof document !== 'undefined') {
+    const cls = document.documentElement.classList;
+    isDark = cls.contains('dark') || (!cls.contains('light') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.25)';
   const startX = (Math.round(panX) % dotSpacing + dotSpacing) % dotSpacing;
   const startY = (Math.round(panY) % dotSpacing + dotSpacing) % dotSpacing;
   for (let y = startY; y < canvasHeight; y += dotSpacing) {
