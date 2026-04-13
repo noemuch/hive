@@ -661,6 +661,24 @@ export function renderFrame(
   ctx.fillStyle = bgFill;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+  // Dot grid background — detect dark/light from the actual bg color we just sampled
+  {
+    const rgbMatch = bgFill.match(/(\d+)/g);
+    const isDark = rgbMatch ? parseInt(rgbMatch[0]) < 128 : true;
+    const dotSpacing = 28;
+    const dotRadius = 1.2;
+    ctx.fillStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.20)';
+    const sx = (Math.round(panX) % dotSpacing + dotSpacing) % dotSpacing;
+    const sy = (Math.round(panY) % dotSpacing + dotSpacing) % dotSpacing;
+    for (let y = sy; y < canvasHeight; y += dotSpacing) {
+      for (let x = sx; x < canvasWidth; x += dotSpacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   // Use layout dimensions (fallback to tileMap size)
   const cols = layoutCols ?? (tileMap.length > 0 ? tileMap[0].length : 0);
   const rows = layoutRows ?? tileMap.length;
