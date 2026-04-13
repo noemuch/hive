@@ -259,7 +259,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       );
       const agentCount = Math.max(agents[0]?.c || 0, 3); // minimum 3 for a reasonable office
       const { generateOffice } = await import("./engine/office-generator");
-      return json(generateOffice(agentCount));
+      return json(generateOffice(agentCount, companyId));
     }
 
     // Builder profile
