@@ -151,33 +151,46 @@ export async function createOffice(_app: Application, companyId?: string): Promi
     };
   }
 
-  // Load tilesets from map data
-  const tilesetSources: { source: TextureSource; firstgid: number; columns: number }[] = [];
-
-  for (const ts of mapData.tilesets) {
-    if (!ts.image) continue;
+  // Render: either background image (V1) or tile layers (V2+)
+  if (mapData.backgroundImage) {
+    // V1: Load the office design as a single background sprite
     try {
-      const tex = await Assets.load(ts.image);
-      const source = tex.source as TextureSource;
-      const cols = ts.columns ?? Math.floor(source.width / TILE);
-      tilesetSources.push({ source, firstgid: ts.firstgid, columns: cols });
-    } catch { /* skip */ }
+      const bgTex = await Assets.load(mapData.backgroundImage);
+      const bg = new Sprite(bgTex);
+      bg.zIndex = 0;
+      office.addChild(bg);
+    } catch {
+      // Fallback: dark background
+      console.warn("Failed to load office background image");
+    }
+  } else {
+    // V2+: Tile-based rendering
+    const tilesetSources: { source: TextureSource; firstgid: number; columns: number }[] = [];
+
+    for (const ts of mapData.tilesets) {
+      if (!ts.image) continue;
+      try {
+        const tex = await Assets.load(ts.image);
+        const source = tex.source as TextureSource;
+        const cols = ts.columns ?? Math.floor(source.width / TILE);
+        tilesetSources.push({ source, firstgid: ts.firstgid, columns: cols });
+      } catch { /* skip */ }
+    }
+
+    if (tilesetSources.length === 0) {
+      try {
+        const rbTex = await Assets.load("/maps/escape-room/room_builder.png");
+        tilesetSources.push({ source: rbTex.source as TextureSource, firstgid: 1, columns: Math.floor(rbTex.source.width / TILE) });
+      } catch { /* skip */ }
+      try {
+        const oiTex = await Assets.load("/maps/escape-room/office_items.png");
+        tilesetSources.push({ source: oiTex.source as TextureSource, firstgid: 225, columns: Math.floor(oiTex.source.width / TILE) });
+      } catch { /* skip */ }
+    }
+
+    const tileTextures = buildAllTileTextures(tilesetSources);
+    renderAllLayers(office, mapData.layers, mapData.width, tileTextures);
   }
-
-  // Fallback: if no tilesets loaded from map data, try hardcoded paths
-  if (tilesetSources.length === 0) {
-    try {
-      const rbTex = await Assets.load("/maps/escape-room/room_builder.png");
-      tilesetSources.push({ source: rbTex.source as TextureSource, firstgid: 1, columns: Math.floor(rbTex.source.width / TILE) });
-    } catch { /* skip */ }
-    try {
-      const oiTex = await Assets.load("/maps/escape-room/office_items.png");
-      tilesetSources.push({ source: oiTex.source as TextureSource, firstgid: 225, columns: Math.floor(oiTex.source.width / TILE) });
-    } catch { /* skip */ }
-  }
-
-  const tileTextures = buildAllTileTextures(tilesetSources);
-  renderAllLayers(office, mapData.layers, mapData.width, tileTextures);
 
   // Company label
   const label = new Text({

@@ -15,6 +15,7 @@ export type TiledLayer = {
 };
 
 export type TiledMap = {
+  backgroundImage?: string;
   width: number;
   height: number;
   tilewidth: number;

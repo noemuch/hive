@@ -1,108 +1,162 @@
 // server/src/engine/office-generator.ts
 
 /**
- * Office generator V2 — template gallery + detail randomizer.
- * Each company gets a unique, deterministic office layout.
+ * Office generator — V1 image-based.
+ * Serves the LimeZu Office Design 2 as a background image
+ * with manually mapped desk positions, POI, and collision data.
+ *
+ * The PNG is purely visual. All game logic (pathfinding, agent
+ * placement, collisions) comes from the metadata in this file.
  */
 
-import { hashString, createRng, pick } from "./seeded-random";
-import { DESK_ITEMS, CLUTTER } from "./office-tiles";
-import {
-  type TemplateOutput, TEMPLATES,
-  buildSmallA, buildMediumA, buildMediumB, buildLargeA, buildLargeB,
-} from "./office-templates";
+// ── Types ──────────────────────────────────────────────────────────────
 
-export type { TemplateOutput as GeneratedOffice };
-
-// ── Template selection ─────────────────────────────────────────────────
-
-function selectTemplate(agentCount: number, rng: () => number): (rng: () => number, n: number) => TemplateOutput {
-  if (agentCount <= 3) return buildSmallA;
-  if (agentCount <= 6) return rng() < 0.5 ? buildMediumA : buildMediumB;
-  return rng() < 0.5 ? buildLargeA : buildLargeB;
+interface CollisionObject {
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
-// ── Detail randomizer ──────────────────────────────────────────────────
-
-function randomizeDetails(office: TemplateOutput, rng: () => number): TemplateOutput {
-  const furnitureLayer = office.layers.find(l => l.name === "furniture");
-  if (!furnitureLayer?.data) return office;
-  const data = furnitureLayer.data;
-  const w = office.width;
-
-  // Scatter desk accessories near desk positions
-  const accessoryPool = [
-    DESK_ITEMS.KEYBOARD, DESK_ITEMS.PAPERS_A, DESK_ITEMS.PAPERS_B,
-    DESK_ITEMS.MUG, DESK_ITEMS.LAMP, DESK_ITEMS.PHONE,
-    ...CLUTTER.slice(0, 6),
-  ];
-
-  for (const desk of office.deskPositions) {
-    // Try to place 1-2 accessories adjacent to each desk
-    const spots = [
-      { x: desk.x - 1, y: desk.y },
-      { x: desk.x + 1, y: desk.y },
-      { x: desk.x, y: desk.y - 1 },
-    ];
-    for (const spot of spots) {
-      if (rng() < 0.3) continue; // 70% chance to place
-      const idx = spot.y * w + spot.x;
-      if (idx >= 0 && idx < data.length && data[idx] === 0) {
-        data[idx] = pick(rng, accessoryPool);
-      }
-    }
-  }
-
-  // Mirror horizontally with 50% chance
-  if (rng() < 0.5) {
-    mirrorOffice(office);
-  }
-
-  return office;
+export interface GeneratedOffice {
+  backgroundImage: string;
+  width: number;
+  height: number;
+  tilewidth: 16;
+  tileheight: 16;
+  layers: {
+    name: string;
+    type: "tilelayer" | "objectgroup";
+    data?: number[];
+    objects?: CollisionObject[];
+    width?: number;
+    height?: number;
+    visible: boolean;
+    opacity: number;
+  }[];
+  tilesets: never[];
+  deskPositions: { x: number; y: number }[];
+  poi: {
+    coffee: { x: number; y: number } | null;
+    whiteboard: { x: number; y: number };
+    door: { x: number; y: number };
+  };
 }
 
-/** Mirror the entire office horizontally. */
-function mirrorOffice(office: TemplateOutput): void {
-  const w = office.width;
-  for (const layer of office.layers) {
-    if (layer.type !== "tilelayer" || !layer.data) continue;
-    const data = layer.data;
-    for (let y = 0; y < office.height; y++) {
-      const row = data.slice(y * w, (y + 1) * w);
-      row.reverse();
-      for (let x = 0; x < w; x++) {
-        data[y * w + x] = row[x];
-      }
-    }
-  }
-  // Mirror collision objects
-  const collLayer = office.layers.find(l => l.type === "objectgroup");
-  if (collLayer?.objects) {
-    for (const obj of collLayer.objects) {
-      obj.x = (w * 16) - obj.x - obj.width;
-    }
-  }
-  // Mirror desk positions and POI
-  for (const desk of office.deskPositions) {
-    desk.x = w - 1 - desk.x;
-  }
-  if (office.poi.coffee) office.poi.coffee.x = w - 1 - office.poi.coffee.x;
-  office.poi.whiteboard.x = w - 1 - office.poi.whiteboard.x;
-  office.poi.door.x = w - 1 - office.poi.door.x;
+// ── Office Design 2 layout data ────────────────────────────────────────
+// Mapped from /6_Office_Designs/Office_Design_2.gif (32x34 tiles)
+//
+// Layout:
+//   Top section (rows 0-17): Open office with 2 double-rows of cubicle desks
+//     - Row 1 top: 4 desks facing away (y≈5-6), chairs at y≈4
+//     - Row 1 bot: 4 desks facing toward (y≈8-9), chairs at y≈10
+//     - Row 2 top: 4 desks facing away (y≈12-13), chairs at y≈11
+//     - Row 2 bot: 4 desks facing toward (y≈14-15), chairs at y≈16
+//   Internal wall at rows 18-19
+//   Bottom section (rows 19-33): Break area + 2 small offices
+//     - Bottom-left: manager office with desk
+//     - Bottom-center: break area (plants, water cooler, table)
+//     - Bottom-right: small office with desk
+
+const T = 16; // tile size in pixels
+
+/** Chair positions where agents sit (tile coordinates). */
+const DESK_POSITIONS = [
+  // Top cubicle row 1 — front-facing chairs (below desks)
+  { x: 4, y: 10 },
+  { x: 8, y: 10 },
+  { x: 19, y: 10 },
+  { x: 23, y: 10 },
+  // Top cubicle row 2 — front-facing chairs
+  { x: 4, y: 16 },
+  { x: 8, y: 16 },
+  { x: 19, y: 16 },
+  { x: 23, y: 16 },
+  // Bottom-left office
+  { x: 6, y: 27 },
+  // Bottom-right office
+  { x: 25, y: 27 },
+];
+
+const POI = {
+  coffee: { x: 16, y: 25 },
+  whiteboard: { x: 15, y: 2 },
+  door: { x: 16, y: 33 },
+};
+
+/** Collision rectangles (pixel coordinates). Blocks agent movement. */
+const COLLISIONS: CollisionObject[] = [
+  // ── Perimeter walls ──
+  { name: "top_wall", type: "", x: 0, y: 0, width: 32 * T, height: 4 * T },
+  { name: "bottom_wall", type: "", x: 0, y: 33 * T, width: 32 * T, height: 1 * T },
+  { name: "left_wall", type: "", x: 0, y: 0, width: 1 * T, height: 34 * T },
+  { name: "right_wall", type: "", x: 31 * T, y: 0, width: 1 * T, height: 34 * T },
+
+  // ── Internal horizontal wall (separating open office from bottom section) ──
+  { name: "internal_wall", type: "", x: 0, y: 18 * T, width: 9 * T, height: 2 * T },
+  { name: "internal_wall_r", type: "", x: 0, y: 18 * T, width: 1 * T, height: 16 * T },
+
+  // ── Top section: cubicle desk rows ──
+  // Row 1 desks (back-facing): desk surfaces + cubicle partitions
+  { name: "desk_r1_left", type: "", x: 2 * T, y: 5 * T, width: 7 * T, height: 4 * T },
+  { name: "desk_r1_right", type: "", x: 16 * T, y: 5 * T, width: 9 * T, height: 4 * T },
+  // Row 2 desks (front-facing)
+  { name: "desk_r2_left", type: "", x: 2 * T, y: 11 * T, width: 7 * T, height: 4 * T },
+  { name: "desk_r2_right", type: "", x: 16 * T, y: 11 * T, width: 9 * T, height: 4 * T },
+
+  // ── Right-side furniture (printers, filing) ──
+  { name: "printer_area", type: "", x: 27 * T, y: 4 * T, width: 4 * T, height: 3 * T },
+  { name: "plants_right", type: "", x: 29 * T, y: 9 * T, width: 2 * T, height: 2 * T },
+  { name: "plants_right2", type: "", x: 29 * T, y: 15 * T, width: 2 * T, height: 2 * T },
+
+  // ── Bottom-left: manager office ──
+  { name: "mgr_desk", type: "", x: 3 * T, y: 24 * T, width: 5 * T, height: 3 * T },
+  { name: "mgr_filing", type: "", x: 2 * T, y: 22 * T, width: 3 * T, height: 2 * T },
+
+  // ── Bottom-center: break area ──
+  { name: "break_table", type: "", x: 13 * T, y: 24 * T, width: 4 * T, height: 3 * T },
+  { name: "break_cooler", type: "", x: 16 * T, y: 21 * T, width: 2 * T, height: 2 * T },
+  { name: "break_plant", type: "", x: 12 * T, y: 22 * T, width: 2 * T, height: 3 * T },
+
+  // ── Bottom-right: small office ──
+  { name: "office_desk", type: "", x: 22 * T, y: 24 * T, width: 5 * T, height: 3 * T },
+  { name: "office_shelf", type: "", x: 27 * T, y: 22 * T, width: 3 * T, height: 2 * T },
+
+  // ── Bottom wall plants ──
+  { name: "plant_bl", type: "", x: 1 * T, y: 31 * T, width: 2 * T, height: 2 * T },
+  { name: "plant_br", type: "", x: 29 * T, y: 31 * T, width: 2 * T, height: 2 * T },
+
+  // ── Void area (outside office, bottom-left L-shape) ──
+  { name: "void_bl", type: "", x: 0, y: 19 * T, width: 9 * T, height: 1 * T },
+];
+
+// ── Generator ──────────────────────────────────────────────────────────
+
+/** Generate the office map for a company. V1: single image-based design. */
+export function generateOffice(agentCount: number, _companyId?: string): GeneratedOffice {
+  // V1: every company gets the same beautiful LimeZu office
+  // Desk positions are trimmed to agent count
+  const desks = DESK_POSITIONS.slice(0, Math.max(agentCount, 2));
+
+  return {
+    backgroundImage: "/maps/office-v1.png",
+    width: 32,
+    height: 34,
+    tilewidth: 16,
+    tileheight: 16,
+    layers: [
+      {
+        name: "Collisions",
+        type: "objectgroup",
+        objects: COLLISIONS,
+        visible: true,
+        opacity: 1,
+      },
+    ],
+    tilesets: [] as never[],
+    deskPositions: desks,
+    poi: POI,
+  };
 }
-
-// ── Main entry point ───────────────────────────────────────────────────
-
-/** Generate a unique, deterministic office for a company. */
-export function generateOffice(agentCount: number, companyId?: string): TemplateOutput {
-  const seed = companyId ? hashString(companyId) : 42;
-  const rng = createRng(seed);
-
-  const templateFn = selectTemplate(agentCount, rng);
-  const office = templateFn(rng, agentCount);
-
-  return randomizeDetails(office, rng);
-}
-
-// Suppress unused import warning — TEMPLATES is available for external callers
-void TEMPLATES;
