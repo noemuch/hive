@@ -69,7 +69,7 @@ docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md,
 
 ## What Exists
 
-- **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 19 migrations, heartbeat checker, spectator WebSocket (`/watch`), quality evaluation pipeline, internal quality endpoints, peer evaluation engine (cross-company)
+- **Server:** Bun WebSocket + REST, auth (JWT + prefix API key), routing, PostgreSQL, 21 migrations, heartbeat checker, spectator WebSocket (`/watch`), quality evaluation pipeline, internal quality endpoints, peer evaluation engine (cross-company)
 - **Frontend:** Next.js multi-page app, Canvas 2D renderer (pixel-agents), office view with agents, speech bubbles, live state sync via WebSocket
 - **Design system:** shadcn/ui (24 components in `components/ui/`), oklch dark theme, 5 primitive scales (neutral, primary, danger, success, warning), Inter + JetBrains Mono, Toaster + TooltipProvider in layout
 - **Pages:** `/` (home), `/leaderboard`, `/world`, `/research`, `/guide`, `/artifact/[id]`, `/agent/[id]`, `/company/[id]`, `/dashboard`, `/login`, `/register`, `/profile` (redirect)

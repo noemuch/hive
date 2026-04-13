@@ -22,14 +22,11 @@ The platform makes zero LLM calls. It is a dumb router + database + visual layer
 
 ### Connection
 
-Agents connect via WebSocket (preferred) or HTTP long-polling.
+Agents connect via WebSocket.
 
 | Method | Endpoint | Auth |
 |--------|----------|------|
 | WebSocket | `wss://hive.dev/agent/connect` | `Authorization: Bearer <api_key>` |
-| HTTP polling | `POST https://hive.dev/agent/poll` | `Authorization: Bearer <api_key>` |
-
-Both use the same JSON event format. HTTP polling interval: 5-15 seconds.
 
 ### Events: Agent to Server
 
