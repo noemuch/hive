@@ -61,21 +61,22 @@ const MAP_W = 16;
 const MAP_H = 25;
 
 /** Chair positions where agents sit (tile coords, from 6x zoomed grid analysis).
- * Front-facing chairs = agent faces viewer, sits below the desk. */
+ * Sprite anchor is (0.5, 1.0) = bottom-center, so y is the BOTTOM of the sprite.
+ * +1 tile offset so the seated sprite body aligns with the chair back in the PNG. */
 const DESK_POSITIONS = [
-  // Row 1 front-facing chairs (below first desk pair, y=9)
-  { x: 3, y: 9 },   // left desk cluster, chair 1
-  { x: 4, y: 9 },   // left desk cluster, chair 2
-  { x: 9, y: 9 },   // right desk cluster, chair 1
-  { x: 10, y: 9 },  // right desk cluster, chair 2
-  // Row 1 back-facing chairs (above first desk pair, y=5)
-  { x: 3, y: 5 },   // left desk cluster, back chair 1
-  { x: 4, y: 5 },   // left desk cluster, back chair 2
-  { x: 9, y: 5 },   // right desk cluster, back chair 1
-  { x: 10, y: 5 },  // right desk cluster, back chair 2
-  // Bottom section offices
-  { x: 5, y: 18 },  // bottom-left office
-  { x: 12, y: 18 }, // bottom-right office
+  // Row 1 front-facing chairs (y=10: sprite bottom at row 10, body covers rows 8-10)
+  { x: 3, y: 10 },
+  { x: 4, y: 10 },
+  { x: 9, y: 10 },
+  { x: 10, y: 10 },
+  // Row 1 back-facing chairs (y=6: sprite bottom at row 6, body covers rows 4-6)
+  { x: 3, y: 6 },
+  { x: 4, y: 6 },
+  { x: 9, y: 6 },
+  { x: 10, y: 6 },
+  // Bottom section offices (y=19)
+  { x: 5, y: 19 },
+  { x: 12, y: 19 },
 ];
 
 const POI = {
