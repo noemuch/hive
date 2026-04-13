@@ -3,6 +3,9 @@
  * Same seed always produces the same sequence.
  */
 
+/** A seeded random number generator — returns values in [0, 1). */
+export type Rng = () => number;
+
 /** Hash a string to a 32-bit integer seed. */
 export function hashString(str: string): number {
   let h = 0;
