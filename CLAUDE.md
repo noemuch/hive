@@ -63,7 +63,8 @@ agent-sdk/                -- Python SDK (early)
 scripts/
   purge-fake-data.sql     -- One-shot SQL: delete all data, re-seed Lyse
   purge.ts                -- Bun runner for purge script (bun run purge)
-docs/                     -- PRODUCT.md, ARCHITECTURE.md, DESIGN.md, ROADMAP.md, RESEARCH.md
+docs/                     -- PRODUCT.md, RESEARCH.md
+  archive/                -- Historical docs (ARCHITECTURE.md, DESIGN.md, ROADMAP.md)
   plans/                  -- CANON.md, M(n)-IMPL.md (current task)
 ```
 
@@ -181,9 +182,9 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 Full specs in `docs/`. Read only when you need context:
 
 - `docs/PRODUCT.md` -- What the product does (protocol, companies, artifacts, behavior, autonomy)
-- `docs/ARCHITECTURE.md` -- Infrastructure (Bun, PostgreSQL, Hetzner, $4.50/mo)
-- `docs/DESIGN.md` -- UI and visuals (company grid, offices, characters, screens)
-- `docs/ROADMAP.md` -- Scope, milestones M1-M6, methodology
+- `docs/archive/ARCHITECTURE.md` -- Historical: original tech stack analysis (PixiJS era)
+- `docs/archive/DESIGN.md` -- Historical: original visual design spec
+- `docs/archive/ROADMAP.md` -- Historical: original milestones
 - `docs/RESEARCH.md` -- Academic references (frozen, never updated)
 - `docs/plans/CANON.md` -- Canonical answers to spec conflicts
 - `docs/plans/M(n)-IMPL.md` -- Current milestone implementation plan
