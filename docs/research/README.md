@@ -2,34 +2,69 @@
 
 A calibrated, multi-dimensional evaluation framework for LLM agents in collaborative environments.
 
-This directory contains the scientific foundation, methodology, and operational protocol for HEAR — the qualitative evaluation system that complements Hive's existing deterministic reputation engine.
+## Validation Results (V1)
+
+Two independent graders (structural reader + skeptical reader) evaluated 50 calibration items across 7 axes:
+
+| Axis | Cohen's κ | Pearson r | ICC | Mean Abs Diff |
+|------|-----------|-----------|-----|---------------|
+| Reasoning Depth | 0.848 | 0.953 | 0.909 | 1.02 |
+| Decision Wisdom | 0.814 | 0.955 | 0.897 | 1.06 |
+| Communication Clarity | 0.870 | 0.964 | 0.935 | 1.04 |
+| Initiative Quality | N/A | N/A | N/A | N/A |
+| Collaborative Intelligence | 0.783 | 0.962 | 0.910 | 1.24 |
+| Self-Awareness & Calibration | 0.746 | 0.946 | 0.884 | 1.58 |
+| Contextual Judgment | 0.814 | 0.907 | 0.888 | 1.00 |
+
+**Interpretation:** κ > 0.8 = excellent, 0.6–0.8 = substantial. All 6 active axes exceed the pre-registered success threshold of κ ≥ 0.6. Initiative Quality requires behavioral windows (longitudinal data) and is expected to be N/A on single-artifact evaluation.
+
+[Full inter-rater report →](calibration/analysis/v1-inter-rater.md)
 
 ## Documents
 
 | File | Audience | Purpose |
-|---|---|---|
-| [overview.md](./HEAR-overview.md) | Anyone | Strategic vision, gap addressed, deliverables |
-| [theoretical-framework.md](./HEAR-theoretical-framework.md) | Researchers, reviewers | Scientific grounding of the 7 V1 axes (8 total, Persona Coherence V2) from 6 disciplines |
-| [rubric.md](./HEAR-rubric.md) | Graders, judge prompt designers | Operational definitions and behavioral anchors for each axis |
-| [methodology.md](./HEAR-methodology.md) | Engineers, reviewers | The full evaluation protocol (sampling, blinding, multi-judge, IRT, adversarial) |
-| [architecture.md](./HEAR-architecture.md) | Implementers | Technical architecture, components, data flow, deployment |
-| [roadmap.md](./HEAR-roadmap.md) | Project | 13 epics, ~98 issues, dependencies, sequencing |
+|------|----------|---------|
+| [HEAR-overview.md](HEAR-overview.md) | Anyone | Strategic vision, gap addressed |
+| [HEAR-theoretical-framework.md](HEAR-theoretical-framework.md) | Researchers | 7 axes derived from 6 scientific frameworks |
+| [HEAR-rubric.md](HEAR-rubric.md) | Graders | Behavioral anchors (BARS) for each axis |
+| [HEAR-methodology.md](HEAR-methodology.md) | Engineers | Evaluation protocol: sampling, blinding, multi-judge, IRT, adversarial |
+| [HEAR-architecture.md](HEAR-architecture.md) | Implementers | Technical system design |
+| [HEAR-roadmap.md](HEAR-roadmap.md) | Project | Epics, issues, sequencing |
 
-## Quick reference
+## Calibration Data
 
-- **7 qualitative axes in V1** (8 total — Persona Coherence deferred to V2, requires longitudinal pipeline) complement the existing 8 quantitative axes (Hive Observer)
-- **Multi-judge LLM evaluation** with double-blinding, absolute scoring (1-10 scale), running average with uncertainty tracking
-- **Multi-rater human calibration set** (~100 items, multiple expert graders)
-- **Statistical validity battery**: factor analysis, IRT (Rasch/2PL), construct validity, test-retest reliability
-- **Adversarial robustness suite**: 7 attacks (verbosity, position, style, distractor, paraphrase, self-preference, re-identification); 5 of 7 in V1
-- **Open methodology**: paper, dataset, prompts, code all published
+All calibration materials are open source:
 
-## Status
+- [50 calibration items](calibration/items/) — synthetic artifacts covering 6 types × diverse quality levels
+- [Grading protocol](calibration/grading-protocol.md) — psychometric SOP (fatigue limits, anti-bias rules)
+- [Grader prompt](calibration/grader-prompt-opus.md) — exact prompt template (v1.0)
+- [Pre-registration](calibration/pre-registration.md) — binding hypotheses and success criteria
+- [Grader A scores](calibration/grades/grader-a.json) — structural reader (Opus)
+- [Grader B scores](calibration/grades/grader-b.json) — skeptical reader (Opus, independent)
+- [Agreement analysis](calibration/analysis/v1-inter-rater.md) — κ, ICC, Pearson r per axis
 
-V1 implementation in progress. See [roadmap.md](./HEAR-roadmap.md) for current state.
+## Adversarial Robustness
+
+6 attacks tested against the judge ([`scripts/hear/adversarial.ts`](../../scripts/hear/adversarial.ts)):
+
+1. **Verbosity** — filler sentences (threshold: Δ ≤ 1.5)
+2. **Position** — content reordering (threshold: Δ ≤ 1.0)
+3. **Distractor** — irrelevant high-sounding paragraph (threshold: Δ ≤ 1.5)
+4. **Paraphrase** — mechanical synonym substitution (threshold: Δ ≤ 1.5)
+5. **Re-identification** — identity hints injected (threshold: Δ ≤ 0.5)
+6. **Contamination** — canary GUID detection (threshold: 0, zero tolerance)
+
+## Anti-Contamination
+
+52 evaluation documents contain [canary watermarks](calibration/canary-manifest.json). If a GUID appears in any model output, it proves training data contamination.
+
+## Known Limitations (V1)
+
+- Two graders are both Opus instances (shared model biases possible). V2 adds human grader + second model family.
+- Calibration items are synthetic. V2 adds real agent-produced artifacts.
+- Initiative Quality and Persona Coherence require longitudinal data (deferred to V2).
+- Blinding is token-level only (writing style not scrubbed).
 
 ## Citation
 
-When citing HEAR in academic or technical work:
-
-> Chagué, N. et al. (2026). HEAR: A Calibrated Multi-Dimensional Evaluation Framework for LLM Agents in Collaborative Environments. *Hive Research*. https://github.com/noemuch/hive
+> Chagué, N. (2026). HEAR: A Calibrated Multi-Dimensional Evaluation Framework for LLM Agents in Collaborative Environments. https://github.com/noemuch/hive
