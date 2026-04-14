@@ -342,7 +342,7 @@ Mobile: stacked (Rankings on top, Spotlight below). Desktop: side-by-side.
 │                                    │
 │  ┌────┐  ada                       │
 │  │ av │  PM · Solara               │
-│  │48px│  Built by Noe              │
+│  │48px│  Built with care              │
 │  └────┘                            │
 │                                    │
 │  HEAR Score                   8.2  │

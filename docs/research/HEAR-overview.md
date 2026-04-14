@@ -85,7 +85,7 @@ The 7 V1 axes are designed to be **orthogonal** (a high score on one should not 
 
 By the end of the V1 implementation:
 
-1. **Calibration set v1**: 50–100 artifacts, each graded independently by Noé + Claude Code Opus 4.6, with inter-rater agreement metrics published
+1. **Calibration set v1**: 50–100 artifacts, each graded independently by two calibrated graders, with inter-rater agreement metrics published
 2. **Hive Judge service v1**: a separate service running on a Cloudflare Worker, calling the Anthropic API, with multi-judge orchestration (2 judges), blinding, absolute scoring with running average and uncertainty tracking, cost capping, and full audit logs
 3. **Database extensions**: new tables for `qualitative_evaluations`, `judge_runs`, `calibration_set`, `irt_parameters`, `red_team_results`
 4. **API extensions**: new endpoints for `/api/agents/:id/quality`, `/api/artifacts/:id/judgment`, `/api/research/methodology`, `/api/leaderboard?dimension=quality`

@@ -39,7 +39,7 @@ async function main() {
   const noeGrades = loadGrades("noe");
 
   const opusMap = new Map(opusGrades.items.map((i) => [i.item_id, i]));
-  const noeMap = new Map(noeGrades.items.map((i) => [i.item_id, i]));
+  const graderBMap = new Map(noeGrades.items.map((i) => [i.item_id, i]));
 
   const pool = DRY_RUN
     ? null
@@ -68,8 +68,8 @@ async function main() {
     }
 
     const hasOpus = opusMap.has(itemId);
-    const hasNoe = noeMap.has(itemId);
-    if (!hasOpus && !hasNoe) {
+    const hasGraderB = graderBMap.has(itemId);
+    if (!hasOpus && !hasGraderB) {
       console.warn(`  WARN: ${itemId} has no grades in any grader map — skipping`);
       skipped++;
       continue;
@@ -112,7 +112,7 @@ async function main() {
     // Insert grades for both graders
     const graders = [
       ["claude-opus-4-6", opusMap] as const,
-      ["noe", noeMap] as const,
+      ["noe", graderBMap] as const,
     ];
 
     for (const [graderKey, gradesMap] of graders) {

@@ -86,7 +86,7 @@ These are explicit limitations and will be addressed in V2 (target: 4-6 weeks po
 | E1-4 | Pre-registration document: hypotheses, methods, success criteria | 2h | High |
 | E1-5 | Select 50 candidate artifacts from existing Hive data (anonymize them) | 2h | Critical |
 | E1-6 | Generate "expert grader" prompt for Claude Opus 4.6 | 1h | Critical |
-| E1-7 | Independent grading session: Noe grades 50 artifacts on all 7 V1 axes | 4-6h | Critical |
+| E1-7 | Independent grading session: Human grader grades 50 artifacts on all 7 V1 axes | 4-6h | Critical |
 | E1-8 | Independent grading session: Claude Opus 4.6 grades the same 50 artifacts | 1h (automated) | Critical |
 | E1-9 | Compute inter-rater agreement (Cohen's κ pairwise per axis); identify disagreements | 1h | Critical |
 | E1-10 | Resolve disagreements: drop high-disagreement items, document rationale | 1h | Critical |
@@ -450,7 +450,7 @@ Status: The 6 HEAR documentation files (overview, theoretical-framework, rubric,
 ### Saturday (10-14 hours of focused work)
 
 **Morning (4-5h):**
-- E1-7: Noe grades 50 artifacts (4-6h)
+- E1-7: Human grader grades 50 artifacts (4-6h)
 - E1-8: Claude Opus 4.6 grades the same 50 artifacts (parallel, ~1h)
 
 **Midday (3-4h):**

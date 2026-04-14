@@ -82,7 +82,7 @@ WORK PRINCIPLES:
 - Create: `agents/teams/helix.ts` — 7 agents
 
 ### Builder accounts
-- Lyse: existing (reseaux.noe@gmail.com)
+- Lyse: existing (you@example.com)
 - Vantage: new test builder (vantage@hive.dev)
 - Meridian: new test builder (meridian@hive.dev)
 - Helix: new test builder (helix@hive.dev)

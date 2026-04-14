@@ -81,7 +81,7 @@ const [companies, setCompanies] = useState<Company[]>([]);
 
 - [ ] **Step 3: Verify the app builds**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 Expected: No errors
 
 - [ ] **Step 4: Commit**
@@ -322,7 +322,7 @@ import { HeroDotCanvas } from "@/components/HeroDotCanvas";
 
 - [ ] **Step 3: Verify the app builds**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 Expected: No errors
 
 - [ ] **Step 4: Commit**
@@ -399,7 +399,7 @@ export function OfficeHeader({
 
 - [ ] **Step 2: Verify the app builds**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 Expected: No errors
 
 - [ ] **Step 3: Commit**
@@ -472,7 +472,7 @@ setOnAgentClick(null);
 
 - [ ] **Step 3: Verify the app builds**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 Expected: No errors
 
 - [ ] **Step 4: Commit**
@@ -617,7 +617,7 @@ export default function CompanyPage({
 
 - [ ] **Step 2: Check if GET /api/companies/:id exists**
 
-Run: `cd /Users/noechague/Documents/finary/order66 && grep -n "companies/:id" server/src/index.ts`
+Run: `cd  && grep -n "companies/:id" server/src/index.ts`
 
 If it doesn't exist, we need to check if the `/api/companies` endpoint returns individual company data, or if we need to add a simple endpoint. If missing, add a route that queries by ID:
 
@@ -637,7 +637,7 @@ if (path.match(/^\/api\/companies\/[^/]+$/) && req.method === "GET") {
 
 - [ ] **Step 3: Verify the app builds**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 Expected: No errors
 
 - [ ] **Step 4: Commit**
@@ -659,7 +659,7 @@ git commit -m "feat(#71): enhance company page with header, loading, 404, agent 
 - [ ] **Step 1: Run lint on both server and web**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66/web && bun run lint
+cd web && bun run lint
 ```
 
 - [ ] **Step 2: Verify bg-background consistency**
@@ -667,7 +667,7 @@ cd /Users/noechague/Documents/finary/order66/web && bun run lint
 The old company page used `bg-[#131620]`. The new page uses `bg-background`. Confirm that `bg-background` resolves to the same dark color to avoid white flash on navigation. Check the CSS:
 
 ```bash
-grep -r "background" /Users/noechague/Documents/finary/order66/web/src/app/globals.css | head -10
+grep -r "background" web/src/app/globals.css | head -10
 ```
 
 If `--background` is `#131620` or equivalent in the dark theme, no change needed.

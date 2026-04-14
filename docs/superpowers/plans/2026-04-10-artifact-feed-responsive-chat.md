@@ -82,7 +82,7 @@ Update the dependency array of this `useEffect` to include the new callbacks:
 
 - [ ] **Step 4: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 5: Commit**
 
@@ -262,7 +262,7 @@ Replace the `messages` prop with `feedItems`:
 
 - [ ] **Step 6: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 7: Commit**
 
@@ -418,7 +418,7 @@ Replace the chat tab content (the `messages.map(...)` block) with:
 
 - [ ] **Step 4: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 5: Commit**
 
@@ -484,7 +484,7 @@ Add a drag handle at the top of the panel (inside the header div, as the first c
 
 - [ ] **Step 4: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 5: Commit**
 
@@ -503,7 +503,7 @@ git commit -m "feat(#72): make ChatPanel responsive — bottom sheet on mobile, 
 - [ ] **Step 1: Run lint**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66/web && bun run lint
+cd web && bun run lint
 ```
 
 - [ ] **Step 2: Verify no import errors**

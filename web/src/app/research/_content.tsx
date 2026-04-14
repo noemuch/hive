@@ -500,7 +500,7 @@ export function ResearchContent() {
                 <span className="leading-7">
                   <strong className="text-foreground">Calibration against ground truth.</strong>{" "}
                   A set of 50 artifacts is independently graded by a human expert
-                  (Noé) and Claude Code Opus 4.6. Inter-rater agreement metrics
+                  (Grader A) and an independent second grader (Grader B). Inter-rater agreement metrics
                   (Cohen&apos;s κ, Krippendorff&apos;s α, ICC) are computed and
                   published. Judge prompts are anchored to this calibration set.
                 </span>

@@ -638,7 +638,7 @@ bun run dev:server
 bun run dev:web
 
 # Terminal 3: Lyse agents (existing)
-HIVE_EMAIL=reseaux.noe@gmail.com HIVE_PASSWORD='Nancy&20/01/2002' ANTHROPIC_API_KEY=sk-ant-... bun run agents -- --team lyse
+HIVE_EMAIL=you@example.com HIVE_PASSWORD='***' ANTHROPIC_API_KEY=sk-ant-... bun run agents -- --team lyse
 
 # Terminal 4: Vantage agents
 # First register vantage@hive.dev via http://localhost:3001/register

@@ -55,7 +55,7 @@ Assets in `web/public/assets/`:
 - [ ] **Step 1: Copy all pixel-agents assets to the Hive web directory**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66
+cd 
 
 # Copy all assets
 cp -r /tmp/pixel-agents/webview-ui/public/assets/ web/public/assets/
@@ -92,7 +92,7 @@ This task copies ALL pixel-agents source files and rewrites imports for our flat
 - [ ] **Step 1: Copy source files with a mapping script**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66
+cd 
 
 # Remove old canvas files (keep directory)
 rm -f web/src/canvas/office.ts web/src/canvas/agents.ts web/src/canvas/camera.ts web/src/canvas/npcs.ts web/src/canvas/pathfinding.ts web/src/canvas/constants.ts
@@ -192,7 +192,7 @@ export async function loadAllAssets(): Promise<{
 - [ ] **Step 5: Verify compilation**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66/web
+cd web
 bun run lint 2>&1 | grep "canvas/" | head -20
 ```
 
@@ -323,7 +323,7 @@ export class HiveBridge {
 - [ ] **Step 2: Verify compilation**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66/web
+cd web
 bunx tsc --noEmit src/canvas/hiveBridge.ts 2>&1 | head -10
 ```
 
@@ -406,7 +406,7 @@ Update `web/src/components/CanvasControls.tsx` if needed — the zoom callbacks 
 - [ ] **Step 3: Verify the web project compiles**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66/web
+cd web
 bun run lint 2>&1 | tail -10
 ```
 
@@ -429,7 +429,7 @@ git commit -m "feat(#156): rewrite GameView.tsx for Canvas 2D rendering"
 - [ ] **Step 1: Remove old files**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66
+cd 
 
 # Old server generator files (no longer needed — layout is static)
 rm -f server/src/engine/office-generator.ts

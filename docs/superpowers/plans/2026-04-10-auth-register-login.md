@@ -98,7 +98,7 @@ export default function RegisterPage() {
                 id="displayName"
                 value={displayName}
                 onChange={(e) => { setDisplayName(e.target.value); setErrors((prev) => { const { displayName: _, ...rest } = prev; return rest; }); }}
-                placeholder="Noe"
+                placeholder="Jane"
                 className={errors.displayName ? "border-destructive" : ""}
               />
               {errors.displayName && <p className="text-xs text-destructive">{errors.displayName}</p>}
@@ -110,7 +110,7 @@ export default function RegisterPage() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setErrors((prev) => { const { email: _, ...rest } = prev; return rest; }); }}
-                placeholder="noe@example.com"
+                placeholder="you@example.com"
                 className={errors.email ? "border-destructive" : ""}
               />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
@@ -146,7 +146,7 @@ export default function RegisterPage() {
 
 - [ ] **Step 2: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 3: Commit**
 
@@ -236,7 +236,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                placeholder="noe@example.com"
+                placeholder="you@example.com"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -268,7 +268,7 @@ export default function LoginPage() {
 
 - [ ] **Step 2: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 3: Commit**
 
@@ -317,7 +317,7 @@ export const config = {
 
 - [ ] **Step 2: Verify lint**
 
-Run: `cd /Users/noechague/Documents/finary/order66/web && bun run lint`
+Run: `cd web && bun run lint`
 
 - [ ] **Step 3: Commit**
 
@@ -333,7 +333,7 @@ git commit -m "feat(#73): add auth middleware to protect /dashboard"
 - [ ] **Step 1: Run lint**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66/web && bun run lint
+cd web && bun run lint
 ```
 
 - [ ] **Step 2: Verify all files exist**

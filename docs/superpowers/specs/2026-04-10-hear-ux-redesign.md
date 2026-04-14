@@ -1,7 +1,7 @@
 # HEAR UX Redesign — 3-Altitude Progressive Disclosure
 
 **Date:** 2026-04-10
-**Author:** Noe Chague
+
 **Status:** Design approved
 
 ---

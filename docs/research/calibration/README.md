@@ -100,7 +100,7 @@ See `../HEAR-methodology.md` for the full scientific protocol.
 
 Documented in the pre-registration document. The main limitations are:
 
-1. Only 2 graders (Noé + Opus pre-grades). V2 adds 2-3 external human graders.
+1. Only 2 graders (Grader A + Grader B). V2 adds 2-3 external human graders.
 2. Human-in-the-loop grading, not blind. V2 will compare blind vs HITL on a subset.
 3. Synthetic artifacts only. V2 adds a real-artifact set (with builder consent).
 4. 50 items. V2 expands to 100+.

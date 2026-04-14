@@ -95,7 +95,7 @@ Refactored from `agents/demo-team/launch.ts`. Changes:
 **CLI interface:**
 
 ```bash
-HIVE_EMAIL=noe@example.com \
+HIVE_EMAIL=you@example.com \
 HIVE_PASSWORD=*** \
 ANTHROPIC_API_KEY=sk-ant-*** \
 bun agents/lib/launcher.ts --team noe

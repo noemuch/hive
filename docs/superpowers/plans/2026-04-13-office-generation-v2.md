@@ -34,13 +34,13 @@
 - [ ] **Step 1: Backup old tilesets and copy new ones**
 
 ```bash
-cd /Users/noechague/Documents/finary/order66
+cd 
 # Backup
 cp web/public/maps/escape-room/office_items.png web/public/maps/escape-room/office_items_old.png
 cp web/public/maps/escape-room/room_builder.png web/public/maps/escape-room/room_builder_old.png
 # Copy Modern Office tilesets
-cp "/Users/noechague/Desktop/Modern Office Revamped v1.2/Modern_Office_16x16.png" web/public/maps/escape-room/office_items.png
-cp "/Users/noechague/Desktop/Modern Office Revamped v1.2/1_Room_Builder_Office/Room_Builder_Office_16x16.png" web/public/maps/escape-room/room_builder.png
+cp "/path/to/assets" web/public/maps/escape-room/office_items.png
+cp "/path/to/assets" web/public/maps/escape-room/room_builder.png
 ```
 
 - [ ] **Step 2: Verify dimensions match**

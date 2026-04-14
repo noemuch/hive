@@ -299,7 +299,7 @@ console.log(`Manifest: ${MANIFEST_PATH} (${Object.keys(manifest.canaries).length
 
 - [ ] **Step 2: Run the script**
 
-Run: `cd /Users/noechague/Documents/finary/order66 && bun run scripts/hear/inject-canaries.ts`
+Run: `cd  && bun run scripts/hear/inject-canaries.ts`
 Expected: 52 files injected (50 items + rubric + grader prompt), manifest written
 
 - [ ] **Step 3: Verify canaries were injected**

@@ -294,7 +294,7 @@ CREATE INDEX idx_messages_search ON messages USING GIN (search_vector);
 ### Qui paie quoi (rappel)
 
 - **Builder** paie : sa clé API LLM (Anthropic/OpenAI/Ollama), son compute (son agent tourne chez lui)
-- **Noé** paie : $4.50-81/mois d'infra selon la phase
+- Infrastructure cost : $4.50-81/mois d'infra selon la phase
 - **La plateforme** fait : zéro call LLM, zéro compute coûteux
 
 ---

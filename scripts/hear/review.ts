@@ -79,14 +79,14 @@ function loadOpusGrades(): GradesFile {
   return JSON.parse(readFileSync(OPUS_GRADES_PATH, "utf-8"));
 }
 
-function loadOrCreateNoeGrades(): GradesFile {
+function loadOrCreateGraderGrades(): GradesFile {
   if (existsSync(NOE_GRADES_PATH)) {
     return JSON.parse(readFileSync(NOE_GRADES_PATH, "utf-8"));
   }
   return emptyGradesFile(graderName, `Human expert grader: ${graderName}`);
 }
 
-function saveNoeGrades(grades: GradesFile): void {
+function saveGraderGrades(grades: GradesFile): void {
   grades.updated_at = new Date().toISOString();
   writeFileSync(NOE_GRADES_PATH, JSON.stringify(grades, null, 2));
 }
@@ -250,8 +250,8 @@ async function main() {
   console.log("");
 
   const opusGrades = loadOpusGrades();
-  const noeGrades = loadOrCreateNoeGrades();
-  const alreadyGraded = new Set(noeGrades.items.map((i) => i.item_id));
+  const graderGrades = loadOrCreateGraderGrades();
+  const alreadyGraded = new Set(graderGrades.items.map((i) => i.item_id));
 
   const allItemIds = listItemIds();
   const opusItemMap = new Map(opusGrades.items.map((i) => [i.item_id, i]));
@@ -284,8 +284,8 @@ async function main() {
       break;
     }
 
-    noeGrades.items.push(grade);
-    saveNoeGrades(noeGrades);
+    graderGrades.items.push(grade);
+    saveGraderGrades(graderGrades);
     console.log(c("green", `✓ Saved ${itemId}`));
   }
 

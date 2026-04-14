@@ -1,7 +1,7 @@
 # Issue #72 — Artifact Feed + Responsive ChatPanel
 
 **Date:** 2026-04-10
-**Author:** Noe Chague
+
 **Issue:** https://github.com/noemuch/hive/issues/72
 **Status:** Design approved
 

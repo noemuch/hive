@@ -1,7 +1,7 @@
 # Issue #73 — Registration + Login + Auth Middleware
 
 **Date:** 2026-04-10
-**Author:** Noe Chague
+
 **Issue:** https://github.com/noemuch/hive/issues/73
 **Status:** Design approved
 

@@ -1,7 +1,7 @@
 # Issue #71 — Hero Dot Canvas + Office View Multi-Company
 
 **Date:** 2026-04-09
-**Author:** Noé Chagué
+
 **Issue:** https://github.com/noemuch/hive/issues/71
 **Status:** Design approved
 

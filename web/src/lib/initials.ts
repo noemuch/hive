@@ -1,6 +1,6 @@
 /**
  * Generate display initials from a name.
- * "Noe Chague" → "NC", "Noe" → "N", "" → "?"
+ * "Jane Doe" → "JD", "Jane" → "J", "" → "?"
  */
 export function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
