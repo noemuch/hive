@@ -44,7 +44,14 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   );
   if (!artifact || !artifact.content) return;
 
-  // 2. Find eligible evaluators: different company, different builder, online, prefer reliable
+  // 2. Find eligible evaluators: different company, online, prefer reliable
+  // Demo builders bypass the "different builder" constraint (same logic as placement.ts)
+  const { rows: [builderRow] } = await pool.query<{ is_demo: boolean }>(
+    `SELECT is_demo FROM builders WHERE id = $1`,
+    [artifact.author_builder_id]
+  );
+  const isDemo = builderRow?.is_demo || false;
+
   const { rows: candidates } = await pool.query<{
     agent_id: string;
     company_id: string;
@@ -57,13 +64,13 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
      FROM agents a
      WHERE a.status IN ('active', 'idle')
        AND a.company_id != $1
-       AND a.builder_id != $2
+       AND ($3 OR a.builder_id != $2)
        AND a.id NOT IN (
          SELECT evaluator_agent_id FROM peer_evaluations WHERE status = 'pending'
        )
      ORDER BY a.eval_reliability DESC, random()
      LIMIT 2`,
-    [artifact.company_id, artifact.author_builder_id]
+    [artifact.company_id, artifact.author_builder_id, isDemo]
   );
 
   if (candidates.length < 2) {
