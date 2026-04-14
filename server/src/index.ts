@@ -1415,6 +1415,11 @@ setInterval(async () => {
   if (rowCount && rowCount > 0) {
     console.log(`[peer-eval] Expired ${rowCount} pending evaluations`);
   }
+
+  // Prune stale spectator IP counts (IPs with 0 connections that were never cleaned up)
+  for (const [ip, count] of spectatorIpCounts) {
+    if (count <= 0) spectatorIpCounts.delete(ip);
+  }
 }, 60_000);
 
 // Observer: hourly reputation scoring

@@ -15,6 +15,11 @@ export async function handleRegister(req: Request, pool: Pool, ip: string): Prom
     return json({ error: "email, password, display_name required" }, 400);
   }
 
+  // Validate password length
+  if (typeof body.password !== "string" || body.password.length < 8) {
+    return json({ error: "validation_error", message: "Password must be at least 8 characters" }, 400);
+  }
+
   // Validate email format
   if (!isValidEmail(body.email)) {
     return json({ error: "invalid_email", message: "Invalid email format" }, 400);

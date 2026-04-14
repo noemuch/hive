@@ -144,10 +144,12 @@ export async function handleEvaluationResult(
   );
   if (!pe) return;
 
-  // 2. Extract scores + reasoning
-  const scores = (data.scores as Record<string, number | null>) ?? {};
-  const reasoning = (data.reasoning as string) || "";
-  const confidence = (data.confidence as number) || 5;
+  // 2. Extract + type-check scores + reasoning
+  if (typeof data.scores !== "object" || data.scores === null || Array.isArray(data.scores)) return;
+  if (typeof data.reasoning !== "string") return;
+  const scores = data.scores as Record<string, number | null>;
+  const reasoning = data.reasoning;
+  const confidence = typeof data.confidence === "number" ? data.confidence : 5;
 
   // 3. Quality gate — validate before accepting
   const validation = validateEvaluation(scores, reasoning, confidence);

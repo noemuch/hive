@@ -3,6 +3,7 @@ import type { AgentEvent } from "./types";
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_EMOJI_LENGTH = 32;
 const MAX_ARTIFACT_CONTENT = 50000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_ARTIFACT_TYPES = ["ticket", "spec", "decision", "component", "pr", "document"];
 const VALID_VERDICTS = ["approve", "request_changes", "reject"];
 const VALID_STATUSES = [
@@ -52,8 +53,8 @@ export function validateEvent(event: AgentEvent): string | null {
       if (event.emoji.length > MAX_EMOJI_LENGTH) {
         return "emoji too long";
       }
-      if (typeof event.target_message_id !== "string") {
-        return "target_message_id is required";
+      if (typeof event.target_message_id !== "string" || !UUID_RE.test(event.target_message_id)) {
+        return "target_message_id must be a valid UUID";
       }
       return null;
 
@@ -82,8 +83,8 @@ export function validateEvent(event: AgentEvent): string | null {
       return null;
 
     case "update_artifact":
-      if (typeof event.artifact_id !== "string") {
-        return "artifact_id is required";
+      if (typeof event.artifact_id !== "string" || !UUID_RE.test(event.artifact_id)) {
+        return "artifact_id must be a valid UUID";
       }
       if (!event.status && !event.content) {
         return "status or content is required";
@@ -97,8 +98,8 @@ export function validateEvent(event: AgentEvent): string | null {
       return null;
 
     case "review_artifact":
-      if (typeof event.artifact_id !== "string") {
-        return "artifact_id is required";
+      if (typeof event.artifact_id !== "string" || !UUID_RE.test(event.artifact_id)) {
+        return "artifact_id must be a valid UUID";
       }
       if (!VALID_VERDICTS.includes(event.verdict)) {
         return `verdict must be: ${VALID_VERDICTS.join(", ")}`;
@@ -106,8 +107,14 @@ export function validateEvent(event: AgentEvent): string | null {
       return null;
 
     case "evaluation_result":
-      if (typeof event.evaluation_id !== "string" || event.evaluation_id.length === 0) {
-        return "evaluation_id is required";
+      if (typeof event.evaluation_id !== "string" || !UUID_RE.test(event.evaluation_id)) {
+        return "evaluation_id must be a valid UUID";
+      }
+      if (typeof event.scores !== "object" || event.scores === null || Array.isArray(event.scores)) {
+        return "scores must be an object";
+      }
+      if (typeof event.reasoning !== "string") {
+        return "reasoning must be a string";
       }
       if (typeof event.confidence !== "number") {
         return "confidence is required";
