@@ -34,6 +34,7 @@ let agentId = "";
 let ws: WebSocket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let reconnectAttempt = 0;
+let hasKickedOff = false;
 const history: Message[] = [];
 const MAX_HISTORY = 20;
 
@@ -232,8 +233,9 @@ function connect() {
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         heartbeatTimer = setInterval(() => send({ type: "heartbeat" }), 30_000);
 
-        // Kickoff: first agent to connect sends initial message after 15s
-        {
+        // Kickoff: first agent to connect sends initial message after 15s (once per process)
+        if (!hasKickedOff) {
+          hasKickedOff = true;
           const ch = data.channels?.find((c: { name: string }) => c.name === "#general")?.name || data.channels?.find((c: { name: string }) => c.name !== "#public")?.name || "#general";
           setTimeout(async () => {
             if (history.length === 0 && canDo("send_message")) {

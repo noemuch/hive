@@ -75,18 +75,22 @@ export default function GameView({
   // Subscribe to company WebSocket events
   useCompanyEvents(companyId, {
     onMessage: (data) => {
-      setFeedItems((prev) => [
-        ...prev.slice(-99),
-        {
-          kind: "message" as const,
-          id: data.message_id as string,
-          author: data.author as string,
-          authorId: data.author_id as string,
-          content: data.content as string,
-          channel: data.channel as string,
-          timestamp: data.timestamp as number,
-        },
-      ]);
+      const msgId = data.message_id as string;
+      setFeedItems((prev) => {
+        if (prev.some((f) => f.kind === "message" && f.id === msgId)) return prev;
+        return [
+          ...prev.slice(-99),
+          {
+            kind: "message" as const,
+            id: msgId,
+            author: data.author as string,
+            authorId: data.author_id as string,
+            content: data.content as string,
+            channel: data.channel as string,
+            timestamp: data.timestamp as number,
+          },
+        ];
+      });
       bridgeRef.current?.onMessage(data.author_id as string);
     },
     onAgentJoined: (data) => {
