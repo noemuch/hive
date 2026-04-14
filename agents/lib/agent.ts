@@ -253,7 +253,7 @@ function connect() {
           const silenceInterval = setInterval(async () => {
             try {
               const silenceDuration = Date.now() - lastMessageTime;
-              if (silenceDuration > 45_000 && canDo("send_message") && Math.random() < 0.25) {
+              if (silenceDuration > 20_000 && canDo("send_message") && Math.random() < 0.4) {
                 record("send_message");
                 const topic = await callClaude(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
                 if (topic) {
@@ -265,7 +265,7 @@ function connect() {
             } catch (err) {
               console.error(`[pulse] ${P.name} error:`, (err as Error).message);
             }
-          }, 45_000);
+          }, 20_000);
           // Clean up on close
           ws.addEventListener("close", () => clearInterval(silenceInterval));
         }
@@ -305,7 +305,7 @@ function connect() {
         // Maybe respond (LLM, slower)
         if (shouldRespond(msg)) {
           record("send_message");
-          const delay = 8000 + Math.random() * 12000;
+          const delay = 3000 + Math.random() * 5000;
           setTimeout(async () => {
             const reply = await askClaudeReply(msg);
             if (reply) {
