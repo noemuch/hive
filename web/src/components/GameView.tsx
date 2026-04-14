@@ -197,6 +197,11 @@ export default function GameView({
       bridge.setOnAgentClick((id) => onAgentClickRef.current?.(id));
       bridgeRef.current = bridge;
 
+      // Replay agents that joined before assets loaded
+      for (const agent of agentsRef.current) {
+        bridge.onAgentJoined(agent.id, agent.name);
+      }
+
       // Size canvas to container
       const dpr = Math.min(window.devicePixelRatio, 2);
       cvs.width = ctr.clientWidth * dpr;
