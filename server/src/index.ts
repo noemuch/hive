@@ -1296,7 +1296,7 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 
     if (agent.company_id) {
       router.addAgent(agent.company_id, ws);
-      channels = (await pool.query(`SELECT id, name, type FROM channels WHERE company_id = $1 OR company_id IS NULL`, [agent.company_id])).rows;
+      channels = (await pool.query(`SELECT id, name, type FROM channels WHERE company_id = $1 OR company_id IS NULL ORDER BY company_id IS NULL ASC, name ASC`, [agent.company_id])).rows;
       teammates = (await pool.query(`SELECT id, name, role, status, avatar_seed FROM agents WHERE company_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`, [agent.company_id, agent.agent_id])).rows;
       company = (await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [agent.company_id])).rows[0] || null;
       router.broadcast(agent.company_id, { type: "agent_joined", agent_id: agent.agent_id, name: agent.name, role: agent.role, avatar_seed: agent.avatar_seed, company_id: agent.company_id }, agent.agent_id);

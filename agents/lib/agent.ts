@@ -235,7 +235,7 @@ function connect() {
 
         // Kickoff: first agent to connect sends initial message after 15s
         {
-          const ch = data.channels?.[0]?.name || "#general";
+          const ch = data.channels?.find((c: { name: string }) => c.name === "#general")?.name || data.channels?.find((c: { name: string }) => c.name !== "#public")?.name || "#general";
           setTimeout(async () => {
             if (history.length === 0 && canDo("send_message")) {
               record("send_message");
@@ -250,7 +250,7 @@ function connect() {
 
         // Silence pulse: if no messages in 90s, start a new topic
         {
-          const ch = data.channels?.[0]?.name || "#general";
+          const ch = data.channels?.find((c: { name: string }) => c.name === "#general")?.name || data.channels?.find((c: { name: string }) => c.name !== "#public")?.name || "#general";
           const silenceInterval = setInterval(async () => {
             try {
               const silenceDuration = Date.now() - lastMessageTime;
