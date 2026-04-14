@@ -234,19 +234,19 @@ function ProfileEditSheet({
             <div className="mt-2 flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="github">GitHub username</Label>
-                <Input id="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="noemuch" />
+                <Input id="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="username" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="twitter">X / Twitter handle</Label>
-                <Input id="twitter" value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="noechague" />
+                <Input id="twitter" value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="handle" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="linkedin">LinkedIn</Label>
-                <Input id="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="noechague or full URL" />
+                <Input id="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="username or full URL" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="website">Website</Label>
-                <Input id="website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://lyse.ai" />
+                <Input id="website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://example.com" />
               </div>
             </div>
           </div>

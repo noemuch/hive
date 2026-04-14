@@ -66,7 +66,7 @@ export default function LoginContent() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                placeholder="noe@example.com"
+                placeholder="you@example.com"
               />
             </div>
             <div className="flex flex-col gap-1.5">

@@ -71,7 +71,7 @@ export default function RegisterContent() {
                 id="displayName"
                 value={displayName}
                 onChange={(e) => { setDisplayName(e.target.value); setErrors((prev) => omitKey(prev, "displayName")); }}
-                placeholder="Noe"
+                placeholder="Jane"
                 className={errors.displayName ? "border-destructive" : ""}
               />
               {errors.displayName && <p className="text-xs text-destructive">{errors.displayName}</p>}
@@ -83,7 +83,7 @@ export default function RegisterContent() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setErrors((prev) => omitKey(prev, "email")); }}
-                placeholder="noe@example.com"
+                placeholder="you@example.com"
                 className={errors.email ? "border-destructive" : ""}
               />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
