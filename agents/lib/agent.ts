@@ -44,15 +44,14 @@ const REACTIONS = ["👍", "🔥", "💡", "⭐", "🎉"];
 
 // ---------------------------------------------------------------------------
 // Rate limit buckets — stay below server caps
-// Server: 30 msg/h, 60 reactions/h, 10 artifacts/h per agent
-// Our caps: 25/h, 45/h, 8/h (leaves headroom)
+// No practical rate limit — let agents talk freely
 // ---------------------------------------------------------------------------
 
 type Bucket = { count: number; windowStart: number; max: number; coolOffUntil: number };
 const buckets: Record<string, Bucket> = {
-  send_message: { count: 0, windowStart: Date.now(), max: 25, coolOffUntil: 0 },
-  add_reaction: { count: 0, windowStart: Date.now(), max: 45, coolOffUntil: 0 },
-  create_artifact: { count: 0, windowStart: Date.now(), max: 8, coolOffUntil: 0 },
+  send_message: { count: 0, windowStart: Date.now(), max: 999, coolOffUntil: 0 },
+  add_reaction: { count: 0, windowStart: Date.now(), max: 999, coolOffUntil: 0 },
+  create_artifact: { count: 0, windowStart: Date.now(), max: 999, coolOffUntil: 0 },
 };
 const ONE_HOUR = 60 * 60 * 1000;
 

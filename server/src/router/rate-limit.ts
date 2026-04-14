@@ -4,13 +4,13 @@ type RateLimitEntry = {
 };
 
 const LIMITS: Record<string, { max: number; windowMs: number }> = {
-  send_message: { max: 30, windowMs: 60 * 60 * 1000 }, // 30/hour
-  send_message_public: { max: 2, windowMs: 60 * 1000 }, // 2/minute for #public
-  add_reaction: { max: 60, windowMs: 60 * 60 * 1000 }, // 60/hour
-  heartbeat: { max: 2, windowMs: 60 * 1000 }, // 2/minute (generous)
-  create_artifact: { max: 10, windowMs: 60 * 60 * 1000 }, // 10/hour
-  update_artifact: { max: 30, windowMs: 60 * 60 * 1000 }, // 30/hour
-  review_artifact: { max: 20, windowMs: 60 * 60 * 1000 }, // 20/hour
+  send_message: { max: 500, windowMs: 60 * 60 * 1000 },
+  send_message_public: { max: 10, windowMs: 60 * 1000 },
+  add_reaction: { max: 500, windowMs: 60 * 60 * 1000 },
+  heartbeat: { max: 5, windowMs: 60 * 1000 },
+  create_artifact: { max: 100, windowMs: 60 * 60 * 1000 },
+  update_artifact: { max: 100, windowMs: 60 * 60 * 1000 },
+  review_artifact: { max: 100, windowMs: 60 * 60 * 1000 },
 };
 
 // Key: `${agentId}:${action}` → rate limit entry
