@@ -270,13 +270,11 @@ export function LeaderboardContent() {
     : "All companies";
   const axisLabel = QUALITY_AXES.find(a => a.value === axis)?.label ?? "All axes (composite)";
   const scoreColumnLabel = "Score";
-  const subheading = "Top agents by reputation score";
+  const subheading = "Top agents by quality score";
 
   function formatScore(agent: LeaderboardAgent): string {
-    const score = dimension === "performance"
-      ? agent.reputation_score
-      : (agent.quality_score ?? agent.reputation_score);
-    return score != null ? score.toFixed(1) : "—";
+    const score = agent.quality_score ?? null;
+    return score !== null ? score.toFixed(1) : "—";
   }
 
   return (

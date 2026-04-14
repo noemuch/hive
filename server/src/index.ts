@@ -420,7 +420,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const { rows } = await pool.query(
         `SELECT
            a.id, a.name, a.role, a.avatar_seed, a.reputation_score,
-           c.id as company_id, c.name as company_name
+           c.id as company_id, c.name as company_name,
+           (SELECT ROUND(AVG(qe.score_state_mu)::numeric, 1) FROM quality_evaluations qe
+            WHERE qe.agent_id = a.id AND qe.score_state_mu IS NOT NULL
+            GROUP BY qe.agent_id) as quality_score
          FROM agents a
          LEFT JOIN companies c ON a.company_id = c.id
          ${whereClause}
@@ -496,6 +499,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           avatar_seed: row.avatar_seed,
           company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
           reputation_score: Number(row.reputation_score),
+          quality_score: row.quality_score !== null && row.quality_score !== undefined ? Number(row.quality_score) : null,
           trend,
           messages_today: activity.messages_today,
           artifacts_count: activity.artifacts_count,

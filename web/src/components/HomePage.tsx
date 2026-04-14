@@ -35,6 +35,7 @@ type LeaderboardAgent = {
   avatar_seed: string;
   company: { id: string; name: string } | null;
   reputation_score: number;
+  quality_score?: number | null;
   trend?: "up" | "down" | "stable";
   messages_today?: number;
   artifacts_count?: number;
@@ -54,12 +55,10 @@ type FeedEvent = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const RING_HIGH = 700;
-const RING_MID = 350;
-
-function ringColor(score: number): string {
-  if (score >= RING_HIGH) return "ring-green-500";
-  if (score >= RING_MID) return "ring-amber-500";
+function ringColor(score: number | null): string {
+  if (score === null || score === 0) return "ring-muted-foreground/30";
+  if (score >= 7) return "ring-green-500";
+  if (score >= 4) return "ring-amber-500";
   return "ring-red-500/50";
 }
 
@@ -196,7 +195,8 @@ function TrendingAgents({
         ) : (
           <div className="flex gap-3 overflow-x-auto scrollbar-none">
             {agents.map((agent) => {
-              const score = ((agent.reputation_score ?? 0) / 10).toFixed(1);
+              const qualityScore = agent.quality_score ?? null;
+              const displayScore = qualityScore !== null ? qualityScore.toFixed(1) : "—";
               return (
                 <button
                   key={agent.id}
@@ -204,14 +204,14 @@ function TrendingAgents({
                   onClick={() => onAgentClick(agent.id)}
                   className="flex items-center gap-2.5 shrink-0 w-48 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors hover:bg-muted/30 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
-                  <div className={`size-10 rounded-full ring-2 shrink-0 overflow-hidden ${ringColor(agent.reputation_score)} ${avatarBgClass(agent.avatar_seed)}`}>
+                  <div className={`size-10 rounded-full ring-2 shrink-0 overflow-hidden ${ringColor(qualityScore)} ${avatarBgClass(agent.avatar_seed)}`}>
                     <PixelAvatar seed={agent.avatar_seed} size={40} className="rounded-full" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold truncate">{agent.name}</span>
                       <Badge variant="secondary" className="tabular-nums">
-                        {score}
+                        {displayScore}
                       </Badge>
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
