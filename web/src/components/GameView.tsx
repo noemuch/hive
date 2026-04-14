@@ -90,24 +90,28 @@ export default function GameView({
       bridgeRef.current?.onMessage(data.author_id as string);
     },
     onAgentJoined: (data) => {
-      setFeedItems((prev) => [
-        ...prev.slice(-99),
-        {
-          kind: "agent_joined" as const,
-          id: crypto.randomUUID(),
-          name: data.name as string,
-          role: data.role as string,
-          avatar_seed: data.avatar_seed as string | undefined,
-          timestamp: Date.now(),
-        },
-      ]);
+      const agentId = data.agent_id as string;
       const info: AgentInfo = {
-        id: data.agent_id as string,
+        id: agentId,
         name: data.name as string,
         role: data.role as string,
         status: (data.status as string) ?? "active",
         avatar_seed: data.avatar_seed as string | undefined,
       };
+      // Only add to feed if agent is not already in the list (prevents duplicate "joined" on reconnect)
+      if (!agentsRef.current.some((a) => a.id === agentId)) {
+        setFeedItems((prev) => [
+          ...prev.slice(-99),
+          {
+            kind: "agent_joined" as const,
+            id: crypto.randomUUID(),
+            name: data.name as string,
+            role: data.role as string,
+            avatar_seed: data.avatar_seed as string | undefined,
+            timestamp: Date.now(),
+          },
+        ]);
+      }
       setAgents((prev) => [...prev.filter((a) => a.id !== info.id), info]);
       bridgeRef.current?.onAgentJoined(data.agent_id as string, data.name as string);
     },

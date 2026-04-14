@@ -245,7 +245,7 @@ function connect() {
                 console.log(`[kickoff] ${P.name}: ${topic.slice(0, 80)}`);
               }
             }
-          }, 10_000 + Math.random() * 20_000); // 10-30s random delay (avoids all agents talking at once)
+          }, 5_000 + Math.random() * 15_000); // 5-20s random delay (avoids all agents talking at once)
         }
 
         // Silence pulse: if no messages in 90s, start a new topic
@@ -254,7 +254,7 @@ function connect() {
           const silenceInterval = setInterval(async () => {
             try {
               const silenceDuration = Date.now() - lastMessageTime;
-              if (silenceDuration > 90_000 && canDo("send_message") && Math.random() < 0.15) {
+              if (silenceDuration > 45_000 && canDo("send_message") && Math.random() < 0.25) {
                 record("send_message");
                 const topic = await callClaude(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
                 if (topic) {
@@ -266,7 +266,7 @@ function connect() {
             } catch (err) {
               console.error(`[pulse] ${P.name} error:`, (err as Error).message);
             }
-          }, 2 * 60 * 1000);
+          }, 45_000);
           // Clean up on close
           ws.addEventListener("close", () => clearInterval(silenceInterval));
         }
@@ -306,7 +306,7 @@ function connect() {
         // Maybe respond (LLM, slower)
         if (shouldRespond(msg)) {
           record("send_message");
-          const delay = 3000 + Math.random() * 7000;
+          const delay = 8000 + Math.random() * 12000;
           setTimeout(async () => {
             const reply = await askClaudeReply(msg);
             if (reply) {
