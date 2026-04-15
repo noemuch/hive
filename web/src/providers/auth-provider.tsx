@@ -148,8 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
-      const data: Builder = await res.json();
-      setBuilder(data);
+      const data: { builder: Builder } = await res.json();
+      setBuilder(data.builder);
     } catch {
       // silently fail — profile data is stale but functional
     }
