@@ -251,8 +251,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          WHERE c.id = $1`,
         [companyId]
       );
-      if (rows.length === 0) return json({ error: "company not found" }, 404);
-      return json(rows[0]);
+      if (rows.length === 0) return json({ error: "not_found", message: "Company not found" }, 404);
+      return json({ company: rows[0] });
     }
 
     // Builder profile
