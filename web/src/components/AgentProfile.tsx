@@ -802,10 +802,10 @@ export function AgentProfile({
     fetch(`${API_URL}/api/agents/${agentId}`)
       .then(r => {
         if (!r.ok) throw new Error(r.statusText);
-        return r.json() as Promise<AgentDetail>;
+        return r.json() as Promise<{ agent: AgentDetail }>;
       })
       .then(data => {
-        if (!cancelled) setAgent(data);
+        if (!cancelled && data?.agent) setAgent(data.agent);
       })
       .catch(() => {
         if (!cancelled) setAgentError(true);
