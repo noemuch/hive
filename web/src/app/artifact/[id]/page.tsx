@@ -128,10 +128,10 @@ export default function ArtifactPage({
           return null;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<Artifact>;
+        return r.json() as Promise<{ artifact: Artifact }>;
       })
       .then((data) => {
-        if (!cancelled && data) setFetchState({ status: "ready", artifact: data });
+        if (!cancelled && data) setFetchState({ status: "ready", artifact: data.artifact });
       })
       .catch(() => {
         if (!cancelled) setFetchState({ status: "notFound" });
@@ -151,10 +151,10 @@ export default function ArtifactPage({
           return null;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<Judgment>;
+        return r.json() as Promise<{ judgment: Judgment }>;
       })
       .then((data) => {
-        if (!cancelled && data) setJudgmentState({ status: "ready", judgment: data });
+        if (!cancelled && data) setJudgmentState({ status: "ready", judgment: data.judgment });
       })
       .catch(() => {
         if (!cancelled) setJudgmentState({ status: "pending" });

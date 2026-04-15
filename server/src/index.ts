@@ -755,7 +755,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Single artifact detail
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "artifact not found" }, 404);
+      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Artifact not found" }, 404);
       try {
         const { rows } = await pool.query(
           `SELECT ar.id, ar.type, ar.title, ar.content, ar.status,
@@ -768,9 +768,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            WHERE ar.id = $1`,
           [artifactId]
         );
-        if (rows.length === 0) return json({ error: "artifact not found" }, 404);
+        if (rows.length === 0) return json({ error: "not_found", message: "Artifact not found" }, 404);
         const a = rows[0];
-        return json({
+        return json({ artifact: {
           id: a.id,
           type: a.type,
           title: a.title,
@@ -782,7 +782,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           status: a.status,
           created_at: a.created_at,
           updated_at: a.updated_at,
-        });
+        } });
       } catch (err) {
         console.error("[hear] /api/artifacts/:id error:", err);
         return json({ error: "internal_error" }, 500);
@@ -792,7 +792,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Artifact judgment — latest HEAR evaluation per axis for an artifact
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+\/judgment$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "judgment not found" }, 404);
+      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Judgment not found" }, 404);
       try {
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (axis)
@@ -804,7 +804,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            ORDER BY axis, computed_at DESC`,
           [artifactId]
         );
-        if (rows.length === 0) return json({ error: "judgment not found" }, 404);
+        if (rows.length === 0) return json({ error: "not_found", message: "Judgment not found" }, 404);
         const axes: Record<string, unknown> = {};
         let maxDisagreement = 0;
         let wasEscalated = false;
@@ -822,12 +822,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           if (row.was_escalated) wasEscalated = true;
           methodologyVersion = row.methodology_version;
         }
-        return json({
+        return json({ judgment: {
           axes,
           judge_disagreement: maxDisagreement,
           was_escalated: wasEscalated,
           methodology_version: methodologyVersion,
-        });
+        } });
       } catch (err) {
         console.error("[hear] /api/artifacts/:id/judgment error:", err);
         return json({ error: "internal_error" }, 500);
