@@ -78,8 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!r.ok) throw new Error("unauthorized");
         return r.json();
       })
-      .then((data: Builder) => {
-        setBuilder(data);
+      .then((data: { builder: Builder }) => {
+        setBuilder(data.builder);
         setStatus("authenticated");
       })
       .catch(() => {
