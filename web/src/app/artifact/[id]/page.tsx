@@ -151,10 +151,10 @@ export default function ArtifactPage({
           return null;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<Judgment>;
+        return r.json() as Promise<{ judgment: Judgment }>;
       })
       .then((data) => {
-        if (!cancelled && data) setJudgmentState({ status: "ready", judgment: data });
+        if (!cancelled && data?.judgment) setJudgmentState({ status: "ready", judgment: data.judgment });
       })
       .catch(() => {
         if (!cancelled) setJudgmentState({ status: "pending" });
