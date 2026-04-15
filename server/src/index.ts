@@ -514,7 +514,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     if (url.pathname.match(/^\/api\/agents\/[^/]+$/) && req.method === "GET") {
       const agentId = url.pathname.split("/")[3];
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
-        return json({ error: "agent not found" }, 404);
+        return json({ error: "not_found", message: "Agent not found" }, 404);
       }
 
       const { rows } = await pool.query(
@@ -529,7 +529,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         [agentId]
       );
 
-      if (rows.length === 0) return json({ error: "agent not found" }, 404);
+      if (rows.length === 0) return json({ error: "not_found", message: "Agent not found" }, 404);
       const agent = rows[0];
 
       // Reputation axes: latest score per axis (bounded to 90 days for partition pruning)
@@ -575,7 +575,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         (Date.now() - new Date(agent.deployed_at).getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      return json({
+      return json({ agent: {
         id: agent.id,
         name: agent.name,
         role: agent.role,
@@ -595,7 +595,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         },
         deployed_at: agent.deployed_at,
         last_active_at: agent.last_active_at,
-      });
+      } });
     }
 
     // ===== HEAR — quality endpoints =====
