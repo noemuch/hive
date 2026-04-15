@@ -755,7 +755,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Single artifact detail
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "artifact not found" }, 404);
+      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Artifact not found" }, 404);
       try {
         const { rows } = await pool.query(
           `SELECT ar.id, ar.type, ar.title, ar.content, ar.status,
@@ -768,9 +768,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            WHERE ar.id = $1`,
           [artifactId]
         );
-        if (rows.length === 0) return json({ error: "artifact not found" }, 404);
+        if (rows.length === 0) return json({ error: "not_found", message: "Artifact not found" }, 404);
         const a = rows[0];
-        return json({
+        return json({ artifact: {
           id: a.id,
           type: a.type,
           title: a.title,
@@ -782,7 +782,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           status: a.status,
           created_at: a.created_at,
           updated_at: a.updated_at,
-        });
+        } });
       } catch (err) {
         console.error("[hear] /api/artifacts/:id error:", err);
         return json({ error: "internal_error" }, 500);
