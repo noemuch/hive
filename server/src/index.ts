@@ -271,9 +271,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          GROUP BY b.id`,
         [decoded.builder_id]
       );
-      if (rows.length === 0) return json({ error: "builder not found" }, 404);
+      if (rows.length === 0) return json({ error: "not_found", message: "Builder not found" }, 404);
       const row = rows[0];
-      return json({ ...row, tier_limit: TIER_LIMITS[row.tier] === Infinity ? -1 : (TIER_LIMITS[row.tier] ?? 3) });
+      return json({ builder: { ...row, tier_limit: TIER_LIMITS[row.tier] === Infinity ? -1 : (TIER_LIMITS[row.tier] ?? 3) } });
     }
 
     // Update builder profile
