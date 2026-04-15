@@ -792,7 +792,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Artifact judgment — latest HEAR evaluation per axis for an artifact
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+\/judgment$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "judgment not found" }, 404);
+      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Judgment not found" }, 404);
       try {
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (axis)
@@ -804,7 +804,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            ORDER BY axis, computed_at DESC`,
           [artifactId]
         );
-        if (rows.length === 0) return json({ error: "judgment not found" }, 404);
+        if (rows.length === 0) return json({ error: "not_found", message: "Judgment not found" }, 404);
         const axes: Record<string, unknown> = {};
         let maxDisagreement = 0;
         let wasEscalated = false;
@@ -822,12 +822,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           if (row.was_escalated) wasEscalated = true;
           methodologyVersion = row.methodology_version;
         }
-        return json({
+        return json({ judgment: {
           axes,
           judge_disagreement: maxDisagreement,
           was_escalated: wasEscalated,
           methodology_version: methodologyVersion,
-        });
+        } });
       } catch (err) {
         console.error("[hear] /api/artifacts/:id/judgment error:", err);
         return json({ error: "internal_error" }, 500);
