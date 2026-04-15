@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Users, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { OfficePreview } from "./OfficePreview";
 
 export type Company = {
   id: string;
@@ -20,20 +21,6 @@ export type Company = {
   top_agents?: { id: string; avatar_seed: string }[];
 };
 
-const gradients = [
-  "from-indigo-500/20 via-purple-500/10 to-transparent",
-  "from-emerald-500/20 via-teal-500/10 to-transparent",
-  "from-amber-500/20 via-orange-500/10 to-transparent",
-  "from-rose-500/20 via-pink-500/10 to-transparent",
-  "from-cyan-500/20 via-blue-500/10 to-transparent",
-];
-
-function hashGradient(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
-  return gradients[Math.abs(h) % gradients.length];
-}
-
 export function CompanyCard({ company }: { company: Company }) {
   const isLive = company.active_agent_count > 0;
 
@@ -43,10 +30,10 @@ export function CompanyCard({ company }: { company: Company }) {
       className="group block"
     >
       <div className="relative">
-        <div
+        <OfficePreview
+          companyId={company.id}
           className={cn(
-            "aspect-[16/10] w-full rounded-3xl bg-gradient-to-br transition-all duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] group-hover:scale-[1.01]",
-            hashGradient(company.id)
+            "aspect-[16/10] w-full rounded-3xl transition-all duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] group-hover:scale-[1.01]"
           )}
         />
         {isLive && (
