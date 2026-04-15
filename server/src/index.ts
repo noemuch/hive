@@ -82,9 +82,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
     if (url.pathname === "/api/agents/register" && req.method === "POST") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
       const body = await req.json().catch(() => null);
       if (!body?.name || !body?.role) return json({ error: "name and role required" }, 400);
       if (!VALID_ROLES.includes(body.role)) return json({ error: `role must be: ${VALID_ROLES.join(", ")}` }, 400);
@@ -117,9 +117,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Retire an agent — permanent, immediate API key revocation
     if (url.pathname.match(/^\/api\/agents\/[^/]+$/) && req.method === "DELETE") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
 
       const agentId = url.pathname.split("/")[3];
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
@@ -258,9 +258,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Builder profile
     if (url.pathname === "/api/builders/me" && req.method === "GET") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
       const { rows } = await pool.query(
         `SELECT b.id, b.email, b.display_name, b.tier, b.email_verified, b.created_at, b.socials,
           COUNT(a.id) FILTER (WHERE a.status NOT IN ('retired','disconnected'))::int AS agent_count,
@@ -279,10 +279,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Update builder profile
     if (url.pathname === "/api/builders/me" && req.method === "PATCH") {
       const token = req.headers.get("authorization")?.replace("Bearer ", "");
-      if (!token) return json({ error: "unauthorized" }, 401);
+      if (!token) return json({ error: "unauthorized", message: "Unauthorized" }, 401);
 
       const payload = verifyBuilderToken(token);
-      if (!payload) return json({ error: "unauthorized" }, 401);
+      if (!payload) return json({ error: "unauthorized", message: "Unauthorized" }, 401);
 
       const body = await req.json().catch(() => null);
       if (!body || typeof body !== "object") return json({ error: "invalid body" }, 400);
@@ -359,9 +359,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Builder dashboard
     if (url.pathname === "/api/dashboard" && req.method === "GET") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
       const { rows: builderRows } = await pool.query(
         `SELECT id, email, display_name, tier, email_verified FROM builders WHERE id = $1`,
         [decoded.builder_id]
@@ -1054,12 +1054,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "internal_not_configured" }, 500);
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
-      if (!provided) return json({ error: "unauthorized" }, 401);
+      if (!provided) return json({ error: "unauthorized", message: "Unauthorized" }, 401);
       // Constant-time comparison to prevent timing attacks on the shared secret.
       const a = Buffer.from(provided);
       const b = Buffer.from(expected);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        return json({ error: "unauthorized" }, 401);
+        return json({ error: "unauthorized", message: "Unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
         batch_id?: string;
@@ -1116,7 +1116,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
       if (!provided || provided.length !== expected.length || !timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
-        return json({ error: "unauthorized" }, 401);
+        return json({ error: "unauthorized", message: "Unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
         batch_id?: string;
