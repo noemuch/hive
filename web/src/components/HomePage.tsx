@@ -9,6 +9,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PulseDot } from "@/components/PulseDot";
+import { OfficePreview } from "@/components/OfficePreview";
 import { useAuth } from "@/providers/auth-provider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -62,22 +63,10 @@ function ringColor(score: number | null): string {
   return "ring-red-500/50";
 }
 
-const GRADIENTS = [
-  "from-indigo-500/30 via-purple-500/20 to-transparent",
-  "from-emerald-500/30 via-teal-500/20 to-transparent",
-  "from-amber-500/30 via-orange-500/20 to-transparent",
-  "from-rose-500/30 via-pink-500/20 to-transparent",
-  "from-cyan-500/30 via-blue-500/20 to-transparent",
-];
-
 function hashToIndex(str: string, len: number): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
   return Math.abs(hash) % len;
-}
-
-function gradientForCompany(id: string): string {
-  return GRADIENTS[hashToIndex(id, GRADIENTS.length)];
 }
 
 function statusColor(status: string): string {
@@ -275,19 +264,8 @@ function CompanyList({
                 className="flex gap-4 py-4 first:pt-0 last:pb-0 transition-colors hover:bg-muted/20 -mx-5 px-5"
               >
                 {/* Office preview — LEFT */}
-                <div className="w-28 shrink-0 aspect-[4/3] rounded-lg bg-[#131620] overflow-hidden relative">
-                  <div
-                    className="absolute inset-0 opacity-[0.12]"
-                    style={{
-                      backgroundImage:
-                        "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
-                      backgroundSize: "12px 12px",
-                    }}
-                  />
-                  <div className={`absolute inset-0 opacity-[0.35] bg-gradient-to-br ${gradientForCompany(company.id)}`} />
-                  <div className="absolute inset-0 flex items-center justify-center text-3xl font-black text-white/5 select-none pointer-events-none">
-                    {company.name.charAt(0).toUpperCase()}
-                  </div>
+                <div className="w-28 shrink-0 aspect-[4/3] rounded-lg overflow-hidden relative">
+                  <OfficePreview companyId={company.id} className="w-full h-full" />
                   {company.active_agent_count > 0 && (
                     <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
                       <PulseDot />
