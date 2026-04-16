@@ -82,9 +82,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
     if (url.pathname === "/api/agents/register" && req.method === "POST") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
       const body = await req.json().catch(() => null);
       if (!body?.name || !body?.role) return json({ error: "name and role required" }, 400);
       if (!VALID_ROLES.includes(body.role)) return json({ error: `role must be: ${VALID_ROLES.join(", ")}` }, 400);
@@ -117,9 +117,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Retire an agent — permanent, immediate API key revocation
     if (url.pathname.match(/^\/api\/agents\/[^/]+$/) && req.method === "DELETE") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
 
       const agentId = url.pathname.split("/")[3];
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
@@ -251,16 +251,16 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          WHERE c.id = $1`,
         [companyId]
       );
-      if (rows.length === 0) return json({ error: "company not found" }, 404);
-      return json(rows[0]);
+      if (rows.length === 0) return json({ error: "not_found", message: "Company not found" }, 404);
+      return json({ company: rows[0] });
     }
 
     // Builder profile
     if (url.pathname === "/api/builders/me" && req.method === "GET") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
       const { rows } = await pool.query(
         `SELECT b.id, b.email, b.display_name, b.tier, b.email_verified, b.created_at, b.socials,
           COUNT(a.id) FILTER (WHERE a.status NOT IN ('retired','disconnected'))::int AS agent_count,
@@ -271,18 +271,18 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          GROUP BY b.id`,
         [decoded.builder_id]
       );
-      if (rows.length === 0) return json({ error: "builder not found" }, 404);
+      if (rows.length === 0) return json({ error: "not_found", message: "Builder not found" }, 404);
       const row = rows[0];
-      return json({ ...row, tier_limit: TIER_LIMITS[row.tier] === Infinity ? -1 : (TIER_LIMITS[row.tier] ?? 3) });
+      return json({ builder: { ...row, tier_limit: TIER_LIMITS[row.tier] === Infinity ? -1 : (TIER_LIMITS[row.tier] ?? 3) } });
     }
 
     // Update builder profile
     if (url.pathname === "/api/builders/me" && req.method === "PATCH") {
       const token = req.headers.get("authorization")?.replace("Bearer ", "");
-      if (!token) return json({ error: "unauthorized" }, 401);
+      if (!token) return json({ error: "unauthorized", message: "Unauthorized" }, 401);
 
       const payload = verifyBuilderToken(token);
-      if (!payload) return json({ error: "unauthorized" }, 401);
+      if (!payload) return json({ error: "unauthorized", message: "Unauthorized" }, 401);
 
       const body = await req.json().catch(() => null);
       if (!body || typeof body !== "object") return json({ error: "invalid body" }, 400);
@@ -359,9 +359,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Builder dashboard
     if (url.pathname === "/api/dashboard" && req.method === "GET") {
       const auth = req.headers.get("Authorization");
-      if (!auth?.startsWith("Bearer ")) return json({ error: "auth required" }, 401);
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
       const decoded = verifyBuilderToken(auth.slice(7));
-      if (!decoded) return json({ error: "invalid token" }, 401);
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
       const { rows: builderRows } = await pool.query(
         `SELECT id, email, display_name, tier, email_verified FROM builders WHERE id = $1`,
         [decoded.builder_id]
@@ -514,7 +514,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     if (url.pathname.match(/^\/api\/agents\/[^/]+$/) && req.method === "GET") {
       const agentId = url.pathname.split("/")[3];
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)) {
-        return json({ error: "agent not found" }, 404);
+        return json({ error: "not_found", message: "Agent not found" }, 404);
       }
 
       const { rows } = await pool.query(
@@ -529,7 +529,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         [agentId]
       );
 
-      if (rows.length === 0) return json({ error: "agent not found" }, 404);
+      if (rows.length === 0) return json({ error: "not_found", message: "Agent not found" }, 404);
       const agent = rows[0];
 
       // Reputation axes: latest score per axis (bounded to 90 days for partition pruning)
@@ -575,7 +575,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         (Date.now() - new Date(agent.deployed_at).getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      return json({
+      return json({ agent: {
         id: agent.id,
         name: agent.name,
         role: agent.role,
@@ -595,7 +595,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         },
         deployed_at: agent.deployed_at,
         last_active_at: agent.last_active_at,
-      });
+      } });
     }
 
     // ===== HEAR — quality endpoints =====
@@ -755,7 +755,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Single artifact detail
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "artifact not found" }, 404);
+      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Artifact not found" }, 404);
       try {
         const { rows } = await pool.query(
           `SELECT ar.id, ar.type, ar.title, ar.content, ar.status,
@@ -768,9 +768,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            WHERE ar.id = $1`,
           [artifactId]
         );
-        if (rows.length === 0) return json({ error: "artifact not found" }, 404);
+        if (rows.length === 0) return json({ error: "not_found", message: "Artifact not found" }, 404);
         const a = rows[0];
-        return json({
+        return json({ artifact: {
           id: a.id,
           type: a.type,
           title: a.title,
@@ -782,7 +782,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           status: a.status,
           created_at: a.created_at,
           updated_at: a.updated_at,
-        });
+        } });
       } catch (err) {
         console.error("[hear] /api/artifacts/:id error:", err);
         return json({ error: "internal_error" }, 500);
@@ -792,7 +792,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // Artifact judgment — latest HEAR evaluation per axis for an artifact
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+\/judgment$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "judgment not found" }, 404);
+      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Judgment not found" }, 404);
       try {
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (axis)
@@ -804,7 +804,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            ORDER BY axis, computed_at DESC`,
           [artifactId]
         );
-        if (rows.length === 0) return json({ error: "judgment not found" }, 404);
+        if (rows.length === 0) return json({ error: "not_found", message: "Judgment not found" }, 404);
         const axes: Record<string, unknown> = {};
         let maxDisagreement = 0;
         let wasEscalated = false;
@@ -822,12 +822,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           if (row.was_escalated) wasEscalated = true;
           methodologyVersion = row.methodology_version;
         }
-        return json({
+        return json({ judgment: {
           axes,
           judge_disagreement: maxDisagreement,
           was_escalated: wasEscalated,
           methodology_version: methodologyVersion,
-        });
+        } });
       } catch (err) {
         console.error("[hear] /api/artifacts/:id/judgment error:", err);
         return json({ error: "internal_error" }, 500);
@@ -1054,12 +1054,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "internal_not_configured" }, 500);
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
-      if (!provided) return json({ error: "unauthorized" }, 401);
+      if (!provided) return json({ error: "unauthorized", message: "Unauthorized" }, 401);
       // Constant-time comparison to prevent timing attacks on the shared secret.
       const a = Buffer.from(provided);
       const b = Buffer.from(expected);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        return json({ error: "unauthorized" }, 401);
+        return json({ error: "unauthorized", message: "Unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
         batch_id?: string;
@@ -1116,7 +1116,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
       const provided = req.headers.get("X-Hive-Internal-Token");
       if (!provided || provided.length !== expected.length || !timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
-        return json({ error: "unauthorized" }, 401);
+        return json({ error: "unauthorized", message: "Unauthorized" }, 401);
       }
       const body = await req.json().catch(() => null) as {
         batch_id?: string;

@@ -54,9 +54,9 @@ export default function CompanyContent({
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data: CompanyData | null) => {
-        if (!cancelled && data)
-          setFetchState({ status: "ready", company: data });
+      .then((data: { company: CompanyData } | null) => {
+        if (!cancelled && data?.company)
+          setFetchState({ status: "ready", company: data.company });
       })
       .catch(() => {
         if (!cancelled) setFetchState({ status: "notFound", company: null });

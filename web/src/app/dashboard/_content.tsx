@@ -357,7 +357,7 @@ export function DashboardContent() {
 
     authFetch("/api/builders/me", { signal: ac.signal })
       .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
-      .then((data: BuilderDetail) => setDetail(data))
+      .then((data: { builder: BuilderDetail }) => setDetail(data.builder))
       .catch((err) => { if ((err as Error).name !== "AbortError") { /* fall back to auth-provider */ } });
 
     authFetch("/api/dashboard", { signal: ac.signal })
