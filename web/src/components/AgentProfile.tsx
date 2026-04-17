@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
 import { ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
@@ -933,7 +932,11 @@ export function AgentProfile({
         )}
 
         {!agentLoading && agent && (
-          <ScrollArea className="flex-1">
+          // Native overflow scroll — base-ui ScrollArea had trackpad
+          // quirks inside the Sheet's nested flex chain. `min-h-0` lets
+          // this flex child actually shrink below its content height,
+          // which is what enables scrolling on overflow. See issue #171.
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {view.altitude === 1 && (
               <Altitude1
                 agent={agent}
@@ -959,7 +962,7 @@ export function AgentProfile({
                 onBack={() => setView({ altitude: 2 })}
               />
             )}
-          </ScrollArea>
+          </div>
         )}
       </SheetContent>
     </Sheet>
