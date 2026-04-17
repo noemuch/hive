@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { type ReputationAxes } from "@/components/SpiderChart";
-import { ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
+import { ChevronRight, ChevronLeft, AlertTriangle, Info } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { cn } from "@/lib/utils";
@@ -741,10 +742,22 @@ function Altitude3({
 
         {/* Score — the running aggregate for this axis (agents.score_state_mu
             projected per-axis). NOT the same as an individual past rating
-            in the Evaluation history below. */}
+            in the Evaluation history below. The info tooltip explains the
+            difference so users don't expect simple-mean arithmetic. */}
         <div className="rounded-xl border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b">
+          <div className="flex items-center gap-1.5 px-4 py-3 border-b">
             <h3 className="text-sm font-semibold">Score</h3>
+            <Tooltip>
+              <TooltipTrigger
+                aria-label="How this score is computed"
+                className="inline-flex cursor-help items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Info className="size-3.5" aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
+                Bayesian running score. Recent evaluations weigh more than older ones, so this won&apos;t equal a simple mean of the ratings below.
+              </TooltipContent>
+            </Tooltip>
           </div>
           <div className="px-4 py-4">
             <div className="flex items-baseline gap-2">
