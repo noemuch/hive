@@ -559,18 +559,16 @@ function QualityBars({
 }
 
 function Altitude2({
-  agentId,
   quality,
   onBack,
   onAxisClick,
 }: {
-  agentId: string;
   quality: QualityData | null;
   onBack: () => void;
   onAxisClick: (key: QualityAxisKey) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-6">
       {/* Nav header */}
       <div className="flex items-center justify-between px-5 pt-4">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 px-0 hover:bg-transparent">
@@ -584,7 +582,8 @@ function Altitude2({
         )}
       </div>
 
-      {/* Quality bars — sorted, in container */}
+      {/* Quality bars — sorted, in container. Click an axis to drill
+          into its evaluation history (Altitude 3). */}
       <div className="mx-5 rounded-xl border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b">
           <h3 className="text-sm font-semibold">Quality Breakdown</h3>
@@ -600,122 +599,72 @@ function Altitude2({
           <QualityBars quality={quality} onAxisClick={onAxisClick} />
         )}
       </div>
-
-      {/* Cross-axis recent judgments — shows the latest peer judgments
-          regardless of axis so users don't hit empty axis drilldowns. */}
-      <RecentJudgmentsPanel agentId={agentId} onAxisClick={onAxisClick} />
     </div>
   );
 }
 
-function RecentJudgmentsPanel({
-  agentId,
-  onAxisClick,
-}: {
-  agentId: string;
-  onAxisClick: (key: QualityAxisKey) => void;
-}) {
-  const [explanations, setExplanations] = useState<QualityExplanation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset loading/error on agentId change
-    setLoading(true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset loading/error on agentId change
-    setFetchError(false);
-    fetch(`${API_URL}/api/agents/${agentId}/quality/explanations?limit=10`)
-      .then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
-        return r.json() as Promise<{ explanations: QualityExplanation[] }>;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        const list = Array.isArray(data?.explanations) ? data.explanations : [];
-        setExplanations(list.map(normalizeExplanation));
-      })
-      .catch(() => {
-        if (!cancelled) setFetchError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [agentId]);
+/**
+ * "Evaluation history" entry for Altitude 3. Rendered as a flat log row
+ * (not a score card) so it reads as a past event, not a current grade.
+ * Clarifies the common confusion of seeing a running-score 6.9 next to
+ * a past-judgment 7/10 that used the same colored pill as the top score.
+ */
+function EvaluationHistoryItem({ exp }: { exp: QualityExplanation }) {
+  const [expanded, setExpanded] = useState(false);
+  const reasoning = exp.reasoning ?? "";
+  // ~140 chars fits roughly two lines at current type size; use this as
+  // the heuristic for whether to offer a "Show more" toggle.
+  const isLong = reasoning.length > 140;
 
   return (
-    <div className="mx-5 rounded-xl border bg-card overflow-hidden">
-      <div className="px-4 py-3 border-b">
-        <h3 className="text-sm font-semibold">Recent Judgments</h3>
+    <li className="py-3 first:pt-0 last:pb-0">
+      {/* Event header: date first (primary signal "this is past"), then
+          small muted rating. No colored pill — this is a data point,
+          not the current score. */}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-muted-foreground">
+          {formatDate(exp.computed_at)}
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">
+          Rated <span className="font-semibold text-foreground">{exp.score.toFixed(1)}</span>/10
+        </span>
       </div>
-      <div className="px-4 py-3">
-        {loading && (
-          <div className="flex justify-center py-6">
-            <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-          </div>
-        )}
-        {!loading && fetchError && (
-          <p className="text-sm text-muted-foreground">Failed to load judgments.</p>
-        )}
-        {!loading && !fetchError && explanations.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            No peer judgments yet. They appear after the first evaluation completes.
+
+      {reasoning && (
+        <div className="mt-2">
+          <p
+            className={cn(
+              "text-sm leading-relaxed text-foreground/90",
+              !expanded && isLong && "line-clamp-2",
+            )}
+          >
+            {reasoning}
           </p>
-        )}
-        {!loading && !fetchError && explanations.length > 0 && (
-          <div className="flex flex-col gap-3">
-            {explanations.map((exp, i) => {
-              const axisLabel =
-                QUALITY_AXES.find((a) => a.key === exp.axis)?.label ?? exp.axis;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => onAxisClick(exp.axis)}
-                  className="rounded-lg bg-muted/30 p-3 text-left transition-colors hover:bg-muted/50 cursor-pointer"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-semibold shrink-0",
-                          exp.score >= 7
-                            ? "border-green-500/20 bg-green-500/10 text-green-500"
-                            : exp.score >= 4
-                            ? "border-amber-500/20 bg-amber-500/10 text-amber-500"
-                            : "border-red-500/20 bg-red-500/10 text-red-500"
-                        )}
-                      >
-                        {exp.score.toFixed(1)}/10
-                      </span>
-                      <Badge variant="outline" className="text-xs truncate">
-                        {axisLabel}
-                      </Badge>
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatDate(exp.computed_at)}
-                    </span>
-                  </div>
-                  {exp.reasoning && (
-                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-foreground/90">
-                      {exp.reasoning}
-                    </p>
-                  )}
-                  {exp.evidence_quotes.length > 0 && (
-                    <blockquote className="mt-2 border-l-2 border-muted-foreground/30 pl-3 text-xs italic leading-relaxed text-muted-foreground line-clamp-1">
-                      {exp.evidence_quotes[0]}
-                    </blockquote>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+          {isLong && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {exp.evidence_quotes.length > 0 && (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {exp.evidence_quotes.map((q, j) => (
+            <blockquote
+              key={j}
+              className="border-l-2 border-muted-foreground/30 pl-3 text-xs italic leading-relaxed text-muted-foreground"
+            >
+              {q}
+            </blockquote>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -771,7 +720,7 @@ function Altitude3({
   }, [agentId, axisKey]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-6">
       {/* Nav header */}
       <div className="px-5 pt-4">
         <Button
@@ -785,55 +734,60 @@ function Altitude3({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-4 px-5 pb-6">
-          {/* Axis heading */}
-          <h2 className="text-lg font-semibold leading-tight">
-            {axisMeta?.label ?? axisKey}
-          </h2>
+      <div className="flex flex-col gap-4 px-5">
+        {/* Axis heading */}
+        <h2 className="text-lg font-semibold leading-tight">
+          {axisMeta?.label ?? axisKey}
+        </h2>
 
-          {/* Score */}
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-sm font-semibold">Score</h3>
-            </div>
-            <div className="px-4 py-4">
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={cn(
-                    "font-mono text-4xl font-bold tracking-tight",
-                    scoreTextColor(score)
-                  )}
-                >
-                  {score.toFixed(1)}
-                </span>
-                <span className="text-sm text-muted-foreground">/ 10</span>
-                <span className={cn("ml-auto text-xs font-medium", confidence.className)}>
-                  {confidence.label}
-                </span>
-              </div>
+        {/* Score — the running aggregate for this axis (agents.score_state_mu
+            projected per-axis). NOT the same as an individual past rating
+            in the Evaluation history below. */}
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <h3 className="text-sm font-semibold">Score</h3>
+          </div>
+          <div className="px-4 py-4">
+            <div className="flex items-baseline gap-2">
+              <span
+                className={cn(
+                  "font-mono text-4xl font-bold tracking-tight",
+                  scoreTextColor(score)
+                )}
+              >
+                {score.toFixed(1)}
+              </span>
+              <span className="text-sm text-muted-foreground">/ 10</span>
+              <span className={cn("ml-auto text-xs font-medium", confidence.className)}>
+                {confidence.label}
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* What this measures */}
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-sm font-semibold">What this measures</h3>
-            </div>
-            <div className="px-4 py-3">
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {WHAT_THIS_MEASURES[axisKey] ?? axisMeta?.description}
-              </p>
-            </div>
+        {/* What this measures */}
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <h3 className="text-sm font-semibold">What this measures</h3>
           </div>
+          <div className="px-4 py-3">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {WHAT_THIS_MEASURES[axisKey] ?? axisMeta?.description}
+            </p>
+          </div>
+        </div>
 
-          {/* Recent judgments */}
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-sm font-semibold">Recent judgments</h3>
-            </div>
-            <div className="px-4 py-3">
-
+        {/* Evaluation history — flat log of past per-artifact ratings that
+            feed the running score above. Rendered as divided rows (not
+            nested cards) so visually it reads as "events", not "scores". */}
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <h3 className="text-sm font-semibold">Evaluation history</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Past evaluations that feed the running score above.
+            </p>
+          </div>
+          <div className="px-4 py-3">
             {loading && (
               <div className="flex justify-center py-8">
                 <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
@@ -841,63 +795,25 @@ function Altitude3({
             )}
 
             {!loading && fetchError && (
-              <p className="text-sm text-muted-foreground">Failed to load explanations.</p>
+              <p className="text-sm text-muted-foreground">Failed to load history.</p>
             )}
 
             {!loading && !fetchError && explanations.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                No peer judgment on this axis yet. See Recent Judgments on the main profile for other axes.
+                No evaluation yet on this axis. An entry appears after the first peer evaluation is completed.
               </p>
             )}
 
             {!loading && !fetchError && explanations.length > 0 && (
-              <div className="flex flex-col gap-3">
+              <ul className="flex flex-col divide-y divide-border">
                 {explanations.map((exp, i) => (
-                  <div
-                    key={i}
-                    className="rounded-lg bg-muted/30 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-semibold",
-                          exp.score >= 7
-                            ? "border-green-500/20 bg-green-500/10 text-green-500"
-                            : exp.score >= 4
-                            ? "border-amber-500/20 bg-amber-500/10 text-amber-500"
-                            : "border-red-500/20 bg-red-500/10 text-red-500"
-                        )}
-                      >
-                        {exp.score.toFixed(0)}/10
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(exp.computed_at)}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-foreground/90">
-                      {exp.reasoning}
-                    </p>
-                    {exp.evidence_quotes.length > 0 && (
-                      <div className="mt-3 flex flex-col gap-2">
-                        <p className="text-xs font-medium text-muted-foreground">Evidence:</p>
-                        {exp.evidence_quotes.map((q, j) => (
-                          <blockquote
-                            key={j}
-                            className="border-l-2 border-muted-foreground/30 pl-3 text-xs italic leading-relaxed text-muted-foreground"
-                          >
-                            {q}
-                          </blockquote>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <EvaluationHistoryItem key={i} exp={exp} />
                 ))}
-              </div>
+              </ul>
             )}
-            </div>
           </div>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -1029,7 +945,6 @@ export function AgentProfile({
 
             {view.altitude === 2 && (
               <Altitude2
-                agentId={agent.id}
                 quality={quality}
                 onBack={() => setView({ altitude: 1 })}
                 onAxisClick={key => setView({ altitude: 3, axis: key })}
