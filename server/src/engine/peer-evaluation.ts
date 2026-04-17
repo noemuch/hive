@@ -158,6 +158,15 @@ export async function handleEvaluationResult(
   const scores = data.scores as Record<string, number | null>;
   const reasoning = data.reasoning;
   const confidence = typeof data.confidence === "number" ? data.confidence : 5;
+  // Evidence quotes are optional; sanitize defensively (max 3, 200 chars each).
+  const evidenceQuotes: string[] = Array.isArray(data.evidence_quotes)
+    ? (data.evidence_quotes as unknown[])
+        .filter((q): q is string => typeof q === "string")
+        .map((q) => q.trim())
+        .filter((q) => q.length > 0)
+        .slice(0, 3)
+        .map((q) => (q.length > 200 ? q.slice(0, 200) : q))
+    : [];
 
   // 3. Quality gate — validate before accepting
   const validation = validateEvaluation(scores, reasoning, confidence);
@@ -182,12 +191,19 @@ export async function handleEvaluationResult(
     return;
   }
 
-  // 4. Mark evaluation completed
+  // 4. Mark evaluation completed (evidence_quotes are stored per-axis
+  // during aggregation below, via the peer_evaluations.evidence_quotes
+  // column; we keep them on the pe row too so aggregation can read them).
   await pool.query(
     `UPDATE peer_evaluations
-     SET status = 'completed', scores = $1, reasoning = $2, confidence = $3, completed_at = now()
-     WHERE id = $4`,
-    [JSON.stringify(scores), reasoning, confidence, evaluationId]
+     SET status = 'completed',
+         scores = $1,
+         reasoning = $2,
+         confidence = $3,
+         evidence_quotes = $4::jsonb,
+         completed_at = now()
+     WHERE id = $5`,
+    [JSON.stringify(scores), reasoning, confidence, JSON.stringify(evidenceQuotes), evaluationId]
   );
 
   console.log(
@@ -207,8 +223,10 @@ export async function handleEvaluationResult(
     evaluator_agent_id: string;
     scores: Record<EvalAxis, number | null> | string;
     reasoning: string | null;
+    evidence_quotes: string[] | string | null;
   }>(
-    `SELECT evaluator_agent_id, scores, reasoning FROM peer_evaluations
+    `SELECT evaluator_agent_id, scores, reasoning, evidence_quotes
+     FROM peer_evaluations
      WHERE artifact_id = $1 AND status = 'completed'`,
     [pe.artifact_id]
   );
@@ -309,18 +327,42 @@ export async function handleEvaluationResult(
     const newState = updateScore(prior, avgScore, { peerEval: true });
     const delta = newState.mu - (prior?.mu ?? newState.mu);
 
+    // Aggregate evidence_quotes across evaluators: flatten + dedupe +
+    // keep top 3. Both `string[]` (already parsed by pg) and `string`
+    // (raw jsonb text) shapes can show up depending on driver state.
+    const aggregatedQuotes: string[] = [];
+    const seen = new Set<string>();
+    for (const row of completedRows) {
+      const raw = row.evidence_quotes;
+      let quotes: unknown[] = [];
+      if (Array.isArray(raw)) quotes = raw;
+      else if (typeof raw === "string") {
+        try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) quotes = parsed; }
+        catch { quotes = []; }
+      }
+      for (const q of quotes) {
+        if (typeof q !== "string") continue;
+        const trimmed = q.trim();
+        if (!trimmed || seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        aggregatedQuotes.push(trimmed);
+        if (aggregatedQuotes.length >= 3) break;
+      }
+      if (aggregatedQuotes.length >= 3) break;
+    }
+
     // 10. Write quality_evaluation row
     await pool.query(
       `INSERT INTO quality_evaluations
          (agent_id, artifact_id, axis, score,
           score_state_mu, score_state_sigma, score_state_volatility,
           judge_count, judge_models, judge_disagreement,
-          was_escalated, reasoning,
+          was_escalated, reasoning, evidence_quotes,
           rubric_version, methodology_version)
        VALUES ($1, $2, $3, $4,
                $5, $6, $7,
                $8, $9, $10,
-               false, $11,
+               false, $11, $12::jsonb,
                'v1', '1.0')`,
       [
         pe.author_id,
@@ -334,6 +376,7 @@ export async function handleEvaluationResult(
         Array(evaluatorScores.length).fill("peer-evaluation-v1"),
         disagreement,
         completedRows.map((r) => (r.reasoning ?? "").slice(0, 250)).join(" | "),
+        JSON.stringify(aggregatedQuotes),
       ]
     );
 

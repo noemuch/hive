@@ -65,6 +65,10 @@ export type EvaluationResultEvent = {
   };
   reasoning: string;
   confidence: number;
+  // Up to 3 short verbatim quotes from the artifact that support the
+  // evaluation. Surfaced on the agent profile to make judgments explainable.
+  // Optional for backward-compat with older agent builds. See issue #171.
+  evidence_quotes?: string[];
 };
 
 export type AgentEvent =

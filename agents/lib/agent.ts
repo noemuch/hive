@@ -345,8 +345,10 @@ ${data.content}
 
 Score each applicable axis from 1 to 10. If an axis is not applicable to this artifact type, set it to null.
 
+For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each) copied directly from the artifact that best support your evaluation. These appear on the agent's public profile to make judgments explainable.
+
 Respond with ONLY this JSON, nothing else:
-{"scores":{"reasoning_depth":5,"decision_wisdom":5,"communication_clarity":5,"initiative_quality":null,"collaborative_intelligence":5,"self_awareness_calibration":5,"contextual_judgment":5},"reasoning":"brief analysis","confidence":7}`;
+{"scores":{"reasoning_depth":5,"decision_wisdom":5,"communication_clarity":5,"initiative_quality":null,"collaborative_intelligence":5,"self_awareness_calibration":5,"contextual_judgment":5},"reasoning":"brief analysis","confidence":7,"evidence_quotes":["quote1","quote2"]}`;
 
         callClaude(evalSystemPrompt, rubricPrompt, 800).then(response => {
           if (!response) return;
@@ -359,12 +361,20 @@ Respond with ONLY this JSON, nothing else:
           }
           try {
             const parsed = JSON.parse(jsonMatch[0]);
+            const rawQuotes = Array.isArray(parsed.evidence_quotes) ? parsed.evidence_quotes : [];
+            const quotes: string[] = rawQuotes
+              .filter((q: unknown): q is string => typeof q === "string")
+              .map((q: string) => q.trim())
+              .filter((q: string) => q.length > 0)
+              .slice(0, 3)
+              .map((q: string) => q.length > 200 ? q.slice(0, 200) : q);
             send({
               type: "evaluation_result",
               evaluation_id: data.evaluation_id as string,
               scores: parsed.scores,
               reasoning: parsed.reasoning || "",
               confidence: parsed.confidence || 5,
+              evidence_quotes: quotes,
             });
             console.log(`[eval] ${P.name} submitted evaluation for ${data.evaluation_id}`);
           } catch (e) {

@@ -220,6 +220,22 @@ function formatDate(iso: string): string {
   }
 }
 
+/**
+ * Normalize a QualityExplanation shape coming from the API so the UI
+ * never crashes on a missing `evidence_quotes` array (legacy rows) or
+ * a stringly-typed score.
+ */
+function normalizeExplanation(raw: unknown): QualityExplanation {
+  const r = (raw ?? {}) as Partial<QualityExplanation> & { score: unknown };
+  return {
+    axis: r.axis as QualityAxisKey,
+    score: typeof r.score === "number" ? r.score : Number(r.score ?? 0),
+    reasoning: typeof r.reasoning === "string" ? r.reasoning : "",
+    evidence_quotes: Array.isArray(r.evidence_quotes) ? r.evidence_quotes : [],
+    computed_at: typeof r.computed_at === "string" ? r.computed_at : "",
+  };
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function Sparkline({ history }: { history: { date: string; score: number }[] }) {
@@ -543,10 +559,12 @@ function QualityBars({
 }
 
 function Altitude2({
+  agentId,
   quality,
   onBack,
   onAxisClick,
 }: {
+  agentId: string;
   quality: QualityData | null;
   onBack: () => void;
   onAxisClick: (key: QualityAxisKey) => void;
@@ -573,13 +591,128 @@ function Altitude2({
         </div>
         {!quality ? (
           <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
-            <p className="text-sm font-medium">Quality evaluation pending</p>
+            <p className="text-sm font-medium">Not evaluated yet</p>
             <p className="max-w-[240px] text-xs text-muted-foreground">
-              HEAR evaluations run nightly. Check back after the agent has produced artifacts.
+              The HEAR score appears after the first peer evaluation.
             </p>
           </div>
         ) : (
           <QualityBars quality={quality} onAxisClick={onAxisClick} />
+        )}
+      </div>
+
+      {/* Cross-axis recent judgments — shows the latest peer judgments
+          regardless of axis so users don't hit empty axis drilldowns. */}
+      <RecentJudgmentsPanel agentId={agentId} onAxisClick={onAxisClick} />
+    </div>
+  );
+}
+
+function RecentJudgmentsPanel({
+  agentId,
+  onAxisClick,
+}: {
+  agentId: string;
+  onAxisClick: (key: QualityAxisKey) => void;
+}) {
+  const [explanations, setExplanations] = useState<QualityExplanation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset loading/error on agentId change
+    setLoading(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset loading/error on agentId change
+    setFetchError(false);
+    fetch(`${API_URL}/api/agents/${agentId}/quality/explanations?limit=10`)
+      .then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json() as Promise<{ explanations: QualityExplanation[] }>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data?.explanations) ? data.explanations : [];
+        setExplanations(list.map(normalizeExplanation));
+      })
+      .catch(() => {
+        if (!cancelled) setFetchError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId]);
+
+  return (
+    <div className="mx-5 rounded-xl border bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b">
+        <h3 className="text-sm font-semibold">Recent Judgments</h3>
+      </div>
+      <div className="px-4 py-3">
+        {loading && (
+          <div className="flex justify-center py-6">
+            <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          </div>
+        )}
+        {!loading && fetchError && (
+          <p className="text-sm text-muted-foreground">Failed to load judgments.</p>
+        )}
+        {!loading && !fetchError && explanations.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No peer judgments yet. They appear after the first evaluation completes.
+          </p>
+        )}
+        {!loading && !fetchError && explanations.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {explanations.map((exp, i) => {
+              const axisLabel =
+                QUALITY_AXES.find((a) => a.key === exp.axis)?.label ?? exp.axis;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onAxisClick(exp.axis)}
+                  className="rounded-lg bg-muted/30 p-3 text-left transition-colors hover:bg-muted/50 cursor-pointer"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-semibold shrink-0",
+                          exp.score >= 7
+                            ? "border-green-500/20 bg-green-500/10 text-green-500"
+                            : exp.score >= 4
+                            ? "border-amber-500/20 bg-amber-500/10 text-amber-500"
+                            : "border-red-500/20 bg-red-500/10 text-red-500"
+                        )}
+                      >
+                        {exp.score.toFixed(1)}/10
+                      </span>
+                      <Badge variant="outline" className="text-xs truncate">
+                        {axisLabel}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatDate(exp.computed_at)}
+                    </span>
+                  </div>
+                  {exp.reasoning && (
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-foreground/90">
+                      {exp.reasoning}
+                    </p>
+                  )}
+                  {exp.evidence_quotes.length > 0 && (
+                    <blockquote className="mt-2 border-l-2 border-muted-foreground/30 pl-3 text-xs italic leading-relaxed text-muted-foreground line-clamp-1">
+                      {exp.evidence_quotes[0]}
+                    </blockquote>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -620,10 +753,13 @@ function Altitude3({
     fetch(`${API_URL}/api/agents/${agentId}/quality/explanations?axis=${axisKey}&limit=5`)
       .then(r => {
         if (!r.ok) throw new Error(r.statusText);
-        return r.json() as Promise<QualityExplanation[]>;
+        return r.json() as Promise<{ explanations: QualityExplanation[] }>;
       })
       .then(data => {
-        if (!cancelled) setExplanations(Array.isArray(data) ? data : []);
+        if (!cancelled) {
+          const list = Array.isArray(data?.explanations) ? data.explanations : [];
+          setExplanations(list.map(normalizeExplanation));
+        }
       })
       .catch(() => {
         if (!cancelled) setFetchError(true);
@@ -709,7 +845,9 @@ function Altitude3({
             )}
 
             {!loading && !fetchError && explanations.length === 0 && (
-              <p className="text-sm text-muted-foreground">No judgments available yet.</p>
+              <p className="text-sm text-muted-foreground">
+                No peer judgment on this axis yet. See Recent Judgments on the main profile for other axes.
+              </p>
             )}
 
             {!loading && !fetchError && explanations.length > 0 && (
@@ -891,6 +1029,7 @@ export function AgentProfile({
 
             {view.altitude === 2 && (
               <Altitude2
+                agentId={agent.id}
                 quality={quality}
                 onBack={() => setView({ altitude: 1 })}
                 onAxisClick={key => setView({ altitude: 3, axis: key })}
