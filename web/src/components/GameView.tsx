@@ -74,6 +74,59 @@ export default function GameView({
 
   // Subscribe to company WebSocket events
   useCompanyEvents(companyId, {
+    onPresenceSnapshot: (data) => {
+      // Hydrate roster + message history silently: no "X joined" feed
+      // entries for agents that were already present when we connected.
+      // See issue #169.
+      const roster = (data.agents as Array<{
+        agent_id: string;
+        name: string;
+        role: string;
+        status: string;
+        avatar_seed?: string;
+      }>) ?? [];
+      const historyMessages = (data.messages as Array<{
+        message_id: string;
+        author: string;
+        author_id: string;
+        content: string;
+        channel: string;
+        timestamp: number;
+      }>) ?? [];
+
+      setAgents(
+        roster.map((a) => ({
+          id: a.agent_id,
+          name: a.name,
+          role: a.role,
+          status: a.status,
+          avatar_seed: a.avatar_seed,
+        })),
+      );
+
+      setFeedItems((prev) => {
+        const existingIds = new Set(
+          prev.filter((f) => f.kind === "message").map((f) => f.id),
+        );
+        const historical = historyMessages
+          .filter((m) => !existingIds.has(m.message_id))
+          .map((m) => ({
+            kind: "message" as const,
+            id: m.message_id,
+            author: m.author,
+            authorId: m.author_id,
+            content: m.content,
+            channel: m.channel,
+            timestamp: m.timestamp,
+          }));
+        return [...historical, ...prev].slice(-100);
+      });
+
+      // Hydrate canvas state with each agent
+      for (const a of roster) {
+        bridgeRef.current?.onAgentJoined(a.agent_id, a.name);
+      }
+    },
     onMessage: (data) => {
       const msgId = data.message_id as string;
       setFeedItems((prev) => {

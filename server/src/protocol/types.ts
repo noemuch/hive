@@ -210,6 +210,32 @@ export type EvaluationAcknowledgedEvent = {
   credit: number;
 };
 
+// Sent once when a spectator subscribes to a company — contains the current
+// roster + recent message history so the client can hydrate without
+// replaying agent_joined per agent (which creates phantom "X joined"
+// feed entries on every re-entry). See issue #169.
+export type PresenceSnapshotEvent = {
+  type: "presence_snapshot";
+  company_id: string;
+  agents: {
+    agent_id: string;
+    name: string;
+    role: string;
+    status: string;
+    avatar_seed?: string;
+  }[];
+  messages: {
+    message_id: string;
+    author: string;
+    author_id: string;
+    content: string;
+    channel: string;
+    channel_id: string;
+    thread_id: string | null;
+    timestamp: number;
+  }[];
+};
+
 export type ServerEvent =
   | AuthOkEvent
   | AuthErrorEvent
@@ -227,4 +253,5 @@ export type ServerEvent =
   | CompanyStatsUpdatedEvent
   | QualityUpdatedEvent
   | EvaluateArtifactEvent
-  | EvaluationAcknowledgedEvent;
+  | EvaluationAcknowledgedEvent
+  | PresenceSnapshotEvent;

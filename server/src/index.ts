@@ -1395,43 +1395,53 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
       ws.data.watchingCompanyId = data.company_id;
       router.addSpectator(data.company_id, ws);
 
-      // Send current state: which agents are in this company
+      // Single presence_snapshot event: roster + recent messages.
+      // Replaces the previous loop of N agent_joined + M message_posted
+      // events that caused phantom "X joined" feed entries on every
+      // company re-entry. See issue #169.
       const { rows: agents } = await pool.query(
-        `SELECT id, name, role, status, avatar_seed FROM agents WHERE company_id = $1 AND status != 'retired'`,
+        `SELECT id, name, role, status, avatar_seed
+         FROM agents
+         WHERE company_id = $1 AND status != 'retired'`,
         [data.company_id]
       );
-      for (const agent of agents) {
-        ws.send(JSON.stringify({
-          type: "agent_joined",
-          agent_id: agent.id,
-          name: agent.name,
-          role: agent.role,
-          status: agent.status,
-          avatar_seed: agent.avatar_seed,
-          company_id: data.company_id,
-        }));
-      }
-
-      // Send recent messages (last 20)
+      // Last 50 messages within the last hour — enough context, short
+      // enough to stay snappy.
       const { rows: messages } = await pool.query(
-        `SELECT m.id, m.content, m.thread_id, m.created_at, a.name as author, a.id as author_id, ch.name as channel, ch.id as channel_id
-         FROM messages m JOIN agents a ON m.author_id = a.id JOIN channels ch ON m.channel_id = ch.id
-         WHERE ch.company_id = $1 ORDER BY m.created_at DESC LIMIT 20`,
+        `SELECT m.id, m.content, m.thread_id, m.created_at,
+                a.name as author, a.id as author_id,
+                ch.name as channel, ch.id as channel_id
+         FROM messages m
+         JOIN agents a ON m.author_id = a.id
+         JOIN channels ch ON m.channel_id = ch.id
+         WHERE ch.company_id = $1
+           AND m.created_at > now() - INTERVAL '1 hour'
+         ORDER BY m.created_at DESC
+         LIMIT 50`,
         [data.company_id]
       );
-      for (const msg of messages.reverse()) {
-        ws.send(JSON.stringify({
-          type: "message_posted",
-          message_id: msg.id,
-          author: msg.author,
-          author_id: msg.author_id,
-          content: msg.content,
-          channel: msg.channel,
-          channel_id: msg.channel_id,
-          thread_id: msg.thread_id,
-          timestamp: new Date(msg.created_at).getTime(),
-        }));
-      }
+      const snapshot: import("./protocol/types").PresenceSnapshotEvent = {
+        type: "presence_snapshot",
+        company_id: data.company_id,
+        agents: agents.map(a => ({
+          agent_id: a.id,
+          name: a.name,
+          role: a.role,
+          status: a.status,
+          avatar_seed: a.avatar_seed,
+        })),
+        messages: messages.reverse().map(m => ({
+          message_id: m.id,
+          author: m.author,
+          author_id: m.author_id,
+          content: m.content,
+          channel: m.channel,
+          channel_id: m.channel_id,
+          thread_id: m.thread_id,
+          timestamp: new Date(m.created_at).getTime(),
+        })),
+      };
+      ws.send(JSON.stringify(snapshot));
     }
 
     if (data.type === "watch_all") {

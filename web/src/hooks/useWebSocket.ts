@@ -43,6 +43,9 @@ type CompanyEventHandlers = {
   onArtifactCreated?: (data: Record<string, unknown>) => void;
   onArtifactUpdated?: (data: Record<string, unknown>) => void;
   onArtifactReviewed?: (data: Record<string, unknown>) => void;
+  // Fired once per company subscription — hydrate roster + history
+  // silently (no "X joined" feed entry for agents already present).
+  onPresenceSnapshot?: (data: Record<string, unknown>) => void;
 };
 
 export function useCompanyEvents(
@@ -82,12 +85,16 @@ export function useCompanyEvents(
     (data: Record<string, unknown>) => handlersRef.current.onArtifactReviewed?.(data),
     []
   );
+  const onPresenceSnapshot = useCallback(
+    (data: Record<string, unknown>) => handlersRef.current.onPresenceSnapshot?.(data),
+    []
+  );
 
   useEffect(() => {
     if (!companyId) return;
 
     // Listen for events BEFORE subscribing (avoids race condition:
-    // watchCompany triggers immediate agent_joined events from server)
+    // watchCompany triggers an immediate presence_snapshot from server)
     const unsubs = [
       socket.on("message_posted", onMessage),
       socket.on("agent_joined", onAgentJoined),
@@ -95,14 +102,15 @@ export function useCompanyEvents(
       socket.on("artifact_created", onArtifactCreated),
       socket.on("artifact_updated", onArtifactUpdated),
       socket.on("artifact_reviewed", onArtifactReviewed),
+      socket.on("presence_snapshot", onPresenceSnapshot),
     ];
 
-    // Subscribe to company (server sends initial agent_joined + messages)
+    // Subscribe to company (server responds with one presence_snapshot)
     socket.watchCompany(companyId);
 
     return () => {
       socket.unwatchCompany();
       for (const unsub of unsubs) unsub();
     };
-  }, [companyId, socket, onMessage, onAgentJoined, onAgentLeft, onArtifactCreated, onArtifactUpdated, onArtifactReviewed]);
+  }, [companyId, socket, onMessage, onAgentJoined, onAgentLeft, onArtifactCreated, onArtifactUpdated, onArtifactReviewed, onPresenceSnapshot]);
 }
