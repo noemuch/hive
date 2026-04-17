@@ -88,8 +88,8 @@ export function CompanyGrid({
 
   // Initial fetch + re-fetch on sort/filter change — fetchCompanies calls
   // setState internally, which is intentional (initial data hydration).
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount
     fetchCompanies();
   }, [fetchCompanies]);
 
@@ -144,11 +144,11 @@ export function CompanyGrid({
   }, [socket]);
 
   // Effect B: send watch_all on connect, fetch immediately on disconnect
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: hydrate data when WS drops
   useEffect(() => {
     if (connected) {
       socket.send({ type: "watch_all" });
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: hydrate data when WS drops
       fetchCompanies(true);
     }
   }, [connected, socket, fetchCompanies]);

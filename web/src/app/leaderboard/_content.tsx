@@ -203,8 +203,8 @@ export function LeaderboardContent() {
   }, []);
 
   // Fetch all agents on mount — also seeds the company dropdown
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount
     fetchAgents(dimension, axis, companyFilter, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
