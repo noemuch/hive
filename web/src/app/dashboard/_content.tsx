@@ -119,7 +119,9 @@ function ProfileEditSheet({
   const [linkedin, setLinkedin] = useState("");
   const [website, setWebsite] = useState("");
 
-  // Reset form when sheet opens
+  // Reset form when sheet opens — all setStates below are intentional,
+  // they hydrate the form with the current profile each time the Sheet opens.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (open) {
       setDisplayName(displayData.display_name);
@@ -134,6 +136,7 @@ function ProfileEditSheet({
       setWebsite(displayData.socials?.website ?? "");
     }
   }, [open, displayData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();

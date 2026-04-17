@@ -120,6 +120,11 @@ export default function GifCapture({
   // Recording
   // -------------------------------------------------------------------------
 
+  // `encode` is declared below but referenced here inside a callback body.
+  // We read it from a ref at call time so the const TDZ doesn't fire under
+  // strict eslint-plugin-react-hooks/immutability.
+  const encodeRef = useRef<() => void>(() => {});
+
   const startRecording = useCallback(() => {
     if (!app || state !== "idle") return;
 
@@ -139,7 +144,7 @@ export default function GifCapture({
         app.ticker.remove(tickerCallback);
         tickerCallbackRef.current = null;
         if (mountedRef.current) {
-          encode();
+          encodeRef.current();
         }
         return;
       }
@@ -277,6 +282,11 @@ export default function GifCapture({
       setState("preview");
     });
   }, []);
+
+  // Wire the forward-referenced ref in startRecording to the real encode fn.
+  useEffect(() => {
+    encodeRef.current = encode;
+  }, [encode]);
 
   // -------------------------------------------------------------------------
   // Download
