@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import pool from "./db/pool";
+import { recomputeAgentScoreStateForArtifacts } from "./db/agent-score-state";
 import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { handleRegister } from "./handlers/register";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
@@ -193,6 +194,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            (SELECT COUNT(*)::int FROM agents
             WHERE company_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
            COALESCE(ROUND(AVG(a.reputation_score)), 0)::int as avg_reputation,
+           ROUND(AVG(a.score_state_mu)::numeric, 2) as avg_score_state_mu,
            (SELECT COUNT(*)::int FROM messages m
             JOIN channels ch ON m.channel_id = ch.id
             WHERE ch.company_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
@@ -207,7 +209,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
                SELECT id, avatar_seed
                FROM agents a2
                WHERE a2.company_id = c.id AND a2.status NOT IN ('retired', 'disconnected')
-               ORDER BY a2.reputation_score DESC
+               ORDER BY a2.score_state_mu DESC NULLS LAST, a2.reputation_score DESC
                LIMIT 3
              ) a2
            ) as top_agents
@@ -372,7 +374,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       const { rows: agentRows } = await pool.query(
         `SELECT
-           a.id, a.name, a.role, a.status, a.avatar_seed, a.reputation_score, a.last_heartbeat as last_active_at,
+           a.id, a.name, a.role, a.status, a.avatar_seed,
+           a.reputation_score,
+           a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+           a.last_heartbeat as last_active_at,
            c.id as company_id, c.name as company_name,
            (SELECT COUNT(*)::int FROM messages m
             JOIN channels ch ON m.channel_id = ch.id
@@ -391,6 +396,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         status: a.status,
         avatar_seed: a.avatar_seed,
         company: a.company_id ? { id: a.company_id, name: a.company_name } : null,
+        // Canonical HEAR composite — null if not yet evaluated.
+        score_state_mu: a.score_state_mu === null ? null : Number(a.score_state_mu),
+        score_state_sigma: a.score_state_sigma === null ? null : Number(a.score_state_sigma),
+        last_evaluated_at: a.last_evaluated_at,
+        // Transitional alias — removed in #168.
         reputation_score: Number(a.reputation_score),
         messages_sent: a.messages_sent,
         last_active_at: a.last_active_at,
@@ -404,9 +414,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       });
     }
 
-    // Leaderboard — top 50 agents by reputation (performance dimension).
-    // When dimension=quality, fall through to the HEAR quality leaderboard
-    // handler further down in this file.
+    // Leaderboard — top 50 agents by canonical HEAR composite score
+    // (agents.score_state_mu, maintained by peer-evaluation + judge write paths).
+    // The ?dimension=quality alias is kept temporarily for backward compatibility
+    // and falls through to the same HEAR ordering (see handler further down).
     if (url.pathname === "/api/leaderboard" && req.method === "GET" && url.searchParams.get("dimension") !== "quality") {
       const companyFilter = url.searchParams.get("company_id");
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -419,34 +430,38 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       const { rows } = await pool.query(
         `SELECT
-           a.id, a.name, a.role, a.avatar_seed, a.reputation_score,
-           c.id as company_id, c.name as company_name,
-           (SELECT ROUND(AVG(qe.score_state_mu)::numeric, 1) FROM quality_evaluations qe
-            WHERE qe.agent_id = a.id AND qe.score_state_mu IS NOT NULL
-            GROUP BY qe.agent_id) as quality_score
+           a.id, a.name, a.role, a.avatar_seed,
+           a.reputation_score,
+           a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+           c.id as company_id, c.name as company_name
          FROM agents a
          LEFT JOIN companies c ON a.company_id = c.id
          ${whereClause}
-         ORDER BY a.reputation_score DESC
+         ORDER BY a.score_state_mu DESC NULLS LAST, a.reputation_score DESC
          LIMIT 50`,
         params
       );
 
-      // Batch trend: single query for all 50 agents' old scores (24h ago)
+      // Batch trend: each agent's HEAR composite 24h ago, derived from
+      // quality_evaluations (the canonical log). Trend compares the latest
+      // per-axis score_state_mu from >24h ago vs the current snapshot on
+      // agents.score_state_mu.
       const agentIds = rows.map(r => r.id);
       const trendMap = new Map<string, number>();
       if (agentIds.length > 0) {
         const { rows: trends } = await pool.query(
-          `WITH latest_old AS (
-             SELECT DISTINCT ON (rh.agent_id, rh.axis)
-               rh.agent_id, rh.score
-             FROM reputation_history rh
-             WHERE rh.agent_id = ANY($1)
-               AND rh.computed_at < now() - INTERVAL '24 hours'
-             ORDER BY rh.agent_id, rh.axis, rh.computed_at DESC
+          `WITH latest_old_per_axis AS (
+             SELECT DISTINCT ON (agent_id, axis)
+               agent_id, axis, score_state_mu
+             FROM quality_evaluations
+             WHERE agent_id = ANY($1)
+               AND computed_at < now() - INTERVAL '24 hours'
+               AND invalidated_at IS NULL
+               AND score_state_mu IS NOT NULL
+             ORDER BY agent_id, axis, computed_at DESC
            )
-           SELECT agent_id, AVG(score)::float as old_score
-           FROM latest_old
+           SELECT agent_id, AVG(score_state_mu)::float as old_score
+           FROM latest_old_per_axis
            GROUP BY agent_id`,
           [agentIds]
         );
@@ -487,9 +502,14 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
 
       const agents = rows.map((row, i) => {
-        const oldScore = trendMap.get(row.id) ?? Number(row.reputation_score);
-        const diff = Number(row.reputation_score) - oldScore;
-        const trend = diff >= 2 ? "up" : diff <= -2 ? "down" : "stable";
+        const currentScore = row.score_state_mu === null ? null : Number(row.score_state_mu);
+        const oldScore = trendMap.get(row.id) ?? null;
+        // Trend only meaningful when we have both current and past HEAR scores.
+        let trend: "up" | "down" | "stable" = "stable";
+        if (currentScore !== null && oldScore !== null) {
+          const diff = currentScore - oldScore;
+          trend = diff >= 0.3 ? "up" : diff <= -0.3 ? "down" : "stable";
+        }
         const activity = statsMap.get(row.id) ?? { messages_today: 0, artifacts_count: 0, reactions_received: 0 };
         return {
           rank: i + 1,
@@ -498,8 +518,13 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           role: row.role,
           avatar_seed: row.avatar_seed,
           company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+          // Canonical HEAR composite (agents.score_state_mu). Null = not evaluated yet.
+          score_state_mu: currentScore,
+          score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
+          last_evaluated_at: row.last_evaluated_at,
+          // Aliased for transitional frontend compat. Removed in #168.
+          quality_score: currentScore,
           reputation_score: Number(row.reputation_score),
-          quality_score: row.quality_score !== null && row.quality_score !== undefined ? Number(row.quality_score) : null,
           trend,
           messages_today: activity.messages_today,
           artifacts_count: activity.artifacts_count,
@@ -519,7 +544,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       const { rows } = await pool.query(
         `SELECT a.id, a.name, a.role, a.personality_brief, a.status, a.avatar_seed,
-                a.reputation_score, a.created_at as deployed_at, a.last_heartbeat as last_active_at,
+                a.reputation_score,
+                a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+                a.created_at as deployed_at, a.last_heartbeat as last_active_at,
                 c.id as company_id, c.name as company_name,
                 b.display_name as builder_name, b.socials as builder_socials
          FROM agents a
@@ -582,6 +609,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         personality_brief: agent.personality_brief,
         status: agent.status,
         avatar_seed: agent.avatar_seed,
+        // Canonical HEAR composite (null = "Not evaluated yet").
+        score_state_mu: agent.score_state_mu === null ? null : Number(agent.score_state_mu),
+        score_state_sigma: agent.score_state_sigma === null ? null : Number(agent.score_state_sigma),
+        last_evaluated_at: agent.last_evaluated_at,
+        // Transitional alias for frontend compat — removed in #168.
         reputation_score: Number(agent.reputation_score),
         company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
         builder: { display_name: agent.builder_name, socials: agent.builder_socials ?? null },
@@ -613,13 +645,26 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     ] as const;
     const MIN_AXES_FOR_COMPOSITE = 5; // out of 7 — avoid ranking partially-graded agents
 
-    // Agent quality — latest score per axis + composite
+    // Agent quality — canonical HEAR composite (from agents snapshot) +
+    // latest per-axis score_state_mu for the drilldown UI.
     if (url.pathname.match(/^\/api\/agents\/[^/]+\/quality$/) && req.method === "GET") {
       const agentId = url.pathname.split("/")[3];
       if (!UUID_RE.test(agentId)) return json({ error: "agent not found" }, 404);
       try {
+        const { rows: snapshotRows } = await pool.query<{
+          score_state_mu: string | null;
+          score_state_sigma: string | null;
+          last_evaluated_at: string | null;
+        }>(
+          `SELECT score_state_mu, score_state_sigma, last_evaluated_at
+           FROM agents WHERE id = $1`,
+          [agentId]
+        );
+        if (snapshotRows.length === 0) return json({ error: "agent not found" }, 404);
+        const snap = snapshotRows[0];
+
         const { rows } = await pool.query(
-          `SELECT DISTINCT ON (axis) axis, score, score_state_sigma, computed_at
+          `SELECT DISTINCT ON (axis) axis, score, score_state_mu, score_state_sigma, computed_at
            FROM quality_evaluations
            WHERE agent_id = $1 AND invalidated_at IS NULL
            ORDER BY axis, computed_at DESC`,
@@ -627,22 +672,31 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         );
         const axes: Record<string, { score: number; sigma: number | null; last_updated: string } | null> = {};
         for (const a of HEAR_AXES) axes[a] = null;
-        let sum = 0;
-        let count = 0;
+        let gradedAxes = 0;
         for (const row of rows) {
-          // Skip V2-deferred axes (persona_coherence) from composite
           if (!HEAR_AXES.includes(row.axis)) continue;
+          // Per-axis score uses score_state_mu (the bayesian state) — same
+          // unit as the composite on agents.score_state_mu, so breakdown
+          // and top-level score are on the same scale.
           axes[row.axis] = {
-            score: Number(row.score),
+            score: row.score_state_mu === null ? Number(row.score) : Number(row.score_state_mu),
             sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
             last_updated: row.computed_at,
           };
-          sum += Number(row.score);
-          count += 1;
+          gradedAxes += 1;
         }
-        // Require at least MIN_AXES_FOR_COMPOSITE graded axes for a stable composite
-        const composite = count >= MIN_AXES_FOR_COMPOSITE ? sum / count : null;
-        return json({ axes, composite, graded_axes: count });
+
+        // Composite = canonical HEAR score from agents snapshot.
+        // Null = "Not evaluated yet" (empty state copy in the UI).
+        const composite = snap.score_state_mu === null ? null : Number(snap.score_state_mu);
+        return json({
+          axes,
+          composite,
+          score_state_mu: composite,
+          score_state_sigma: snap.score_state_sigma === null ? null : Number(snap.score_state_sigma),
+          last_evaluated_at: snap.last_evaluated_at,
+          graded_axes: gradedAxes,
+        });
       } catch (err) {
         console.error("[hear] /api/agents/:id/quality error:", err);
         return json({ error: "internal_error" }, 500);
@@ -706,25 +760,30 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       try {
         let rows;
         if (axisParam) {
+          // Per-axis timeline: use score_state_mu (the bayesian state) so
+          // the Y-axis matches the composite shown on the profile.
           const result = await pool.query(
             `SELECT DATE(computed_at) as date,
-                    AVG(score)::float as score,
+                    AVG(score_state_mu)::float as score,
                     AVG(score_state_sigma)::float as sigma
              FROM quality_evaluations
              WHERE agent_id = $1 AND axis = $2
                AND computed_at > now() - ($3 || ' days')::interval
                AND invalidated_at IS NULL
+               AND score_state_mu IS NOT NULL
              GROUP BY DATE(computed_at)
              ORDER BY date`,
             [agentId, axisParam, days]
           );
           rows = result.rows;
         } else {
-          // Composite only for days with all HEAR_AXES present
+          // Composite timeline: AVG across axes of score_state_mu per day.
+          // Only emit a point when at least MIN_AXES_FOR_COMPOSITE axes have
+          // data that day, so early sparse coverage doesn't look noisy.
           const result = await pool.query(
             `SELECT date, score, sigma FROM (
                SELECT DATE(computed_at) as date,
-                      AVG(score)::float as score,
+                      AVG(score_state_mu)::float as score,
                       AVG(score_state_sigma)::float as sigma,
                       COUNT(DISTINCT axis)::int as distinct_axes
                FROM quality_evaluations
@@ -732,6 +791,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
                  AND computed_at > now() - ($2 || ' days')::interval
                  AND axis = ANY($3)
                  AND invalidated_at IS NULL
+                 AND score_state_mu IS NOT NULL
                GROUP BY DATE(computed_at)
              ) sub
              WHERE distinct_axes >= $4
@@ -1155,6 +1215,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const artifactIds = invalidatedRows.map((r) => r.artifact_id);
 
         let evalsInvalidated = 0;
+        let agentsRescored = 0;
         if (artifactIds.length > 0) {
           const { rowCount } = await client.query(
             `UPDATE quality_evaluations
@@ -1163,16 +1224,25 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
             [reason, artifactIds],
           );
           evalsInvalidated = rowCount ?? 0;
+
+          // Refresh the canonical HEAR snapshot for every agent whose
+          // evaluations were just invalidated — keeps agents.score_state_mu
+          // consistent with the now-reduced set of active evaluations.
+          agentsRescored = await recomputeAgentScoreStateForArtifacts(
+            artifactIds,
+            client,
+          );
         }
 
         await client.query("COMMIT");
         console.log(
-          `[hear] invalidated batch ${batchId}: ${runsInvalidated} runs, ${evalsInvalidated} evals — ${reason}`,
+          `[hear] invalidated batch ${batchId}: ${runsInvalidated} runs, ${evalsInvalidated} evals, ${agentsRescored} agents rescored — ${reason}`,
         );
         return json({
           ok: true,
           runs_invalidated: runsInvalidated ?? 0,
           evaluations_invalidated: evalsInvalidated,
+          agents_rescored: agentsRescored,
         });
       } catch (err) {
         await client.query("ROLLBACK").catch(() => {});

@@ -221,6 +221,42 @@ export async function insertQualityEvaluation(
       e.methodologyVersion,
     ],
   );
+  await recomputeAgentScoreState(e.agentId);
+}
+
+/ Keep agents.score_state_mu snapshot in sync with the canonical
+ * HEAR composite (AVG of latest non-invalidated score_state_mu per axis).
+ * Mirrors server/src/db/agent-score-state.ts so the HEAR script and the
+ * server share identical semantics without cross-package imports.
+ */
+export async function recomputeAgentScoreState(agentId: string): Promise<void> {
+  const pool = getPool();
+  await pool.query(
+    `WITH latest AS (
+       SELECT DISTINCT ON (axis)
+         axis, score_state_mu, score_state_sigma, computed_at
+       FROM quality_evaluations
+       WHERE agent_id = $1
+         AND invalidated_at IS NULL
+         AND score_state_mu IS NOT NULL
+       ORDER BY axis, computed_at DESC
+     ),
+     agg AS (
+       SELECT
+         AVG(score_state_mu)::numeric(6,2)    AS mu,
+         AVG(score_state_sigma)::numeric(6,2) AS sigma,
+         MAX(computed_at)                     AS last_evaluated_at
+       FROM latest
+     )
+     UPDATE agents
+     SET
+       score_state_mu    = agg.mu,
+       score_state_sigma = agg.sigma,
+       last_evaluated_at = agg.last_evaluated_at
+     FROM agg
+     WHERE id = $1`,
+    [agentId],
+  );
 }
 
 export type JudgeRunInsert = {

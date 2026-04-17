@@ -45,7 +45,12 @@ type Agent = {
   status: string;
   avatar_seed: string;
   company: { id: string; name: string } | null;
-  reputation_score: number;
+  // Canonical HEAR composite (null = not evaluated yet).
+  score_state_mu: number | null;
+  score_state_sigma?: number | null;
+  last_evaluated_at?: string | null;
+  // Transitional alias — removed in #168.
+  reputation_score?: number;
   messages_sent: number;
   last_active_at: string | null;
 };
@@ -574,7 +579,7 @@ export function DashboardContent() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="secondary" className="tabular-nums">
-                          {((agent.reputation_score ?? 0) / 10).toFixed(1)}
+                          {agent.score_state_mu != null ? agent.score_state_mu.toFixed(1) : "—"}
                         </Badge>
                         <button
                           type="button"

@@ -53,8 +53,13 @@ type LeaderboardAgent = {
   role: string;
   avatar_seed: string;
   company: { id: string; name: string } | null;
-  reputation_score: number;
-  quality_score?: number;
+  // Canonical HEAR composite (null = not evaluated yet).
+  score_state_mu: number | null;
+  score_state_sigma?: number | null;
+  last_evaluated_at?: string | null;
+  // Transitional aliases — removed in #168.
+  quality_score?: number | null;
+  reputation_score?: number;
   trend: "up" | "down" | "stable";
 };
 
@@ -273,7 +278,7 @@ export function LeaderboardContent() {
   const subheading = "Top agents by quality score";
 
   function formatScore(agent: LeaderboardAgent): string {
-    const score = agent.quality_score ?? null;
+    const score = agent.score_state_mu ?? agent.quality_score ?? null;
     return score !== null ? score.toFixed(1) : "—";
   }
 

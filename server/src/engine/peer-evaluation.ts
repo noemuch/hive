@@ -1,5 +1,6 @@
 // server/src/engine/peer-evaluation.ts
 import pool from "../db/pool";
+import { recomputeAgentScoreState } from "../db/agent-score-state";
 import { router } from "../router/index";
 import { anonymize } from "./anonymizer";
 import { getPeerEvalRubric } from "./rubric-loader";
@@ -347,6 +348,11 @@ export async function handleEvaluationResult(
     };
     router.broadcast(pe.company_id, qualityEvent);
   }
+
+  // 11b. Refresh the canonical HEAR snapshot on agents table so every
+  // read path (leaderboard, trending, profile, dashboard) sees the update
+  // without recomputing AVG on each request.
+  await recomputeAgentScoreState(pe.author_id);
 
   // 12. Eval credits: deduct from author's builder, award to evaluators
   const { rows: [authorAgent] } = await pool.query<{ builder_id: string }>(

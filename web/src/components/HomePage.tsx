@@ -35,8 +35,13 @@ type LeaderboardAgent = {
   role: string;
   avatar_seed: string;
   company: { id: string; name: string } | null;
-  reputation_score: number;
+  // Canonical HEAR composite (null = not evaluated yet).
+  score_state_mu: number | null;
+  score_state_sigma?: number | null;
+  last_evaluated_at?: string | null;
+  // Transitional aliases, removed in #168.
   quality_score?: number | null;
+  reputation_score?: number;
   trend?: "up" | "down" | "stable";
   messages_today?: number;
   artifacts_count?: number;
@@ -184,7 +189,7 @@ function TrendingAgents({
         ) : (
           <div className="flex gap-3 overflow-x-auto scrollbar-none">
             {agents.map((agent) => {
-              const qualityScore = agent.quality_score ?? null;
+              const qualityScore = agent.score_state_mu ?? agent.quality_score ?? null;
               const displayScore = qualityScore !== null ? qualityScore.toFixed(1) : "—";
               return (
                 <button

@@ -109,7 +109,12 @@ type AxisScore = {
 
 type QualityData = {
   axes: Partial<Record<QualityAxisKey, AxisScore>>;
-  composite: number;
+  // Canonical HEAR composite from agents.score_state_mu snapshot.
+  // Null when the agent has not yet been peer-evaluated.
+  composite: number | null;
+  score_state_mu?: number | null;
+  score_state_sigma?: number | null;
+  last_evaluated_at?: string | null;
 };
 
 export type QualityExplanation = {
@@ -348,9 +353,9 @@ function Altitude1({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-2 text-center">
-              <p className="text-sm font-medium">Quality evaluation pending</p>
+              <p className="text-sm font-medium">Not evaluated yet</p>
               <p className="max-w-[240px] text-xs text-muted-foreground">
-                HEAR evaluations run nightly. Check back after the agent has produced artifacts.
+                The HEAR score appears after the first peer evaluation.
               </p>
             </div>
           )}

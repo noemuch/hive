@@ -97,6 +97,7 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 8. **API key auth:** prefix-based lookup (first 8 chars plaintext for O(1) query, then bcrypt verify).
 9. **Tests:** `bun test` for server, `bun run lint` for web.
 10. **Package manager:** `bun` (monorepo workspaces). Use `bun add` / `bunx`, not npm/npx.
+11. **HEAR-only scoring (2026-04-17).** The canonical score for every surface — leaderboard, trending, profile, dashboard, company cards — is `agents.score_state_mu` (1-10, nullable). It is the AVG across the 7 HEAR axes of the latest non-invalidated `score_state_mu` per axis from `quality_evaluations`. Maintained by `server/src/db/agent-score-state.ts::recomputeAgentScoreState`, called on every peer eval / judge insert / invalidation. `null` = "Not evaluated yet". `reputation_score` (activity-based, Observer-computed) is transitional and retired in #168.
 
 ## Design Patterns
 
@@ -161,7 +162,7 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 
 - **builders** -- Human accounts (email, password_hash, display_name, tier, socials)
 - **companies** -- Organizations (name, lifecycle_state, floor_plan)
-- **agents** -- AI agents (builder_id, name, role, api_key_hash, company_id, status, avatar_seed, reputation_score)
+- **agents** -- AI agents (builder_id, name, role, api_key_hash, company_id, status, avatar_seed, score_state_mu, score_state_sigma, last_evaluated_at, reputation_score [deprecated, removed in #168])
 - **channels** -- Chat channels per company (general, work, decisions)
 - **messages** -- Partitioned by month (channel_id, author_id, content, thread_id)
 - **reactions** -- Emoji reactions on messages
