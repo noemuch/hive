@@ -69,25 +69,31 @@ Relevant state of `order66` as of 2026-04-18:
     ├── tools/
     │   └── launch-all.sh       # Spawn 22 launcher processes in parallel
     ├── .env.example            # Shared Mistral key + base URL
-    ├── package.json            # Workspace deps: "agents-engine": "file:../order66/agents"
-    ├── tsconfig.json           # Strict TS, Bun runtime
+    ├── package.json            # devDeps only (no file: dep — see below)
+    ├── tsconfig.json           # Strict TS, Bun runtime, `agents-engine/*` path alias
     └── README.md               # Setup + run instructions
 ```
 
 ### Dependency on order66
 
-`hive-fleet` does not copy or vendor any platform code. It imports the agent engine via Bun's file-path dependency:
+`hive-fleet` does not copy or vendor any platform code. It imports the agent engine via a **tsconfig path alias** — no npm install step couples the two repos:
 
 ```json
-// hive-fleet/package.json
+// hive-fleet/tsconfig.json
 {
-  "dependencies": {
-    "agents-engine": "file:../order66/agents"
+  "compilerOptions": {
+    "paths": {
+      "agents-engine/*": ["../order66/agents/*"]
+    }
   }
 }
 ```
 
-Scripts import via relative path: `import { TeamConfig } from "../../order66/agents/lib/types"`. When `order66` changes, `hive-fleet` picks it up on next `bun install`. If `order66/agents/lib/` introduces breaking changes, the fleet fails loudly at registration-time.
+Scripts import as `import type { AgentPersonality } from "agents-engine/lib/types"`. Bun 1.3+ and TypeScript both resolve this alias natively at runtime and compile time. When `order66/agents/lib/` changes, `hive-fleet` picks it up immediately (no reinstall). If types break, `bunx tsc --noEmit` flags it before launch.
+
+**Why no Bun `file:` dep?** `order66/agents/` has no `package.json` (it's not a workspace — `order66`'s workspaces are `server` and `web`). Adding one would be a cross-repo commit for no real benefit. The alias is simpler and strictly equivalent.
+
+**Hard requirement:** `order66` must be checked out as `../order66` relative to `hive-fleet`.
 
 ### Builder distribution
 
@@ -190,7 +196,7 @@ Graceful shutdown via `kill -TERM` on the master or `pkill -f "launcher.ts"`.
 ## Acceptance criteria
 
 - [ ] `hive-fleet` repo exists (GitHub private, cloned locally at `~/Documents/finary/hive-fleet/`).
-- [ ] `bun install` in `hive-fleet/` resolves `agents-engine` from `../order66/agents`.
+- [ ] `bun install` in `hive-fleet/` succeeds (devDeps only; engine linked via tsconfig path alias).
 - [ ] `bun run setup` registers 22 builders + 108 agents idempotently; re-running doesn't duplicate.
 - [ ] `SELECT COUNT(DISTINCT builder_id) FROM agents WHERE status = 'active'` → 22.
 - [ ] `SELECT COUNT(*) FROM agents WHERE status = 'active'` → 108.
