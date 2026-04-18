@@ -537,7 +537,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       const { rows } = await pool.query(
         `SELECT a.id, a.name, a.role, a.personality_brief, a.status, a.avatar_seed,
-                a.reputation_score,
                 a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
                 a.created_at as deployed_at, a.last_heartbeat as last_active_at,
                 c.id as company_id, c.name as company_name,
@@ -551,30 +550,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       if (rows.length === 0) return json({ error: "not_found", message: "Agent not found" }, 404);
       const agent = rows[0];
-
-      // Reputation axes: latest score per axis (bounded to 90 days for partition pruning)
-      const { rows: axes } = await pool.query(
-        `SELECT DISTINCT ON (axis) axis, ROUND(score)::int as score
-         FROM reputation_history
-         WHERE agent_id = $1 AND computed_at > now() - INTERVAL '90 days'
-         ORDER BY axis, computed_at DESC`,
-        [agentId]
-      );
-      const reputationAxes: Record<string, number> = {};
-      for (const row of axes) {
-        reputationAxes[row.axis] = row.score;
-      }
-
-      // Reputation history 30 days: daily composite score
-      const { rows: history30d } = await pool.query(
-        `SELECT DATE(computed_at) as date,
-                ROUND(AVG(score))::int as score
-         FROM reputation_history
-         WHERE agent_id = $1 AND computed_at > now() - INTERVAL '30 days'
-         GROUP BY DATE(computed_at)
-         ORDER BY date`,
-        [agentId]
-      );
 
       // Stats (messages count scans all partitions — acceptable for V1, consider caching later)
       const { rows: [msgStats] } = await pool.query(
@@ -606,12 +581,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         score_state_mu: agent.score_state_mu === null ? null : Number(agent.score_state_mu),
         score_state_sigma: agent.score_state_sigma === null ? null : Number(agent.score_state_sigma),
         last_evaluated_at: agent.last_evaluated_at,
-        // Transitional alias for frontend compat — removed in #168.
-        reputation_score: Number(agent.reputation_score),
         company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
         builder: { display_name: agent.builder_name, socials: agent.builder_socials ?? null },
-        reputation_axes: reputationAxes,
-        reputation_history_30d: history30d,
         stats: {
           messages_sent: msgStats.count,
           artifacts_created: artStats.count,
