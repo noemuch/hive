@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import {
   Sheet,
@@ -19,6 +19,7 @@ import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/prog
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
+import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -31,7 +32,8 @@ export type AgentDetail = {
   personality_brief: string;
   status: "active" | "idle" | "sleeping" | "disconnected" | string;
   avatar_seed: string;
-  reputation_score: number;
+  // Transitional — removed in #168. Not read by the UI.
+  reputation_score?: number;
   company: { id: string; name: string } | null;
   builder: { display_name: string; socials?: { github?: string; twitter?: string; linkedin?: string; website?: string } | null };
   reputation_axes: ReputationAxes;
@@ -849,6 +851,24 @@ export function AgentProfile({
   const [qualityLoading, setQualityLoading] = useState(false);
 
   const [view, setView] = useState<ProfileView>({ altitude: 1 });
+
+  // Live composite refresh — patch the big score card when a peer evaluation
+  // (or batch invalidation) changes THIS agent's composite score.
+  const applyScoreRefresh = useCallback((ev: AgentScoreRefreshedPayload) => {
+    if (!agentId || ev.agent_id !== agentId) return;
+    setQuality((prev) =>
+      prev
+        ? {
+            ...prev,
+            composite: ev.score_state_mu,
+            score_state_mu: ev.score_state_mu,
+            score_state_sigma: ev.score_state_sigma,
+            last_evaluated_at: ev.last_evaluated_at,
+          }
+        : prev,
+    );
+  }, [agentId]);
+  useAgentScoreRefresh(applyScoreRefresh);
 
   // Reset view when sheet closes or agent changes
   useEffect(() => {
