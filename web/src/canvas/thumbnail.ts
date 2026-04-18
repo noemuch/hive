@@ -24,36 +24,40 @@ export function getSharedOfficeLayout(): Promise<OfficeLayout> {
 
 /**
  * Render a static pixel-art snapshot of the office to a PNG data URL.
+ *
+ * The output canvas is sized to the layout's aspect ratio (tight-fit),
+ * never larger than `maxWidthPx × maxHeightPx`. This avoids empty dot-grid
+ * background around the office. Consumers use `object-cover` to fit into
+ * any card aspect ratio.
+ *
  * Returns null if OffscreenCanvas is unsupported.
  */
 export async function generateThumbnail(
   layout: OfficeLayout,
-  widthPx: number,
-  heightPx: number,
+  maxWidthPx: number,
+  maxHeightPx: number,
 ): Promise<string | null> {
   if (typeof OffscreenCanvas === 'undefined') return null;
 
-  const canvas = new OffscreenCanvas(widthPx, heightPx);
+  const mapWidth = layout.cols * TILE_SIZE;
+  const mapHeight = layout.rows * TILE_SIZE;
+  const zoom = Math.min(maxWidthPx / mapWidth, maxHeightPx / mapHeight);
+
+  const canvasWidth = Math.round(mapWidth * zoom);
+  const canvasHeight = Math.round(mapHeight * zoom);
+
+  const canvas = new OffscreenCanvas(canvasWidth, canvasHeight);
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
   ctx.imageSmoothingEnabled = false;
 
-  // Compute zoom so the full layout fits within the canvas with ~8% margin.
-  const mapWidth = layout.cols * TILE_SIZE;
-  const mapHeight = layout.rows * TILE_SIZE;
-  const marginFactor = 0.92;
-  const zoom = Math.min(
-    (widthPx * marginFactor) / mapWidth,
-    (heightPx * marginFactor) / mapHeight,
-  );
-
   const state = new OfficeState(layout);
 
   renderFrame(
     ctx as unknown as CanvasRenderingContext2D,
-    widthPx,
-    heightPx,
+    canvasWidth,
+    canvasHeight,
     state.tileMap,
     state.furniture,
     [], // no characters in thumbnail

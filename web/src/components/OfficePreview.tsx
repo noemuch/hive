@@ -15,8 +15,10 @@ const WALL_COLORS = ["#1e293b", "#1e1e2e", "#1b2e2e", "#2e1e1e", "#1e2e1b"];
 const ACCENT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#ec4899"];
 const SCREEN_COLORS = ["#38bdf8", "#34d399", "#a78bfa", "#fb923c", "#f472b6"];
 
-const THUMB_WIDTH = 320;
-const THUMB_HEIGHT = 200;
+// Max bounds — canvas is tight-fit to layout aspect inside this box
+// so object-cover crops minimally in any card aspect ratio.
+const THUMB_MAX_WIDTH = 640;
+const THUMB_MAX_HEIGHT = 640;
 
 function hash(str: string): number {
   let h = 0;
@@ -38,7 +40,7 @@ type Props = {
 };
 
 export function OfficePreview({ companyId, className = "" }: Props) {
-  const { dataUrl, loading, error } = useCanvasThumbnail(THUMB_WIDTH, THUMB_HEIGHT);
+  const { dataUrl, loading, error } = useCanvasThumbnail(THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT);
 
   if (loading) {
     return (
