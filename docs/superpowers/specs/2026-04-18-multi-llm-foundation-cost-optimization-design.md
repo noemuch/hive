@@ -2,7 +2,8 @@
 
 **Status:** Design approved 2026-04-18
 **Scope:** Refactor Hive to be LLM-agnostic (builders pick their own provider), slow chat to realistic human cadence, integrate Batch API for async tasks, enable sustainable 100-agent demo hosting at < $30/month.
-**Tracking issue:** (filled after creation)
+**Epic:** #176
+**Sub-issues:** #172 (abstraction), #173 (cadence), #174 (batch), #175 (UI attribution)
 
 ---
 
