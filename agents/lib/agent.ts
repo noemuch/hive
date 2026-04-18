@@ -56,6 +56,11 @@ const MAX_HISTORY = 20;
 // Counters for artifact and reaction triggering
 let messagesSinceLastArtifact = 0;
 let lastMessageTime = Date.now();
+// Per-agent minimum gap between sent messages — enforces a realistic human
+// work cadence (~1 msg per 5-15 min) instead of frenetic chatter every 20s.
+// Mentions bypass this floor so direct addressing still feels responsive.
+let lastSpokeAt = 0;
+const MIN_SPEAK_GAP_MS = 3 * 60 * 1000;
 const REACTIONS = ["👍", "🔥", "💡", "⭐", "🎉"];
 
 // ---------------------------------------------------------------------------
@@ -197,11 +202,18 @@ function shouldRespond(msg: Message): boolean {
   if (!canDo("send_message")) return false;
   const lower = msg.content.toLowerCase();
   const nameLower = P.name.toLowerCase();
-  // Tuned for 6-7 agent teams: lower probabilities to stay under 25 msg/h per agent
+
+  // Direct mention: always instant reply (mentions must feel responsive).
   if (lower.includes(nameLower)) return true;
-  if (msg.content.includes("?")) return Math.random() < 0.25;
-  if (P.triggers.some((t) => lower.includes(t))) return Math.random() < 0.20;
-  return Math.random() < 0.07;
+
+  // For non-mention branches, enforce a per-agent cooldown so the simulation
+  // reads like real workers, not a chatroom of bots. Artifact production and
+  // peer evaluation are artifact-driven and unaffected by this floor.
+  if (Date.now() - lastSpokeAt < MIN_SPEAK_GAP_MS) return false;
+
+  if (msg.content.includes("?")) return Math.random() < 0.10;
+  if (P.triggers.some((t) => lower.includes(t))) return Math.random() < 0.08;
+  return Math.random() < 0.02;
 }
 
 function shouldReact(msg: Message): boolean {
@@ -266,31 +278,44 @@ function connect() {
               const topic = await callLLM(P.systemPrompt, `You just joined a new team. Introduce yourself briefly and ask the team a work-related question relevant to your role as ${P.role}. 1-2 sentences.`, 100);
               if (topic) {
                 send({ type: "send_message", channel: ch, content: topic });
+                lastSpokeAt = Date.now();
                 console.log(`[kickoff] ${P.name}: ${topic.slice(0, 80)}`);
               }
             }
           }, 5_000 + Math.random() * 15_000); // 5-20s random delay (avoids all agents talking at once)
         }
 
-        // Silence pulse: if no messages in 90s, start a new topic
+        // Silence pulse: if the team has been quiet for ≥5 min, an agent
+        // may start a new topic. Realistic-workplace cadence — not frenetic
+        // chatter. Respects the per-agent MIN_SPEAK_GAP_MS floor implicitly
+        // through the timing here.
         {
           const ch = data.channels?.find((c: { name: string }) => c.name === "#general")?.name || data.channels?.find((c: { name: string }) => c.name !== "#public")?.name || "#general";
+          const SILENCE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min team-wide silence
+          const PULSE_CHECK_MS = 60 * 1000;           // check every minute
+          const PULSE_PROBABILITY = 0.3;
           const silenceInterval = setInterval(async () => {
             try {
               const silenceDuration = Date.now() - lastMessageTime;
-              if (silenceDuration > 20_000 && canDo("send_message") && Math.random() < 0.4) {
+              if (
+                silenceDuration > SILENCE_THRESHOLD_MS &&
+                Date.now() - lastSpokeAt > MIN_SPEAK_GAP_MS &&
+                canDo("send_message") &&
+                Math.random() < PULSE_PROBABILITY
+              ) {
                 record("send_message");
                 const topic = await callLLM(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
                 if (topic) {
                   send({ type: "send_message", channel: ch, content: topic });
                   lastMessageTime = Date.now();
+                  lastSpokeAt = Date.now();
                   console.log(`[pulse] ${P.name}: ${topic.slice(0, 80)}`);
                 }
               }
             } catch (err) {
               console.error(`[pulse] ${P.name} error:`, (err as Error).message);
             }
-          }, 20_000);
+          }, PULSE_CHECK_MS);
           // Clean up on close
           ws.addEventListener("close", () => clearInterval(silenceInterval));
         }
@@ -335,6 +360,7 @@ function connect() {
             const reply = await askLLMReply(msg);
             if (reply) {
               send({ type: "send_message", channel: data.channel, content: reply });
+              lastSpokeAt = Date.now();
               addToHistory({ id: "", author: P.name, content: reply, channel: data.channel });
               console.log(`[→ ${data.channel}] ${reply.slice(0, 100)}`);
             }
