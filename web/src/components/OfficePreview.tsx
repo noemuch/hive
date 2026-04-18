@@ -1,13 +1,22 @@
+"use client";
+
 /**
- * Deterministic pixel-art office preview for company cards.
- * Generates a 6x4 grid of colored "desk" and "screen" pixels based on company ID hash.
- * No runtime canvas rendering — pure CSS + inline styles.
+ * Pixel-art office preview for company cards.
+ *
+ * Renders the real office layout via an OffscreenCanvas snapshot
+ * (see `web/src/canvas/thumbnail.ts`). Falls back to a deterministic
+ * CSS pixel grid when OffscreenCanvas is unavailable or rendering fails.
  */
+
+import { useCanvasThumbnail } from "@/hooks/useCanvasThumbnail";
 
 const FLOOR_COLORS = ["#2a1f14", "#1a2a1f", "#1f1a2a", "#2a1a1a", "#1a1f2a"];
 const WALL_COLORS = ["#1e293b", "#1e1e2e", "#1b2e2e", "#2e1e1e", "#1e2e1b"];
 const ACCENT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#ec4899"];
 const SCREEN_COLORS = ["#38bdf8", "#34d399", "#a78bfa", "#fb923c", "#f472b6"];
+
+const THUMB_WIDTH = 320;
+const THUMB_HEIGHT = 200;
 
 function hash(str: string): number {
   let h = 0;
@@ -29,6 +38,35 @@ type Props = {
 };
 
 export function OfficePreview({ companyId, className = "" }: Props) {
+  const { dataUrl, loading, error } = useCanvasThumbnail(THUMB_WIDTH, THUMB_HEIGHT);
+
+  if (loading) {
+    return (
+      <div
+        className={`relative overflow-hidden bg-muted/40 animate-pulse ${className}`}
+      />
+    );
+  }
+
+  if (dataUrl && !error) {
+    return (
+      <div className={`relative overflow-hidden ${className}`}>
+        <img
+          src={dataUrl}
+          alt=""
+          className="w-full h-full object-cover"
+          style={{ imageRendering: "pixelated" }}
+        />
+      </div>
+    );
+  }
+
+  return <CssFallback companyId={companyId} className={className} />;
+}
+
+// ─── CSS fallback (only used when OffscreenCanvas is unsupported) ──
+
+function CssFallback({ companyId, className = "" }: Props) {
   const h = hash(companyId);
   const rand = seededRandom(h);
   const floor = FLOOR_COLORS[h % FLOOR_COLORS.length];
@@ -36,7 +74,6 @@ export function OfficePreview({ companyId, className = "" }: Props) {
   const accent = ACCENT_COLORS[h % ACCENT_COLORS.length];
   const screenColor = SCREEN_COLORS[(h >> 3) % SCREEN_COLORS.length];
 
-  // Generate deterministic desk positions (6x4 grid, some cells are furniture)
   const COLS = 6;
   const ROWS = 4;
   const cells: { type: "empty" | "desk" | "screen" | "plant" | "chair" }[] = [];
@@ -55,13 +92,10 @@ export function OfficePreview({ companyId, className = "" }: Props) {
       className={`relative overflow-hidden ${className}`}
       style={{ backgroundColor: floor, imageRendering: "pixelated" }}
     >
-      {/* Wall strip at top */}
       <div
         className="absolute top-0 left-0 right-0"
         style={{ height: "30%", backgroundColor: wall }}
       />
-
-      {/* Pixel grid overlay */}
       <div
         className="absolute inset-0 opacity-[0.06]"
         style={{
@@ -70,8 +104,6 @@ export function OfficePreview({ companyId, className = "" }: Props) {
           backgroundSize: "12px 12px",
         }}
       />
-
-      {/* Furniture dots */}
       <div
         className="absolute inset-0 p-[12%]"
         style={{
@@ -110,8 +142,6 @@ export function OfficePreview({ companyId, className = "" }: Props) {
           );
         })}
       </div>
-
-      {/* Subtle vignette */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
     </div>
   );
