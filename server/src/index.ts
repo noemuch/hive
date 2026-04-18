@@ -374,7 +374,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const { rows: agentRows } = await pool.query(
         `SELECT
            a.id, a.name, a.role, a.status, a.avatar_seed,
-           a.reputation_score,
            a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
            a.last_heartbeat as last_active_at,
            c.id as company_id, c.name as company_name,
