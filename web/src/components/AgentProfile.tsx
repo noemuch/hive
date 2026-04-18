@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Sheet,
@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PixelAvatar } from "@/components/PixelAvatar";
-import { type ReputationAxes } from "@/components/SpiderChart";
 import { ChevronRight, ChevronLeft, AlertTriangle, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
@@ -32,12 +31,8 @@ export type AgentDetail = {
   personality_brief: string;
   status: "active" | "idle" | "sleeping" | "disconnected" | string;
   avatar_seed: string;
-  // Transitional — removed in #168. Not read by the UI.
-  reputation_score?: number;
   company: { id: string; name: string } | null;
   builder: { display_name: string; socials?: { github?: string; twitter?: string; linkedin?: string; website?: string } | null };
-  reputation_axes: ReputationAxes;
-  reputation_history_30d: { date: string; score: number }[];
   stats: {
     messages_sent: number;
     artifacts_created: number;
@@ -240,48 +235,6 @@ function normalizeExplanation(raw: unknown): QualityExplanation {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function Sparkline({ history }: { history: { date: string; score: number }[] }) {
-  const gradientId = useId();
-  if (history.length < 2) return null;
-  const W = 400, H = 48, P = 2;
-  const scores = history.map(h => h.score);
-  const min = Math.min(...scores), max = Math.max(...scores);
-  const range = max - min || 1;
-  const pts = history.map((h, i) => ({
-    x: P + (i / (history.length - 1)) * (W - 2 * P),
-    y: H - P - ((h.score - min) / range) * (H - 2 * P),
-  }));
-  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-  const areaPath =
-    `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${H} L ${pts[0].x.toFixed(1)} ${H} Z`;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={48}
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent-blue)" stopOpacity={0.3} />
-          <stop offset="100%" stopColor="var(--accent-blue)" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${gradientId})`} />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="var(--accent-blue)"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 // ─── Altitude 1 — Survol ─────────────────────────────────────────────────────
 
 function Altitude1({
@@ -296,15 +249,6 @@ function Altitude1({
   onSeeBreakdown: () => void;
 }) {
   const statusCfg = STATUS_CFG[agent.status] ?? STATUS_CFG.disconnected;
-
-  // Compute week delta from last 7 days of reputation_history_30d
-  const history = agent.reputation_history_30d;
-  const weekDelta = (() => {
-    if (history.length < 2) return null;
-    const recent = history.slice(-7);
-    if (recent.length < 2) return null;
-    return recent[recent.length - 1].score - recent[0].score;
-  })();
 
   const summary = quality
     ? generateSummary(quality.axes as Partial<Record<string, { score: number | null }>>)
@@ -342,7 +286,7 @@ function Altitude1({
             </div>
           ) : compositeScore != null ? (
             <div className="flex flex-col gap-3">
-              {/* Score + trend */}
+              {/* Score */}
               <div className="flex items-baseline justify-between">
                 <div>
                   <span className="text-3xl font-bold tracking-tight tabular-nums">
@@ -350,18 +294,7 @@ function Altitude1({
                   </span>
                   <p className="text-xs text-muted-foreground mt-0.5">quality score</p>
                 </div>
-                {weekDelta != null && (
-                  <span className="text-sm text-muted-foreground tabular-nums">
-                    {weekDelta >= 0 ? "\u2191" : "\u2193"} {weekDelta >= 0 ? "+" : ""}{weekDelta.toFixed(1)}/wk
-                  </span>
-                )}
               </div>
-              {/* Sparkline full-width */}
-              {history.length > 1 && (
-                <div className="overflow-hidden rounded-md bg-muted/30 px-1 py-1.5">
-                  <Sparkline history={history.slice(-10)} />
-                </div>
-              )}
               {/* Summary */}
               {summary && (
                 <p className="text-xs leading-relaxed text-muted-foreground">
