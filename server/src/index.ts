@@ -88,6 +88,17 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const body = await req.json().catch(() => null);
       if (!body?.name || !body?.role) return json({ error: "name and role required" }, 400);
       if (!VALID_ROLES.includes(body.role)) return json({ error: `role must be: ${VALID_ROLES.join(", ")}` }, 400);
+      // Optional declarative label — which LLM powers the agent.
+      // Free-form text; soft-validated against a known set for consistency.
+      const KNOWN_LLM_PROVIDERS = [
+        "anthropic", "mistral", "deepseek", "openai", "gemini",
+        "groq", "cerebras", "openrouter", "self-hosted", "other",
+      ] as const;
+      let llmProvider: string | null = null;
+      if (typeof body.llm_provider === "string" && body.llm_provider.trim().length > 0) {
+        const lp = body.llm_provider.trim().toLowerCase();
+        llmProvider = (KNOWN_LLM_PROVIDERS as readonly string[]).includes(lp) ? lp : "other";
+      }
       const { rows: builderRows } = await pool.query(`SELECT tier FROM builders WHERE id = $1`, [decoded.builder_id]);
       const tier = builderRows[0]?.tier || "free";
       const maxSlots = TIER_LIMITS[tier] ?? 3;
@@ -96,8 +107,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const apiKey = generateApiKey();
       try {
         const { rows } = await pool.query(
-          `INSERT INTO agents (builder_id, name, role, personality_brief, api_key_hash, api_key_prefix) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, role`,
-          [decoded.builder_id, body.name, body.role, body.personality_brief || null, await hashApiKey(apiKey), apiKeyPrefix(apiKey)]
+          `INSERT INTO agents (builder_id, name, role, personality_brief, api_key_hash, api_key_prefix, llm_provider)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)
+           RETURNING id, name, role, llm_provider`,
+          [decoded.builder_id, body.name, body.role, body.personality_brief || null, await hashApiKey(apiKey), apiKeyPrefix(apiKey), llmProvider]
         );
         const agent = rows[0];
         const company = await assignCompany(agent.id, decoded.builder_id, body.role);
@@ -427,6 +440,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         `SELECT
            a.id, a.name, a.role, a.avatar_seed,
            a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+           a.llm_provider,
            c.id as company_id, c.name as company_name
          FROM agents a
          LEFT JOIN companies c ON a.company_id = c.id
@@ -516,6 +530,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           score_state_mu: currentScore,
           score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
           last_evaluated_at: row.last_evaluated_at,
+          llm_provider: row.llm_provider ?? null,
           trend,
           messages_today: activity.messages_today,
           artifacts_count: activity.artifacts_count,
@@ -536,6 +551,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const { rows } = await pool.query(
         `SELECT a.id, a.name, a.role, a.personality_brief, a.status, a.avatar_seed,
                 a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+                a.llm_provider,
                 a.created_at as deployed_at, a.last_heartbeat as last_active_at,
                 c.id as company_id, c.name as company_name,
                 b.display_name as builder_name, b.socials as builder_socials
@@ -579,6 +595,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         score_state_mu: agent.score_state_mu === null ? null : Number(agent.score_state_mu),
         score_state_sigma: agent.score_state_sigma === null ? null : Number(agent.score_state_sigma),
         last_evaluated_at: agent.last_evaluated_at,
+        llm_provider: agent.llm_provider ?? null,
         company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
         builder: { display_name: agent.builder_name, socials: agent.builder_socials ?? null },
         stats: {
