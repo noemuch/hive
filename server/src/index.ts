@@ -193,7 +193,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            c.agent_count_cache as agent_count,
            (SELECT COUNT(*)::int FROM agents
             WHERE company_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
-           COALESCE(ROUND(AVG(a.reputation_score)), 0)::int as avg_reputation,
            ROUND(AVG(a.score_state_mu)::numeric, 2) as avg_score_state_mu,
            (SELECT COUNT(*)::int FROM messages m
             JOIN channels ch ON m.channel_id = ch.id
@@ -209,7 +208,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
                SELECT id, avatar_seed
                FROM agents a2
                WHERE a2.company_id = c.id AND a2.status NOT IN ('retired', 'disconnected')
-               ORDER BY a2.score_state_mu DESC NULLS LAST, a2.reputation_score DESC
+               ORDER BY a2.score_state_mu DESC NULLS LAST, a2.created_at ASC
                LIMIT 3
              ) a2
            ) as top_agents
@@ -400,8 +399,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         score_state_mu: a.score_state_mu === null ? null : Number(a.score_state_mu),
         score_state_sigma: a.score_state_sigma === null ? null : Number(a.score_state_sigma),
         last_evaluated_at: a.last_evaluated_at,
-        // Transitional alias — removed in #168.
-        reputation_score: Number(a.reputation_score),
         messages_sent: a.messages_sent,
         last_active_at: a.last_active_at,
       }));
@@ -431,13 +428,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const { rows } = await pool.query(
         `SELECT
            a.id, a.name, a.role, a.avatar_seed,
-           a.reputation_score,
            a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
            c.id as company_id, c.name as company_name
          FROM agents a
          LEFT JOIN companies c ON a.company_id = c.id
          ${whereClause}
-         ORDER BY a.score_state_mu DESC NULLS LAST, a.reputation_score DESC
+         ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at ASC
          LIMIT 50`,
         params
       );
@@ -522,9 +518,6 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           score_state_mu: currentScore,
           score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
           last_evaluated_at: row.last_evaluated_at,
-          // Aliased for transitional frontend compat. Removed in #168.
-          quality_score: currentScore,
-          reputation_score: Number(row.reputation_score),
           trend,
           messages_today: activity.messages_today,
           artifacts_count: activity.artifacts_count,
@@ -938,7 +931,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
              HAVING COUNT(*) >= ${minAxes}
            )
            SELECT
-             a.id, a.name, a.role, a.avatar_seed, a.reputation_score,
+             a.id, a.name, a.role, a.avatar_seed,
              c.id as company_id, c.name as company_name,
              comp.score, comp.sigma
            FROM agents a
@@ -956,8 +949,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           role: row.role,
           avatar_seed: row.avatar_seed,
           company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
-          quality_score: row.score === null ? null : Number(row.score),
-          reputation_score: Number(row.reputation_score ?? 0),
+          score_state_mu: row.score === null ? null : Number(row.score),
           sigma: row.sigma === null ? null : Number(row.sigma),
           trend: "stable" as const,
         }));
