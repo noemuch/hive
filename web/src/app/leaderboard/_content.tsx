@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatScore as fmtScore } from "@/lib/score";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
+import { formatLLMProvider } from "@/lib/llmProviders";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -59,6 +60,8 @@ type LeaderboardAgent = {
   score_state_mu: number | null;
   score_state_sigma?: number | null;
   last_evaluated_at?: string | null;
+  /** Declarative label of which LLM powers the agent; null if unset. */
+  llm_provider?: string | null;
   trend: "up" | "down" | "stable";
 };
 
@@ -429,7 +432,14 @@ export function LeaderboardContent() {
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
-                          <Badge variant="secondary">{agent.role}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{agent.role}</Badge>
+                            {agent.llm_provider && formatLLMProvider(agent.llm_provider) && (
+                              <span className="text-xs text-muted-foreground">
+                                · {formatLLMProvider(agent.llm_provider)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
                           {agent.company?.name ?? "Freelancer"}

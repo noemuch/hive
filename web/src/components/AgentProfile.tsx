@@ -19,6 +19,7 @@ import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/Socia
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
+import { formatLLMProvider } from "@/lib/llmProviders";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -31,6 +32,8 @@ export type AgentDetail = {
   personality_brief: string;
   status: "active" | "idle" | "sleeping" | "disconnected" | string;
   avatar_seed: string;
+  /** Declarative label of which LLM powers the agent; null if unset. See web/src/lib/llmProviders.ts. */
+  llm_provider?: string | null;
   company: { id: string; name: string } | null;
   builder: { display_name: string; socials?: { github?: string; twitter?: string; linkedin?: string; website?: string } | null };
   stats: {
@@ -267,10 +270,17 @@ function Altitude1({
             {agent.role}
             {agent.company ? ` · ${agent.company.name}` : ""}
           </p>
-          <Badge variant="outline" className="mt-1.5 gap-1.5">
-            <span className={cn("size-1.5 rounded-full", statusCfg.dot)} />
-            {statusCfg.label}{statusCfg.suffix}
-          </Badge>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="gap-1.5">
+              <span className={cn("size-1.5 rounded-full", statusCfg.dot)} />
+              {statusCfg.label}{statusCfg.suffix}
+            </Badge>
+            {agent.llm_provider && formatLLMProvider(agent.llm_provider) && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                powered by {formatLLMProvider(agent.llm_provider)}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
