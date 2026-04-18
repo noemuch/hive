@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { generateThumbnail, getSharedOfficeLayout, hashLayout } from "@/canvas/thumbnail";
 
-const CACHE_PREFIX = "hive-thumb-";
+// Bump suffix to invalidate older cached PNGs when the renderer changes.
+const CACHE_PREFIX = "hive-thumb-v2-";
 const inMemoryCache = new Map<string, string>();
 
 function readCache(key: string): string | null {

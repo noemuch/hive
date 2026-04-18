@@ -1,8 +1,9 @@
-import { renderFrame } from './renderer';
+import { renderScene, renderTileGrid } from './renderer';
 import { OfficeState } from './officeState';
 import { loadAllAssets, loadDefaultLayout } from './assetLoader';
-import { TILE_SIZE } from './types';
-import type { OfficeLayout } from './types';
+import { TILE_SIZE, TileType } from './types';
+import type { OfficeLayout, TileType as TileTypeVal } from './types';
+import { getWallInstances, hasWallSprites } from './wallTiles';
 
 let sharedPromise: Promise<OfficeLayout> | null = null;
 
@@ -23,12 +24,44 @@ export function getSharedOfficeLayout(): Promise<OfficeLayout> {
 }
 
 /**
+ * Compute the bounding box of non-VOID tiles in the layout.
+ * Returns inclusive min/max row and column. The default office layout has
+ * ~48% VOID tiles forming an irregular shape; cropping to the non-VOID
+ * bbox keeps thumbnails tight on the actual office footprint.
+ */
+function computeOfficeBbox(tileMap: TileTypeVal[][]): {
+  minRow: number;
+  minCol: number;
+  maxRow: number;
+  maxCol: number;
+} {
+  let minRow = Infinity;
+  let minCol = Infinity;
+  let maxRow = -1;
+  let maxCol = -1;
+  for (let r = 0; r < tileMap.length; r++) {
+    for (let c = 0; c < tileMap[r].length; c++) {
+      if (tileMap[r][c] !== TileType.VOID) {
+        if (r < minRow) minRow = r;
+        if (r > maxRow) maxRow = r;
+        if (c < minCol) minCol = c;
+        if (c > maxCol) maxCol = c;
+      }
+    }
+  }
+  if (maxRow < 0) {
+    return { minRow: 0, minCol: 0, maxRow: tileMap.length - 1, maxCol: 0 };
+  }
+  return { minRow, minCol, maxRow, maxCol };
+}
+
+/**
  * Render a static pixel-art snapshot of the office to a PNG data URL.
  *
- * The output canvas is sized to the layout's aspect ratio (tight-fit),
- * never larger than `maxWidthPx × maxHeightPx`. This avoids empty dot-grid
- * background around the office. Consumers use `object-cover` to fit into
- * any card aspect ratio.
+ * Bypasses the full `renderFrame` to avoid its viewport dot-grid background —
+ * instead renders tiles + walls + furniture directly onto a canvas sized to
+ * the non-VOID bounding box of the layout. Areas outside the office shape
+ * remain transparent, so the card's own background shows through.
  *
  * Returns null if OffscreenCanvas is unsupported.
  */
@@ -39,37 +72,45 @@ export async function generateThumbnail(
 ): Promise<string | null> {
   if (typeof OffscreenCanvas === 'undefined') return null;
 
-  const mapWidth = layout.cols * TILE_SIZE;
-  const mapHeight = layout.rows * TILE_SIZE;
-  const zoom = Math.min(maxWidthPx / mapWidth, maxHeightPx / mapHeight);
+  const state = new OfficeState(layout);
+  const bbox = computeOfficeBbox(state.tileMap);
 
-  const canvasWidth = Math.round(mapWidth * zoom);
-  const canvasHeight = Math.round(mapHeight * zoom);
+  const bboxTilesW = bbox.maxCol - bbox.minCol + 1;
+  const bboxTilesH = bbox.maxRow - bbox.minRow + 1;
+  const bboxPxW = bboxTilesW * TILE_SIZE;
+  const bboxPxH = bboxTilesH * TILE_SIZE;
+
+  const zoom = Math.min(maxWidthPx / bboxPxW, maxHeightPx / bboxPxH);
+
+  const canvasWidth = Math.round(bboxPxW * zoom);
+  const canvasHeight = Math.round(bboxPxH * zoom);
 
   const canvas = new OffscreenCanvas(canvasWidth, canvasHeight);
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D | null;
   if (!ctx) return null;
 
   ctx.imageSmoothingEnabled = false;
 
-  const state = new OfficeState(layout);
+  // Shift so tile (bbox.minCol, bbox.minRow) lands at canvas (0, 0).
+  const offsetX = -bbox.minCol * TILE_SIZE * zoom;
+  const offsetY = -bbox.minRow * TILE_SIZE * zoom;
 
-  renderFrame(
-    ctx as unknown as CanvasRenderingContext2D,
-    canvasWidth,
-    canvasHeight,
+  renderTileGrid(
+    ctx,
     state.tileMap,
-    state.furniture,
-    [], // no characters in thumbnail
+    offsetX,
+    offsetY,
     zoom,
-    0, // no pan
-    0,
-    undefined, // no selection
-    undefined, // no editor overlays
     state.layout.tileColors,
     state.layout.cols,
-    state.layout.rows,
   );
+
+  const wallInstances = hasWallSprites()
+    ? getWallInstances(state.tileMap, state.layout.tileColors, state.layout.cols)
+    : [];
+  const allFurniture = wallInstances.length > 0 ? [...wallInstances, ...state.furniture] : state.furniture;
+
+  renderScene(ctx, allFurniture, [], offsetX, offsetY, zoom, null, null);
 
   const blob = await canvas.convertToBlob({ type: 'image/png' });
   return await blobToDataUrl(blob);
