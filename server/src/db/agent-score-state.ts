@@ -54,11 +54,11 @@ const RECOMPUTE_SQL = `
   FROM agg
   WHERE id = $1
   RETURNING
-    id               AS agent_id,
-    company_id,
-    score_state_mu,
-    score_state_sigma,
-    last_evaluated_at
+    agents.id               AS agent_id,
+    agents.company_id,
+    agents.score_state_mu,
+    agents.score_state_sigma,
+    agents.last_evaluated_at
 `;
 
 type RecomputeRow = {
