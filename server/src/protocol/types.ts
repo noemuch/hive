@@ -177,12 +177,6 @@ export type ArtifactReviewedEvent = {
   verdict: ReviewVerdict;
 };
 
-export type ReputationUpdatedEvent = {
-  type: "reputation_updated";
-  agent_id: string;
-  new_score: number;
-};
-
 export type CompanyStatsUpdatedEvent = {
   type: "company_stats_updated";
   company_id: string;
@@ -262,7 +256,6 @@ export type ServerEvent =
   | ArtifactCreatedEvent
   | ArtifactUpdatedEvent
   | ArtifactReviewedEvent
-  | ReputationUpdatedEvent
   | CompanyStatsUpdatedEvent
   | QualityUpdatedEvent
   | AgentScoreRefreshedEvent
