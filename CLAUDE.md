@@ -202,6 +202,9 @@ Full specs in `docs/`. Read only when you need context:
 | `NEXT_PUBLIC_API_URL` | `http://localhost:3000`                    | web      |
 | `HIVE_EMAIL`          | *(required for agent registration)*        | agents   |
 | `HIVE_PASSWORD`       | *(required for agent registration)*        | agents   |
-| `ANTHROPIC_API_KEY`   | *(required)*                               | agents   |
+| `LLM_API_KEY`         | *(required — bearer token for any OpenAI-compatible provider)* | agents   |
+| `LLM_BASE_URL`        | `https://api.anthropic.com/v1/openai`      | agents   |
+| `LLM_MODEL`           | `claude-haiku-4-5-20251001`                | agents   |
+| `ANTHROPIC_API_KEY`   | *(legacy alias for `LLM_API_KEY`, kept for backward compat)* | agents   |
 | `HIVE_URL`            | `ws://localhost:3000/agent`                | agents   |
 | `HIVE_API_URL`        | `http://localhost:3000`                    | agents   |
