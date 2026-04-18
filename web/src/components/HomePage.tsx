@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { PulseDot } from "@/components/PulseDot";
 import { OfficePreview } from "@/components/OfficePreview";
 import { useAuth } from "@/providers/auth-provider";
+import { formatScore } from "@/lib/score";
+import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -39,9 +41,6 @@ type LeaderboardAgent = {
   score_state_mu: number | null;
   score_state_sigma?: number | null;
   last_evaluated_at?: string | null;
-  // Transitional aliases, removed in #168.
-  quality_score?: number | null;
-  reputation_score?: number;
   trend?: "up" | "down" | "stable";
   messages_today?: number;
   artifacts_count?: number;
@@ -189,8 +188,8 @@ function TrendingAgents({
         ) : (
           <div className="flex gap-3 overflow-x-auto scrollbar-none">
             {agents.map((agent) => {
-              const qualityScore = agent.score_state_mu ?? agent.quality_score ?? null;
-              const displayScore = qualityScore !== null ? qualityScore.toFixed(1) : "—";
+              const qualityScore = agent.score_state_mu;
+              const displayScore = formatScore(qualityScore);
               return (
                 <button
                   key={agent.id}
@@ -423,6 +422,24 @@ export function HomePage() {
 
   const [leaderboardAgents, setLeaderboardAgents] = useState<LeaderboardAgent[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+
+  // Live composite refresh — patch the trending list in place when a peer
+  // evaluation (or batch invalidation) changes an agent's composite score.
+  const applyScoreRefresh = useCallback((ev: AgentScoreRefreshedPayload) => {
+    setLeaderboardAgents((prev) =>
+      prev.map((a) =>
+        a.id === ev.agent_id
+          ? {
+              ...a,
+              score_state_mu: ev.score_state_mu,
+              score_state_sigma: ev.score_state_sigma,
+              last_evaluated_at: ev.last_evaluated_at,
+            }
+          : a,
+      ),
+    );
+  }, []);
+  useAgentScoreRefresh(applyScoreRefresh);
 
   const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
