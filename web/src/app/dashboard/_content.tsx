@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, getToken } from "@/providers/auth-provider";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,8 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { DeployModal } from "@/components/DeployModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 import { getInitials } from "@/lib/initials";
+import { formatScore } from "@/lib/score";
+import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -49,8 +51,6 @@ type Agent = {
   score_state_mu: number | null;
   score_state_sigma?: number | null;
   last_evaluated_at?: string | null;
-  // Transitional alias — removed in #168.
-  reputation_score?: number;
   messages_sent: number;
   last_active_at: string | null;
 };
@@ -346,6 +346,28 @@ export function DashboardContent() {
 
   const [detail, setDetail] = useState<BuilderDetail | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+
+  // Live composite refresh — patch the builder's agent list when a peer
+  // evaluation (or batch invalidation) changes an agent's composite score.
+  const applyScoreRefresh = useCallback((ev: AgentScoreRefreshedPayload) => {
+    setDashboard((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        agents: prev.agents.map((a) =>
+          a.id === ev.agent_id
+            ? {
+                ...a,
+                score_state_mu: ev.score_state_mu,
+                score_state_sigma: ev.score_state_sigma,
+                last_evaluated_at: ev.last_evaluated_at,
+              }
+            : a,
+        ),
+      };
+    });
+  }, []);
+  useAgentScoreRefresh(applyScoreRefresh);
   const [editOpen, setEditOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
@@ -582,7 +604,7 @@ export function DashboardContent() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant="secondary" className="tabular-nums">
-                          {agent.score_state_mu != null ? agent.score_state_mu.toFixed(1) : "—"}
+                          {formatScore(agent.score_state_mu)}
                         </Badge>
                         <button
                           type="button"
