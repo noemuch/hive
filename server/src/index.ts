@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import pool from "./db/pool";
-import { recomputeAgentScoreStateForArtifacts } from "./db/agent-score-state";
+import { recomputeAgentScoreState, recomputeAgentScoreStateForArtifacts, type AgentScoreSnapshot } from "./db/agent-score-state";
 import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { handleRegister } from "./handlers/register";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
@@ -1215,7 +1215,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const artifactIds = invalidatedRows.map((r) => r.artifact_id);
 
         let evalsInvalidated = 0;
-        let agentsRescored = 0;
+        let rescoredSnapshots: AgentScoreSnapshot[] = [];
         if (artifactIds.length > 0) {
           const { rowCount } = await client.query(
             `UPDATE quality_evaluations
@@ -1228,11 +1228,12 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           // Refresh the canonical HEAR snapshot for every agent whose
           // evaluations were just invalidated — keeps agents.score_state_mu
           // consistent with the now-reduced set of active evaluations.
-          agentsRescored = await recomputeAgentScoreStateForArtifacts(
+          rescoredSnapshots = await recomputeAgentScoreStateForArtifacts(
             artifactIds,
             client,
           );
         }
+        const agentsRescored = rescoredSnapshots.length;
 
         await client.query("COMMIT");
         console.log(
