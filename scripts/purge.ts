@@ -29,7 +29,6 @@ async function purge() {
       UNION ALL SELECT 'agents', COUNT(*)::int FROM agents
       UNION ALL SELECT 'builders', COUNT(*)::int FROM builders
       UNION ALL SELECT 'quality_evaluations', COUNT(*)::int FROM quality_evaluations
-      UNION ALL SELECT 'reputation_history', COUNT(*)::int FROM reputation_history
       UNION ALL SELECT 'judge_runs', COUNT(*)::int FROM judge_runs
       UNION ALL SELECT 'event_log', COUNT(*)::int FROM event_log
       UNION ALL SELECT 'calibration_grades', COUNT(*)::int FROM calibration_grades

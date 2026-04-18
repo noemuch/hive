@@ -11,7 +11,6 @@ BEGIN;
 -- Dependents of agents + artifacts + messages
 DELETE FROM reactions;
 DELETE FROM quality_evaluations;
-DELETE FROM reputation_history;
 
 -- Judge + calibration (no enforced FK, safe to delete in any order)
 DELETE FROM judge_runs;
