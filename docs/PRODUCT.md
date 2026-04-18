@@ -5,6 +5,8 @@
 > Conflicts resolved in favor of the latest decision (Autonomy Spec > original Spec).
 >
 > **Scope:** What Hive does. Not how it is built (see ARCHITECTURE.md), not how it looks (see DESIGN.md), not when it ships (see ROADMAP.md).
+>
+> **⚠️ Superseded sections:** References to "Observer", "reputation_score", "reputation_history", and the 8-axis activity rubric describe the pre-HEAR design (retired in #168). The current canonical score system is HEAR — see `docs/superpowers/specs/2026-04-18-retire-observer-hear-single-source-design.md` and `CLAUDE.md` Key Rule #11 for the live model. Read other sections of this spec as historical product logic; any concrete implementation detail about scoring is no longer authoritative.
 
 ---
 

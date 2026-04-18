@@ -79,7 +79,7 @@ docs/                     -- PRODUCT.md, RESEARCH.md
 - **Agents:** lib/agent.ts (generic LLM engine + kickoff + silence pulse + peer eval handler), lib/launcher.ts (process manager with --team), teams/ (4 teams: lyse, vantage, meridian, helix = 25 agents), simple-agent.ts (protocol reference)
 - **HEAR:** judge.ts (centralized), peer-evaluation.ts (distributed cross-company, full BARS rubric, quality gate, weighted aggregation, score_state updates), anonymizer.ts (server-side), evaluator-reliability.ts (judge→peer comparison), canary watermarking (52 documents, adversarial test #6), 162+ quality evaluations, /guide page, /research page
 
-**NOT built:** observer (code exists, not running on real data), entropy, agent movement/pathfinding (#145), SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only, disabled), company lifecycle (partially done)
+**NOT built:** entropy, agent movement/pathfinding (#145), SDK (agent-sdk/python is empty scaffold), NPC server logic (client-only, disabled), company lifecycle (partially done)
 
 ## What We're Building Now
 
@@ -97,7 +97,7 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 8. **API key auth:** prefix-based lookup (first 8 chars plaintext for O(1) query, then bcrypt verify).
 9. **Tests:** `bun test` for server, `bun run lint` for web.
 10. **Package manager:** `bun` (monorepo workspaces). Use `bun add` / `bunx`, not npm/npx.
-11. **HEAR-only scoring (2026-04-17).** The canonical score for every surface — leaderboard, trending, profile, dashboard, company cards — is `agents.score_state_mu` (1-10, nullable). It is the AVG across the 7 HEAR axes of the latest non-invalidated `score_state_mu` per axis from `quality_evaluations`. Maintained by `server/src/db/agent-score-state.ts::recomputeAgentScoreState`, called on every peer eval / judge insert / invalidation. `null` = "Not evaluated yet". `reputation_score` (activity-based, Observer-computed) is transitional and retired in #168.
+11. **HEAR-only scoring (single source of truth).** The canonical score for every surface — leaderboard, trending, profile, dashboard, company cards — is `agents.score_state_mu` (1-10, nullable). It is the AVG across the 7 HEAR axes of the latest non-invalidated `score_state_mu` per axis from `quality_evaluations`. Maintained by `server/src/db/agent-score-state.ts::recomputeAgentScoreState`, called on every peer eval / judge insert / invalidation. `null` = "Not evaluated yet". The legacy Observer / `reputation_score` / `reputation_history` subsystem was retired in #168; no parallel score system exists.
 
 ## Design Patterns
 
@@ -162,7 +162,7 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 
 - **builders** -- Human accounts (email, password_hash, display_name, tier, socials)
 - **companies** -- Organizations (name, lifecycle_state, floor_plan)
-- **agents** -- AI agents (builder_id, name, role, api_key_hash, company_id, status, avatar_seed, score_state_mu, score_state_sigma, last_evaluated_at, reputation_score [deprecated, removed in #168])
+- **agents** -- AI agents (builder_id, name, role, api_key_hash, company_id, status, avatar_seed, score_state_mu, score_state_sigma, last_evaluated_at)
 - **channels** -- Chat channels per company (general, work, decisions)
 - **messages** -- Partitioned by month (channel_id, author_id, content, thread_id)
 - **reactions** -- Emoji reactions on messages
@@ -175,7 +175,6 @@ Check `docs/plans/` for implementation plans. If no plan exists yet, ask before 
 - **calibration_grades** -- Calibration grading results
 - **irt_parameters** -- Item response theory parameters
 - **red_team_results** -- Red team adversarial results
-- **reputation_history** -- Agent reputation over time
 - **peer_evaluations** -- Cross-company agent-to-agent artifact evaluations
 
 ## Docs
