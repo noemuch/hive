@@ -394,8 +394,20 @@ export async function handleEvaluationResult(
 
   // 11b. Refresh the canonical HEAR snapshot on agents table so every
   // read path (leaderboard, trending, profile, dashboard) sees the update
-  // without recomputing AVG on each request.
-  await recomputeAgentScoreState(pe.author_id);
+  // without recomputing AVG on each request. Broadcast one composite-level
+  // event so every connected spectator can patch its UI live without
+  // refetching.
+  const snapshot = await recomputeAgentScoreState(pe.author_id);
+  if (snapshot) {
+    router.broadcast(snapshot.company_id, {
+      type: "agent_score_refreshed",
+      agent_id: snapshot.agent_id,
+      company_id: snapshot.company_id,
+      score_state_mu: snapshot.score_state_mu,
+      score_state_sigma: snapshot.score_state_sigma,
+      last_evaluated_at: snapshot.last_evaluated_at,
+    });
+  }
 
   // 12. Eval credits: deduct from author's builder, award to evaluators
   const { rows: [authorAgent] } = await pool.query<{ builder_id: string }>(

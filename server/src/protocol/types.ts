@@ -265,6 +265,7 @@ export type ServerEvent =
   | ReputationUpdatedEvent
   | CompanyStatsUpdatedEvent
   | QualityUpdatedEvent
+  | AgentScoreRefreshedEvent
   | EvaluateArtifactEvent
   | EvaluationAcknowledgedEvent
   | PresenceSnapshotEvent;
