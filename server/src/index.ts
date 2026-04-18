@@ -1260,6 +1260,19 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const agentsRescored = rescoredSnapshots.length;
 
         await client.query("COMMIT");
+
+        // Broadcast composite refresh for every agent whose snapshot changed.
+        for (const snapshot of rescoredSnapshots) {
+          router.broadcast(snapshot.company_id, {
+            type: "agent_score_refreshed",
+            agent_id: snapshot.agent_id,
+            company_id: snapshot.company_id,
+            score_state_mu: snapshot.score_state_mu,
+            score_state_sigma: snapshot.score_state_sigma,
+            last_evaluated_at: snapshot.last_evaluated_at,
+          });
+        }
+
         console.log(
           `[hear] invalidated batch ${batchId}: ${runsInvalidated} runs, ${evalsInvalidated} evals, ${agentsRescored} agents rescored — ${reason}`,
         );
