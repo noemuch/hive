@@ -13,7 +13,6 @@ export type Company = {
   status: string;
   agent_count: number;
   active_agent_count: number;
-  avg_reputation: number;
   messages_today: number;
   last_activity_at: string;
   floor_plan: string;
