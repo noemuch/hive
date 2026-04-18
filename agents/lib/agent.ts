@@ -2,19 +2,35 @@
  * Hive agent engine — LLM-powered with artifact creation + reactions.
  *
  * Usage: bun agents/lib/agent.ts
- * Env: HIVE_API_KEY, ANTHROPIC_API_KEY, AGENT_PERSONALITY (JSON), HIVE_URL (optional)
+ * Env:
+ *   Required: HIVE_API_KEY, AGENT_PERSONALITY (JSON), LLM_API_KEY
+ *   Optional: LLM_BASE_URL (default: Anthropic OpenAI-compat),
+ *             LLM_MODEL (default: claude-haiku-4-5),
+ *             HIVE_URL (default: ws://localhost:3000/agent)
  *
- * This file is the shared engine. Don't edit per-builder — configure via AGENT_PERSONALITY env.
+ * Backward-compat: ANTHROPIC_API_KEY is accepted as an alias for LLM_API_KEY.
+ * See docs/BYOK.md for provider configuration (Anthropic, Mistral, DeepSeek,
+ * OpenAI, Gemini, Groq, Ollama local, etc.).
+ *
+ * This file is the shared engine. Don't edit per-builder — configure via
+ * AGENT_PERSONALITY and LLM_* env vars.
  */
 
 import type { AgentPersonality } from "./types";
 
 const API_KEY = process.env.HIVE_API_KEY;
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+// Any OpenAI-compatible chat-completions endpoint. All major 2026 providers
+// expose one (Anthropic, Mistral, DeepSeek, OpenAI, Gemini, Groq, Ollama).
+const LLM_BASE_URL = (process.env.LLM_BASE_URL || "https://api.anthropic.com/v1/openai").replace(/\/+$/, "");
+const LLM_API_KEY = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
+const LLM_MODEL = process.env.LLM_MODEL || "claude-haiku-4-5-20251001";
 const SERVER_URL = process.env.HIVE_URL || "ws://localhost:3000/agent";
 
-if (!API_KEY || !ANTHROPIC_KEY || !process.env.AGENT_PERSONALITY) {
-  console.error("ERROR: Set HIVE_API_KEY, ANTHROPIC_API_KEY, AGENT_PERSONALITY");
+if (!API_KEY || !LLM_API_KEY || !process.env.AGENT_PERSONALITY) {
+  console.error(
+    "ERROR: Set HIVE_API_KEY, AGENT_PERSONALITY, and LLM_API_KEY (or the legacy ANTHROPIC_API_KEY alias).\n" +
+    "See docs/BYOK.md for provider-specific LLM_BASE_URL and LLM_MODEL values.",
+  );
   process.exit(1);
 }
 
@@ -26,7 +42,6 @@ try {
   console.error("Received:", process.env.AGENT_PERSONALITY?.slice(0, 200));
   process.exit(1);
 }
-const CLAUDE_KEY: string = ANTHROPIC_KEY;
 
 type Message = { id: string; author: string; content: string; channel: string };
 
@@ -98,47 +113,55 @@ function addToHistory(msg: Message) {
 // LLM calls
 // ---------------------------------------------------------------------------
 
-const CLAUDE_TIMEOUT_MS = 30_000;
+const LLM_TIMEOUT_MS = 30_000;
 
-async function callClaude(systemPrompt: string, userPrompt: string, maxTokens = 150): Promise<string | null> {
+/**
+ * Send a system + user prompt to any OpenAI-compatible chat-completions
+ * endpoint. Returns the assistant's text reply, or null on failure.
+ *
+ * The `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_MODEL` env vars control the provider;
+ * see docs/BYOK.md for the list of tested providers.
+ */
+async function callLLM(systemPrompt: string, userPrompt: string, maxTokens = 150): Promise<string | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+    const res = await fetch(`${LLM_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": CLAUDE_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${LLM_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: LLM_MODEL,
         max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
       }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
     if (!res.ok) {
-      console.error(`[!] Claude API error: ${res.status}`);
+      console.error(`[!] LLM API error: ${res.status} ${res.statusText}`);
       return null;
     }
     const data = await res.json();
-    return data.content?.[0]?.text?.trim() || null;
+    return data.choices?.[0]?.message?.content?.trim() || null;
   } catch (err) {
-    console.error("[!] Claude API failed:", err);
+    console.error("[!] LLM API failed:", err);
     return null;
   }
 }
 
-async function askClaudeReply(msg: Message): Promise<string | null> {
+async function askLLMReply(msg: Message): Promise<string | null> {
   const historyText = history
     .slice(-10)
     .map((m) => `[${m.channel}] ${m.author}: ${m.content}`)
     .join("\n");
   const prompt = `Recent conversation:\n${historyText}\n\nNew message from ${msg.author}: ${msg.content}\n\nRespond as ${P.name} in 1-2 sentences.`;
-  return callClaude(P.systemPrompt, prompt, 150);
+  return callLLM(P.systemPrompt, prompt, 150);
 }
 
 async function generateArtifact(): Promise<{ type: string; title: string; content: string } | null> {
@@ -151,7 +174,7 @@ async function generateArtifact(): Promise<{ type: string; title: string; conten
   const artifactType = P.artifactTypes[Math.floor(Math.random() * P.artifactTypes.length)];
   const prompt = `Based on this recent team discussion:\n${historyText}\n\nGenerate a ${artifactType} artifact as ${P.name}. Respond in this exact format:\nTITLE: <short title under 100 chars>\nCONTENT: <2-3 sentences describing the ${artifactType}>`;
 
-  const response = await callClaude(P.systemPrompt, prompt, 200);
+  const response = await callLLM(P.systemPrompt, prompt, 200);
   if (!response) return null;
 
   const titleMatch = response.match(/TITLE:\s*(.+)/i);
@@ -240,7 +263,7 @@ function connect() {
           setTimeout(async () => {
             if (history.length === 0 && canDo("send_message")) {
               record("send_message");
-              const topic = await callClaude(P.systemPrompt, `You just joined a new team. Introduce yourself briefly and ask the team a work-related question relevant to your role as ${P.role}. 1-2 sentences.`, 100);
+              const topic = await callLLM(P.systemPrompt, `You just joined a new team. Introduce yourself briefly and ask the team a work-related question relevant to your role as ${P.role}. 1-2 sentences.`, 100);
               if (topic) {
                 send({ type: "send_message", channel: ch, content: topic });
                 console.log(`[kickoff] ${P.name}: ${topic.slice(0, 80)}`);
@@ -257,7 +280,7 @@ function connect() {
               const silenceDuration = Date.now() - lastMessageTime;
               if (silenceDuration > 20_000 && canDo("send_message") && Math.random() < 0.4) {
                 record("send_message");
-                const topic = await callClaude(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
+                const topic = await callLLM(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
                 if (topic) {
                   send({ type: "send_message", channel: ch, content: topic });
                   lastMessageTime = Date.now();
@@ -309,7 +332,7 @@ function connect() {
           record("send_message");
           const delay = 3000 + Math.random() * 5000;
           setTimeout(async () => {
-            const reply = await askClaudeReply(msg);
+            const reply = await askLLMReply(msg);
             if (reply) {
               send({ type: "send_message", channel: data.channel, content: reply });
               addToHistory({ id: "", author: P.name, content: reply, channel: data.channel });
@@ -350,7 +373,7 @@ For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each)
 Respond with ONLY this JSON, nothing else:
 {"scores":{"reasoning_depth":5,"decision_wisdom":5,"communication_clarity":5,"initiative_quality":null,"collaborative_intelligence":5,"self_awareness_calibration":5,"contextual_judgment":5},"reasoning":"brief analysis","confidence":7,"evidence_quotes":["quote1","quote2"]}`;
 
-        callClaude(evalSystemPrompt, rubricPrompt, 800).then(response => {
+        callLLM(evalSystemPrompt, rubricPrompt, 800).then(response => {
           if (!response) return;
           // Extract JSON from response (Claude may wrap in ```json blocks)
           let jsonStr = response.trim();
