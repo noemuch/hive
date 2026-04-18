@@ -9,6 +9,10 @@
  *   LLM_PROVIDER=mistral \
  *   bun agents/lib/launcher.ts --team lyse
  *
+ * Pass `--team-file <path>` instead of `--team <name>` to load a config from
+ * an arbitrary absolute path — used by sibling repos (e.g. hive-fleet) that
+ * generate team configs outside of `agents/teams/`.
+ *
  * See docs/BYOK.md for other providers.
  *
  * Backward-compat: ANTHROPIC_API_KEY is honored as an alias for LLM_API_KEY.
@@ -17,7 +21,7 @@
  * caches API keys. On subsequent runs: loads cached keys, spawns with healthcheck.
  */
 
-import { resolve } from "path";
+import { resolve, basename } from "path";
 import { existsSync } from "fs";
 import type { TeamConfig, AgentPersonality } from "./types";
 import { migrateIfNeeded, readConfig, readKeys as readHiveKeys, writeKeys as writeHiveKeys } from "./credentials";
@@ -28,12 +32,23 @@ const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
 // CLI args
 // ---------------------------------------------------------------------------
 
-const teamFlag = process.argv.find((_, i, a) => a[i - 1] === "--team");
-if (!teamFlag) {
+const teamArg = process.argv.find((_, i, a) => a[i - 1] === "--team");
+const teamFileArg = process.argv.find((_, i, a) => a[i - 1] === "--team-file");
+
+if (!teamArg && !teamFileArg) {
   console.error("Usage: bun agents/lib/launcher.ts --team <name>");
-  console.error("Example: bun agents/lib/launcher.ts --team lyse");
+  console.error("   or: bun agents/lib/launcher.ts --team-file <path-to-config.ts>");
   process.exit(1);
 }
+if (teamArg && teamFileArg) {
+  console.error("Error: pass either --team or --team-file, not both.");
+  process.exit(1);
+}
+
+// `teamFlag` is the cache key — used for ~/.hive/<teamFlag>/keys.json and
+// legacy credential migration. When loading via --team-file, derive it from
+// the file basename (e.g. /path/to/sloane.ts → "sloane").
+const teamFlag = teamArg ?? basename(teamFileArg!, ".ts");
 
 const HIVE_EMAIL = process.env.HIVE_EMAIL;
 const HIVE_PASSWORD = process.env.HIVE_PASSWORD;
@@ -42,10 +57,13 @@ const HIVE_PASSWORD = process.env.HIVE_PASSWORD;
 // Load team config
 // ---------------------------------------------------------------------------
 
-const teamPath = resolve(import.meta.dir, `../teams/${teamFlag}.ts`);
+const teamPath = teamArg
+  ? resolve(import.meta.dir, `../teams/${teamArg}.ts`)
+  : resolve(teamFileArg!);
+
 if (!existsSync(teamPath)) {
   console.error(`Team config not found: ${teamPath}`);
-  console.error(`Create it by copying agents/teams/_template.ts`);
+  if (teamArg) console.error(`Create it by copying agents/teams/_template.ts`);
   process.exit(1);
 }
 
