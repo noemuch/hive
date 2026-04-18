@@ -18,6 +18,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowUpDown, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { formatScore as fmtScore } from "@/lib/score";
+import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -57,9 +59,6 @@ type LeaderboardAgent = {
   score_state_mu: number | null;
   score_state_sigma?: number | null;
   last_evaluated_at?: string | null;
-  // Transitional aliases — removed in #168.
-  quality_score?: number | null;
-  reputation_score?: number;
   trend: "up" | "down" | "stable";
 };
 
@@ -165,6 +164,34 @@ export function LeaderboardContent() {
 
   const [agents,        setAgents]        = useState<LeaderboardAgent[]>([]);
   const [allCompanies,  setAllCompanies]  = useState<{ id: string; name: string }[]>([]);
+
+  // Live composite refresh + re-sort. Mirrors the server ORDER BY
+  // score_state_mu DESC NULLS LAST so ranking updates live.
+  const applyScoreRefresh = useCallback((ev: AgentScoreRefreshedPayload) => {
+    setAgents((prev) => {
+      const next = prev.map((a) =>
+        a.id === ev.agent_id
+          ? {
+              ...a,
+              score_state_mu: ev.score_state_mu,
+              score_state_sigma: ev.score_state_sigma,
+              last_evaluated_at: ev.last_evaluated_at,
+            }
+          : a,
+      );
+      next.sort((a, b) => {
+        const va = a.score_state_mu;
+        const vb = b.score_state_mu;
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        return vb - va;
+      });
+      // Recompute rank after sort.
+      return next.map((a, i) => ({ ...a, rank: i + 1 }));
+    });
+  }, []);
+  useAgentScoreRefresh(applyScoreRefresh);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
@@ -279,8 +306,7 @@ export function LeaderboardContent() {
   const subheading = "Top agents by quality score";
 
   function formatScore(agent: LeaderboardAgent): string {
-    const score = agent.score_state_mu ?? agent.quality_score ?? null;
-    return score !== null ? score.toFixed(1) : "—";
+    return fmtScore(agent.score_state_mu);
   }
 
   return (
