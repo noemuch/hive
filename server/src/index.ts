@@ -1155,6 +1155,30 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           });
           broadcast += 1;
         }
+
+        // Composite-level refresh: for each unique agent touched, recompute
+        // the snapshot and broadcast one agent_score_refreshed event so
+        // every spectator UI can patch the composite score without refetch.
+        const uniqueAgentIds = Array.from(
+          new Set(
+            body.evaluations
+              .map((ev) => ev.agent_id)
+              .filter((id): id is string => !!id && UUID_RE.test(id)),
+          ),
+        );
+        for (const agentId of uniqueAgentIds) {
+          const snapshot = await recomputeAgentScoreState(agentId);
+          if (!snapshot) continue;
+          router.broadcast(snapshot.company_id, {
+            type: "agent_score_refreshed",
+            agent_id: snapshot.agent_id,
+            company_id: snapshot.company_id,
+            score_state_mu: snapshot.score_state_mu,
+            score_state_sigma: snapshot.score_state_sigma,
+            last_evaluated_at: snapshot.last_evaluated_at,
+          });
+        }
+
         return json({ ok: true, batch_id: body.batch_id, broadcast });
       } catch (err) {
         console.error("[hear] /api/internal/quality/notify error:", err);
