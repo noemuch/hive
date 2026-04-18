@@ -1,14 +1,20 @@
 /**
  * Hive agent launcher — spawn and manage a team of agents.
  *
- * Usage:
- *   HIVE_EMAIL=you@example.com \
- *   HIVE_PASSWORD=*** \
- *   ANTHROPIC_API_KEY=sk-ant-*** \
+ * Usage (Mistral default for demo teams — cheapest sweet spot):
+ *   HIVE_EMAIL=you@example.com HIVE_PASSWORD=*** \
+ *   LLM_API_KEY=mistral-*** \
+ *   LLM_BASE_URL=https://api.mistral.ai/v1 \
+ *   LLM_MODEL=mistral-small-latest \
+ *   LLM_PROVIDER=mistral \
  *   bun agents/lib/launcher.ts --team lyse
  *
- * On first run: logs in builder, registers agents, caches API keys.
- * On subsequent runs: loads cached keys, spawns agents with healthcheck.
+ * See docs/BYOK.md for other providers.
+ *
+ * Backward-compat: ANTHROPIC_API_KEY is honored as an alias for LLM_API_KEY.
+ *
+ * On first run: logs in builder, registers agents (with LLM_PROVIDER if set),
+ * caches API keys. On subsequent runs: loads cached keys, spawns with healthcheck.
  */
 
 import { resolve } from "path";
@@ -54,19 +60,24 @@ if (!team?.agents?.length) {
 console.log(`Team "${teamFlag}": ${team.agents.length} agents`);
 migrateIfNeeded(teamFlag, resolve(import.meta.dir, "../.."));
 
-// Resolve ANTHROPIC_KEY — env takes precedence, fallback to ~/.hive/{team}/config.json
-let ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-if (!ANTHROPIC_KEY) {
+// Resolve LLM credentials — env takes precedence, fallback to ~/.hive/{team}/config.json.
+// LLM_API_KEY is the canonical var; ANTHROPIC_API_KEY is a backward-compat alias.
+let LLM_KEY = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
+if (!LLM_KEY) {
   const cfg = readConfig(teamFlag);
   if (cfg?.anthropic_api_key) {
-    ANTHROPIC_KEY = cfg.anthropic_api_key;
-    console.log(`[launch] Loaded ANTHROPIC_API_KEY from ~/.hive/${teamFlag}/config.json`);
+    LLM_KEY = cfg.anthropic_api_key;
+    console.log(`[launch] Loaded LLM_API_KEY from ~/.hive/${teamFlag}/config.json`);
   }
 }
-if (!ANTHROPIC_KEY) {
-  console.error("ERROR: Set ANTHROPIC_API_KEY or run: bun run agents setup --team " + teamFlag);
+if (!LLM_KEY) {
+  console.error("ERROR: Set LLM_API_KEY (or the legacy ANTHROPIC_API_KEY alias),");
+  console.error("       or run: bun run agents setup --team " + teamFlag);
+  console.error("       See docs/BYOK.md for provider-specific LLM_BASE_URL and LLM_MODEL.");
   process.exit(1);
 }
+
+const LLM_PROVIDER = process.env.LLM_PROVIDER?.trim().toLowerCase() || null;
 
 // ---------------------------------------------------------------------------
 // API helper
@@ -107,11 +118,13 @@ async function loadOrCreateKeys(): Promise<Keys> {
 
     const agents: Record<string, string> = {};
     for (const p of team.agents) {
-      const res = await api(
-        "/api/agents/register",
-        { name: p.name, role: p.role, personality_brief: p.brief },
-        token
-      );
+      const registerBody: Record<string, unknown> = {
+        name: p.name,
+        role: p.role,
+        personality_brief: p.brief,
+      };
+      if (LLM_PROVIDER) registerBody.llm_provider = LLM_PROVIDER;
+      const res = await api("/api/agents/register", registerBody, token);
       if (res.ok) {
         agents[p.name] = res.data.api_key as string;
         console.log(`  Registered ${p.name} (${p.role})`);
@@ -167,7 +180,11 @@ function spawnAgent(name: string, apiKey: string, personality: AgentPersonality)
     env: {
       ...process.env,
       HIVE_API_KEY: apiKey,
-      ANTHROPIC_API_KEY: ANTHROPIC_KEY!,
+      // Canonical LLM_API_KEY (set on every child so agent.ts finds it even
+      // if the parent inherited the legacy ANTHROPIC_API_KEY variant).
+      LLM_API_KEY: LLM_KEY!,
+      // Backward-compat alias for any downstream code still reading it.
+      ANTHROPIC_API_KEY: LLM_KEY!,
       AGENT_PERSONALITY: JSON.stringify(personality),
     },
     stdout: "inherit",
