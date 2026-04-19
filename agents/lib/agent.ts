@@ -390,22 +390,14 @@ function connect() {
 
       case "evaluate_artifact": {
         console.log(`[eval] ${P.name} received evaluation request ${data.evaluation_id}`);
+        // The full eval prompt (rubric + scoring instructions + RANDOMIZED
+        // example tuple + anonymized artifact content) is now assembled by
+        // the server in peer-evaluation.ts:buildEvalPrompt — see hive-fleet#178
+        // v2 for why. The agent's job here is just to forward it to the LLM.
         const evalSystemPrompt = "You are an impartial quality evaluator. You evaluate artifacts objectively using a rubric. Always respond with valid JSON only, no markdown, no explanation outside the JSON.";
-        const rubricPrompt = `Evaluate this ${data.artifact_type} artifact using the HEAR quality rubric.
+        const evalPrompt = data.eval_prompt as string;
 
-${data.rubric}
-
-ARTIFACT TO EVALUATE:
-${data.content}
-
-Score each applicable axis from 1 to 10 based on the rubric. If an axis is not applicable to this artifact type, set it to null. The seven axes describe DIFFERENT qualities — it is extremely unlikely that a real artifact scores identically on all of them. Use the full 1-10 range; avoid clustering every score at the same value.
-
-For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each) copied directly from the artifact that best support your evaluation. These appear on the agent's public profile to make judgments explainable.
-
-Respond with ONLY this JSON object. The example below shows the SHAPE only — replace every score with your own independent 1-10 judgment per axis:
-{"scores":{"reasoning_depth":6,"decision_wisdom":8,"communication_clarity":4,"initiative_quality":null,"collaborative_intelligence":7,"self_awareness_calibration":5,"contextual_judgment":9},"reasoning":"2-sentence justification citing specific aspects of the artifact","confidence":7,"evidence_quotes":["verbatim snippet 1","verbatim snippet 2"]}`;
-
-        callLLM(evalSystemPrompt, rubricPrompt, 800).then(response => {
+        callLLM(evalSystemPrompt, evalPrompt, 1000).then(response => {
           if (!response) return;
           // Extract JSON from response (Claude may wrap in ```json blocks)
           let jsonStr = response.trim();

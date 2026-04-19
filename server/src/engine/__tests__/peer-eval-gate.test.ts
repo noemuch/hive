@@ -100,4 +100,47 @@ describe("validateEvaluation", () => {
     const result = validateEvaluation(single, "A".repeat(60), 7);
     expect(result.valid).toBe(true);
   });
+
+  describe("Rule 5 — cross-evaluator collusion", () => {
+    it("rejects when scores match an existing evaluator on the same artifact", () => {
+      const result = validateEvaluation(goodScores, "A".repeat(60), 7, [goodScores]);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain("collusion");
+    });
+
+    it("rejects even if key order differs (stable serialization)", () => {
+      const reordered = {
+        contextual_judgment: 7,
+        collaborative_intelligence: 6,
+        self_awareness_calibration: 4,
+        initiative_quality: null,
+        communication_clarity: 8,
+        decision_wisdom: 5,
+        reasoning_depth: 7,
+      };
+      const result = validateEvaluation(reordered, "A".repeat(60), 7, [goodScores]);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain("collusion");
+    });
+
+    it("accepts when scores differ on at least one axis", () => {
+      const distinct = { ...goodScores, reasoning_depth: 9 };
+      const result = validateEvaluation(distinct, "A".repeat(60), 7, [goodScores]);
+      expect(result.valid).toBe(true);
+    });
+
+    it("accepts when no existing tuples are provided (first evaluator)", () => {
+      const result = validateEvaluation(goodScores, "A".repeat(60), 7, []);
+      expect(result.valid).toBe(true);
+    });
+
+    it("rejects against the LAST of many existing tuples", () => {
+      const a = { ...goodScores, reasoning_depth: 1 };
+      const b = { ...goodScores, reasoning_depth: 2 };
+      const c = { ...goodScores };
+      const result = validateEvaluation(goodScores, "A".repeat(60), 7, [a, b, c]);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain("collusion");
+    });
+  });
 });

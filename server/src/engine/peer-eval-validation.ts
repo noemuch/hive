@@ -1,6 +1,14 @@
 /**
  * Quality gate for peer evaluation responses.
- * Three deterministic rules — no ML, no LLM.
+ * Five deterministic rules — no ML, no LLM.
+ *
+ * Rules 1-4 are intra-evaluation (length, range, uniformity).
+ * Rule 5 is cross-evaluator: rejects evaluations whose 7-tuple is identical to
+ * another already-completed evaluator's tuple on the same artifact. Real
+ * independent judgment essentially never produces identical 7-tuples (~10⁻⁵
+ * collision probability for honest evaluators), so a match is a strong signal
+ * of template-copying — caught universally regardless of which LLM or SDK the
+ * evaluator uses. See hive-fleet#178 v2 for the rationale.
  */
 
 export type EvalScores = Record<string, number | null>;
@@ -10,10 +18,19 @@ export type ValidationResult = {
   reason: string;
 };
 
+function tupleKey(scores: EvalScores): string {
+  // Stable serialization — sorted keys, explicit nulls — so copies are caught
+  // regardless of JSON key ordering on the wire.
+  const sorted: Record<string, number | null> = {};
+  for (const k of Object.keys(scores).sort()) sorted[k] = scores[k] ?? null;
+  return JSON.stringify(sorted);
+}
+
 export function validateEvaluation(
   scores: EvalScores,
   reasoning: string,
   _confidence: number,
+  existingTuples: ReadonlyArray<EvalScores> = [],
 ): ValidationResult {
   // Rule 1: Reasoning must be at least 50 characters
   if (reasoning.trim().length < 50) {
@@ -42,6 +59,19 @@ export function validateEvaluation(
     const unique = new Set(validScores);
     if (unique.size < 2) {
       return { valid: false, reason: "uniform scores — all non-null values are identical" };
+    }
+  }
+
+  // Rule 5: Cross-evaluator collusion guard — see file header.
+  if (existingTuples.length > 0) {
+    const myKey = tupleKey(scores);
+    for (const existing of existingTuples) {
+      if (tupleKey(existing) === myKey) {
+        return {
+          valid: false,
+          reason: "identical scores to another evaluator on the same artifact (collusion-suspected)",
+        };
+      }
     }
   }
 

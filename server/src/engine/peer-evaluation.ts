@@ -5,7 +5,7 @@ import { router } from "../router/index";
 import { anonymize } from "./anonymizer";
 import { getPeerEvalRubric } from "./rubric-loader";
 import { updateScore, type ScoreState } from "./score-state";
-import { validateEvaluation } from "./peer-eval-validation";
+import { validateEvaluation, type EvalScores } from "./peer-eval-validation";
 import { weightedMean } from "./peer-eval-aggregation";
 import type {
   EvaluateArtifactEvent,
@@ -24,6 +24,43 @@ const EVAL_AXES = [
 ] as const;
 
 type EvalAxis = (typeof EVAL_AXES)[number];
+
+// Random per-call example tuple for the eval prompt — see #178 v2.
+// Uses a 1-10 range across all axes; initiative_quality is null ~30% of the
+// time to model "axis not applicable" without biasing the model toward null.
+function randomExample(): Record<EvalAxis, number | null> {
+  const r = (): number => 1 + Math.floor(Math.random() * 10);
+  return {
+    reasoning_depth: r(),
+    decision_wisdom: r(),
+    communication_clarity: r(),
+    initiative_quality: Math.random() < 0.3 ? null : r(),
+    collaborative_intelligence: r(),
+    self_awareness_calibration: r(),
+    contextual_judgment: r(),
+  };
+}
+
+function buildEvalPrompt(input: {
+  artifactType: string;
+  rubric: string;
+  anonContent: string;
+}): string {
+  const example = randomExample();
+  return `Evaluate this ${input.artifactType} artifact using the HEAR quality rubric.
+
+${input.rubric}
+
+Score each applicable axis from 1 to 10 based on the rubric. If an axis is not applicable to this artifact type, set it to null. The seven axes describe DIFFERENT qualities — it is extremely unlikely that a real artifact scores identically on all of them. Use the full 1-10 range; avoid clustering every score at the same value.
+
+For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each) copied directly from the artifact that best support your evaluation. These appear on the agent's public profile to make judgments explainable.
+
+Respond with ONLY a JSON object of this shape. The number values shown below are RANDOM placeholders generated for this request — they are NOT the answer. Replace each with your own independent 1-10 judgment per axis based on the artifact:
+${JSON.stringify({ scores: example, reasoning: "2-sentence justification citing specific aspects of the artifact", confidence: 7, evidence_quotes: ["verbatim snippet 1", "verbatim snippet 2"] })}
+
+ARTIFACT TO EVALUATE:
+${input.anonContent}`;
+}
 
 export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   // 1. Fetch artifact + author info
@@ -103,7 +140,12 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   // 5. Load full BARS rubric
   const rubric = getPeerEvalRubric();
 
-  // 6. Create peer_evaluation rows + send to each evaluator
+  // 6. Create peer_evaluation rows + send to each evaluator.
+  //    The eval prompt is built per-call with a fresh random example tuple
+  //    so weak LLMs (e.g. Mistral Nemo 12B) can't lazy-copy a fixed shape —
+  //    each evaluator sees a DIFFERENT example. Combined with the cross-
+  //    evaluator collusion gate in handleEvaluationResult, this drives the
+  //    template-copying rate from ~50% to near-zero. See hive-fleet#178 v2.
   for (const candidate of candidates) {
     const { rows: [pe] } = await pool.query<{ id: string }>(
       `INSERT INTO peer_evaluations (artifact_id, evaluator_agent_id, evaluator_builder_id, status)
@@ -112,12 +154,17 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
       [artifactId, candidate.agent_id, candidate.builder_id]
     );
 
+    const evalPrompt = buildEvalPrompt({
+      artifactType: artifact.type,
+      rubric,
+      anonContent,
+    });
+
     const event: EvaluateArtifactEvent = {
       type: "evaluate_artifact",
       evaluation_id: pe.id,
       artifact_type: artifact.type,
-      content: anonContent,
-      rubric,
+      eval_prompt: evalPrompt,
     };
 
     router.sendToAgent(candidate.agent_id, event);
@@ -168,8 +215,21 @@ export async function handleEvaluationResult(
         .map((q) => (q.length > 200 ? q.slice(0, 200) : q))
     : [];
 
-  // 3. Quality gate — validate before accepting
-  const validation = validateEvaluation(scores, reasoning, confidence);
+  // 3. Quality gate — validate before accepting.
+  //    Fetch already-completed siblings' tuples on this artifact so the
+  //    cross-evaluator collusion rule (Rule 5) can flag template copies.
+  const { rows: priorTuples } = await pool.query<{ scores: EvalScores | string }>(
+    `SELECT scores
+     FROM peer_evaluations
+     WHERE artifact_id = $1
+       AND status = 'completed'
+       AND id != $2`,
+    [pe.artifact_id, evaluationId]
+  );
+  const existingTuples: EvalScores[] = priorTuples.map((r) =>
+    typeof r.scores === "string" ? JSON.parse(r.scores) : r.scores,
+  );
+  const validation = validateEvaluation(scores, reasoning, confidence, existingTuples);
 
   if (!validation.valid) {
     // Reject the evaluation

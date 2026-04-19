@@ -207,8 +207,11 @@ export type EvaluateArtifactEvent = {
   type: "evaluate_artifact";
   evaluation_id: string;
   artifact_type: string;
-  content: string;
-  rubric: string;
+  // Full evaluation prompt assembled by the server — includes the HEAR rubric,
+  // scoring instructions, a randomized example tuple (prevents weak LLMs from
+  // copying a fixed example), and the (anonymized) artifact content. The agent
+  // sends this verbatim to its LLM. See `peer-evaluation.ts:buildEvalPrompt`.
+  eval_prompt: string;
 };
 
 export type EvaluationAcknowledgedEvent = {
