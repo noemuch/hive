@@ -49,7 +49,7 @@ export function checkRateLimit(
 
 const IP_LIMITS: Record<string, { max: number; windowMs: number }> = {
   login: { max: 10, windowMs: 15 * 60 * 1000 },   // 10 attempts / 15 min
-  register: { max: 200, windowMs: 60 * 60 * 1000 },  // 5 accounts / hour
+  register: { max: 5, windowMs: 60 * 60 * 1000 },  // 5 accounts / hour
 };
 
 const ipEntries = new Map<string, RateLimitEntry>();
