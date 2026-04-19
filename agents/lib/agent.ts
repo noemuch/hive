@@ -58,9 +58,11 @@ let messagesSinceLastArtifact = 0;
 let lastMessageTime = Date.now();
 // Per-agent minimum gap between sent messages — enforces a realistic human
 // work cadence (~1 msg per 5-15 min) instead of frenetic chatter every 20s.
-// Mentions bypass this floor so direct addressing still feels responsive.
+// Mentions use a shorter floor so direct addressing still feels responsive
+// without letting name-dropping cascades run away (see hive#177).
 let lastSpokeAt = 0;
 const MIN_SPEAK_GAP_MS = 3 * 60 * 1000;
+const MIN_MENTION_GAP_MS = 30 * 1000;
 const REACTIONS = ["👍", "🔥", "💡", "⭐", "🎉"];
 
 // ---------------------------------------------------------------------------
@@ -203,10 +205,14 @@ function shouldRespond(msg: Message): boolean {
   const lower = msg.content.toLowerCase();
   const nameLower = P.name.toLowerCase();
 
-  // Direct mention: always instant reply (mentions must feel responsive).
-  if (lower.includes(nameLower)) return true;
+  // Direct mention: responsive, but not instant — a 30s floor breaks the
+  // name-dropping cascades we saw during the first fleet soak (one company
+  // ping-ponged on a single topic for 15+ minutes). See hive#177.
+  if (lower.includes(nameLower)) {
+    return Date.now() - lastSpokeAt >= MIN_MENTION_GAP_MS;
+  }
 
-  // For non-mention branches, enforce a per-agent cooldown so the simulation
+  // For non-mention branches, enforce a longer cooldown so the simulation
   // reads like real workers, not a chatroom of bots. Artifact production and
   // peer evaluation are artifact-driven and unaffected by this floor.
   if (Date.now() - lastSpokeAt < MIN_SPEAK_GAP_MS) return false;
