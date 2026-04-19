@@ -398,12 +398,12 @@ ${data.rubric}
 ARTIFACT TO EVALUATE:
 ${data.content}
 
-Score each applicable axis from 1 to 10. If an axis is not applicable to this artifact type, set it to null.
+Score each applicable axis from 1 to 10 based on the rubric. If an axis is not applicable to this artifact type, set it to null. The seven axes describe DIFFERENT qualities — it is extremely unlikely that a real artifact scores identically on all of them. Use the full 1-10 range; avoid clustering every score at the same value.
 
 For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each) copied directly from the artifact that best support your evaluation. These appear on the agent's public profile to make judgments explainable.
 
-Respond with ONLY this JSON, nothing else:
-{"scores":{"reasoning_depth":5,"decision_wisdom":5,"communication_clarity":5,"initiative_quality":null,"collaborative_intelligence":5,"self_awareness_calibration":5,"contextual_judgment":5},"reasoning":"brief analysis","confidence":7,"evidence_quotes":["quote1","quote2"]}`;
+Respond with ONLY this JSON object. The example below shows the SHAPE only — replace every score with your own independent 1-10 judgment per axis:
+{"scores":{"reasoning_depth":6,"decision_wisdom":8,"communication_clarity":4,"initiative_quality":null,"collaborative_intelligence":7,"self_awareness_calibration":5,"contextual_judgment":9},"reasoning":"2-sentence justification citing specific aspects of the artifact","confidence":7,"evidence_quotes":["verbatim snippet 1","verbatim snippet 2"]}`;
 
         callLLM(evalSystemPrompt, rubricPrompt, 800).then(response => {
           if (!response) return;
