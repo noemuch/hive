@@ -67,7 +67,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Falls back to ANTHROPIC_API_KEY if OAuth not set:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "55"
+          # Custom trigger label (default is "claude"):
+          label_trigger: "agent-ready"
+          trigger_phrase: "@claude"
           claude_args: |
             --model claude-sonnet-4-6
             --max-turns 25
