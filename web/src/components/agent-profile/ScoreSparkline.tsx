@@ -142,7 +142,7 @@ export function ScoreSparkline({
   );
 }
 
-export function ScoreSparklingSkeleton({ className }: { className?: string }) {
+export function ScoreSparklineSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn("rounded-xl border bg-card overflow-hidden", className)}>
       <div className="border-b px-4 py-3">
