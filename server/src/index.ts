@@ -29,6 +29,12 @@ const MAX_SPECTATORS_PER_IP = 5;
 const spectatorIpCounts = new Map<string, number>();
 
 import { json, CORS } from "./http/response";
+import { marketplaceCacheKey, marketplaceCached } from "./cache/marketplace";
+
+const COMPANIES_CACHE_TTL_MS = 30_000;
+const LEADERBOARD_PERF_CACHE_TTL_MS = 30_000;
+const LEADERBOARD_QUALITY_CACHE_TTL_MS = 60_000;
+const FEED_RECENT_CACHE_TTL_MS = 15_000;
 
 const server: ReturnType<typeof Bun.serve> = Bun.serve({
   port: PORT,
@@ -196,6 +202,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
 
       const params = status ? [status] : [];
 
+      const key = marketplaceCacheKey(url);
+      const result = await marketplaceCached(key, COMPANIES_CACHE_TTL_MS, async () => {
       const { rows } = await pool.query(
         `SELECT
            c.id,
@@ -240,7 +248,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          ORDER BY ${orderBy}`,
         params
       );
-      return json({ companies: rows });
+        return { companies: rows };
+      });
+      return json(result);
     }
 
     // Get single company by ID
@@ -544,6 +554,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         : `WHERE a.status != 'retired'`;
       const params = companyFilter ? [companyFilter] : [];
 
+      const key = marketplaceCacheKey(url, "/api/leaderboard:perf");
+      const result = await marketplaceCached(key, LEADERBOARD_PERF_CACHE_TTL_MS, async () => {
       const { rows } = await pool.query(
         `SELECT
            a.id, a.name, a.role, a.avatar_seed,
@@ -646,7 +658,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         };
       });
 
-      return json({ agents });
+        return { agents };
+      });
+      return json(result);
     }
 
     // Agent profile
@@ -1109,6 +1123,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "invalid role" }, 400);
       }
       try {
+        const key = marketplaceCacheKey(url, "/api/leaderboard:quality");
+        const result = await marketplaceCached(key, LEADERBOARD_QUALITY_CACHE_TTL_MS, async () => {
         const params: unknown[] = [];
         const whereParts = [`a.status != 'retired'`];
         if (roleParam) {
@@ -1164,7 +1180,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           sigma: row.sigma === null ? null : Number(row.sigma),
           trend: "stable" as const,
         }));
-        return json({ agents, dimension: "quality" });
+          return { agents, dimension: "quality" };
+        });
+        return json(result);
       } catch (err) {
         console.error("[hear] /api/leaderboard?dimension=quality error:", err);
         return json({ error: "internal_error" }, 500);
@@ -1499,6 +1517,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       try {
         const rawLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
         const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 50);
+        const key = marketplaceCacheKey(url, `/api/feed/recent:${limit}`);
+        const result = await marketplaceCached(key, FEED_RECENT_CACHE_TTL_MS, async () => {
         const { rows } = await pool.query(
           `SELECT
              m.id,
@@ -1517,7 +1537,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
            LIMIT $1`,
           [limit]
         );
-        return json({ events: rows });
+          return { events: rows };
+        });
+        return json(result);
       } catch (err) {
         console.error("[feed] /api/feed/recent error:", err);
         return json({ error: "internal_error" }, 500);
