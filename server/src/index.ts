@@ -29,6 +29,14 @@ const MAX_SPECTATORS_PER_IP = 5;
 const spectatorIpCounts = new Map<string, number>();
 
 import { json, CORS } from "./http/response";
+import { marketplaceCache, cacheKeyFromUrl } from "./cache/lru";
+
+// TTLs per endpoint — tuned to freshness vs. DB-load tradeoff (#195).
+const TTL_COMPANIES_MS = 30_000;
+const TTL_LEADERBOARD_PERF_MS = 30_000;
+const TTL_LEADERBOARD_QUALITY_MS = 60_000; // quality scores move slowly
+const TTL_COLLECTIONS_MS = 60_000;
+const TTL_FEED_RECENT_MS = 15_000;
 
 const server: ReturnType<typeof Bun.serve> = Bun.serve({
   port: PORT,
@@ -180,6 +188,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     }
 
     if (url.pathname === "/api/companies" && req.method === "GET") {
+      const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
       const status = url.searchParams.get("status");
       const sort = url.searchParams.get("sort") || "founded_at";
 
@@ -240,7 +249,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
          ORDER BY ${orderBy}`,
         params
       );
-      return json({ companies: rows });
+        return { companies: rows };
+      }, TTL_COMPANIES_MS);
+      return json(data);
     }
 
     // Get single company by ID
@@ -539,6 +550,8 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (companyFilter && !uuidRegex.test(companyFilter)) return json({ agents: [] });
 
+      const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
+
       const whereClause = companyFilter
         ? `WHERE a.status != 'retired' AND a.company_id = $1`
         : `WHERE a.status != 'retired'`;
@@ -646,7 +659,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         };
       });
 
-      return json({ agents });
+        return { agents };
+      }, TTL_LEADERBOARD_PERF_MS);
+      return json(data);
     }
 
     // Agent profile
@@ -815,19 +830,22 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
 
       try {
-        const { rows } = await pool.query(sql, params);
-        const agents = rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          role: row.role,
-          avatar_seed: row.avatar_seed,
-          score_state_mu: row.score_state_mu === null ? null : Number(row.score_state_mu),
-          score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
-          last_evaluated_at: row.last_evaluated_at,
-          llm_provider: row.llm_provider ?? null,
-          company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
-        }));
-        return json({ slug, title, filter_query: filterQuery, agents });
+        const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
+          const { rows } = await pool.query(sql, params);
+          const agents = rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            role: row.role,
+            avatar_seed: row.avatar_seed,
+            score_state_mu: row.score_state_mu === null ? null : Number(row.score_state_mu),
+            score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
+            last_evaluated_at: row.last_evaluated_at,
+            llm_provider: row.llm_provider ?? null,
+            company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+          }));
+          return { slug, title, filter_query: filterQuery, agents };
+        }, TTL_COLLECTIONS_MS);
+        return json(data);
       } catch (err) {
         console.error(`[collections] /api/agents/collections/${slug} error:`, err);
         return json({ error: "internal_error" }, 500);
@@ -1109,6 +1127,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return json({ error: "invalid role" }, 400);
       }
       try {
+        const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
         const params: unknown[] = [];
         const whereParts = [`a.status != 'retired'`];
         if (roleParam) {
@@ -1164,7 +1183,9 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           sigma: row.sigma === null ? null : Number(row.sigma),
           trend: "stable" as const,
         }));
-        return json({ agents, dimension: "quality" });
+          return { agents, dimension: "quality" as const };
+        }, TTL_LEADERBOARD_QUALITY_MS);
+        return json(data);
       } catch (err) {
         console.error("[hear] /api/leaderboard?dimension=quality error:", err);
         return json({ error: "internal_error" }, 500);
@@ -1499,25 +1520,30 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       try {
         const rawLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
         const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 50);
-        const { rows } = await pool.query(
-          `SELECT
-             m.id,
-             LEFT(m.content, 120) as content,
-             m.created_at,
-             ag.name as agent_name,
-             ag.avatar_seed,
-             c.id as company_id,
-             c.name as company_name,
-             ch.name as channel_name
-           FROM messages m
-           JOIN channels ch ON m.channel_id = ch.id
-           JOIN companies c ON ch.company_id = c.id
-           JOIN agents ag ON m.author_id = ag.id
-           ORDER BY m.created_at DESC
-           LIMIT $1`,
-          [limit]
-        );
-        return json({ events: rows });
+        // Cache key uses the normalized limit so `?limit=abc` and `?limit=20` share an entry.
+        const cacheKey = `/api/feed/recent?limit=${limit}`;
+        const data = await marketplaceCache.wrap(cacheKey, async () => {
+          const { rows } = await pool.query(
+            `SELECT
+               m.id,
+               LEFT(m.content, 120) as content,
+               m.created_at,
+               ag.name as agent_name,
+               ag.avatar_seed,
+               c.id as company_id,
+               c.name as company_name,
+               ch.name as channel_name
+             FROM messages m
+             JOIN channels ch ON m.channel_id = ch.id
+             JOIN companies c ON ch.company_id = c.id
+             JOIN agents ag ON m.author_id = ag.id
+             ORDER BY m.created_at DESC
+             LIMIT $1`,
+            [limit]
+          );
+          return { events: rows };
+        }, TTL_FEED_RECENT_MS);
+        return json(data);
       } catch (err) {
         console.error("[feed] /api/feed/recent error:", err);
         return json({ error: "internal_error" }, 500);
