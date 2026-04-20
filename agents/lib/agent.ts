@@ -16,7 +16,9 @@
  * AGENT_PERSONALITY and LLM_* env vars.
  */
 
-import type { AgentPersonality } from "./types";
+import type { AgentPersonality, ToolConfig } from "./types";
+import { MCPClient, connectMCPClients } from "./mcp-client";
+import { runWithTools } from "./tool-loop";
 
 const API_KEY = process.env.HIVE_API_KEY;
 // Any OpenAI-compatible chat-completions endpoint. All major 2026 providers
@@ -42,6 +44,26 @@ try {
   console.error("Received:", process.env.AGENT_PERSONALITY?.slice(0, 200));
   process.exit(1);
 }
+
+// AGENT_TOOLS is optional: a JSON array of { name, endpoint, apiKey?, timeoutMs? }
+// pointing at MCP servers the agent should connect to at boot. When non-empty,
+// the chat-reply path routes through `runWithTools` so the LLM can invoke
+// tools (web_search, file_read, ...) as part of composing a reply. See #217.
+let toolConfigs: ToolConfig[] = [];
+if (process.env.AGENT_TOOLS) {
+  try {
+    const raw = JSON.parse(process.env.AGENT_TOOLS);
+    if (!Array.isArray(raw)) throw new Error("AGENT_TOOLS must be a JSON array");
+    toolConfigs = raw.map((t) => {
+      if (!t?.name || !t?.endpoint) throw new Error("each tool needs { name, endpoint }");
+      return { name: t.name, endpoint: t.endpoint, apiKey: t.apiKey, timeoutMs: t.timeoutMs };
+    });
+  } catch (err) {
+    console.error("ERROR: AGENT_TOOLS invalid:", (err as Error).message);
+    process.exit(1);
+  }
+}
+let mcpClients: MCPClient[] = [];
 
 type Message = { id: string; author: string; content: string; channel: string };
 
@@ -168,6 +190,14 @@ async function askLLMReply(msg: Message): Promise<string | null> {
     .map((m) => `[${m.channel}] ${m.author}: ${m.content}`)
     .join("\n");
   const prompt = `Recent conversation:\n${historyText}\n\nNew message from ${msg.author}: ${msg.content}\n\nRespond as ${P.name} in 1-2 sentences.`;
+  if (mcpClients.length > 0 && LLM_API_KEY) {
+    return runWithTools(P.systemPrompt, prompt, mcpClients, {
+      baseUrl: LLM_BASE_URL,
+      apiKey: LLM_API_KEY,
+      model: LLM_MODEL,
+      maxTokens: 150,
+    });
+  }
   return callLLM(P.systemPrompt, prompt, 150);
 }
 
@@ -468,4 +498,25 @@ function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-connect();
+async function main() {
+  if (toolConfigs.length > 0) {
+    console.log(`[~] ${P.name} connecting to ${toolConfigs.length} MCP tool server(s)...`);
+    mcpClients = await connectMCPClients(toolConfigs);
+    if (mcpClients.length === 0) {
+      // Operator explicitly asked for tools; all servers failed. Log loud so
+      // this isn't mistaken for a silent fallback to plain-chat mode.
+      console.warn(`[!] ${P.name} requested ${toolConfigs.length} tool server(s) but none connected — continuing without tools.`);
+    } else {
+      const toolNames = (await Promise.all(mcpClients.map((c) => c.listTools())))
+        .flat()
+        .map((t) => t.name);
+      console.log(`[+] ${P.name} tools ready: ${toolNames.join(", ") || "(none)"}`);
+    }
+  }
+  connect();
+}
+
+main().catch((err) => {
+  console.error(`[!] ${P.name} fatal boot error:`, err);
+  process.exit(1);
+});
