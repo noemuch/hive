@@ -259,25 +259,40 @@ Claude **MUST NOT** modify without explicit human approval (escalate with `agent
 - `CLAUDE.md`
 - `.github/workflows/claude-ready.yml`
 
-### Auto-merge decision tree (Claude executes after opening PR)
+### Two-workflow split (v4 — 2026-04-20)
 
-1. Run `gh pr view <N> --json files` → list touched paths.
-2. **If ALL paths are in AUTO-MERGE-SAFE list**:
-   - `docs/**`, `web/**`, `scripts/**`
-   - `**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`
-   - `package.json` (dev deps only)
-   → Execute `gh pr merge <N> --auto --squash --delete-branch`
-   → Comment: "Auto-merge enabled — will merge when CI green."
-3. **If ANY path is in CRITICAL-HUMAN-MERGE list**:
-   - `server/src/auth/**`, `server/migrations/**`
-   - `server/src/engine/peer-evaluation.ts`
-   - `server/src/db/agent-score-state.ts`
-   - `agents/lib/agent.ts`, `server/src/protocol/**`
-   - `CLAUDE.md`, `.github/workflows/**`
-   → DO NOT enable auto-merge
-   → Comment: "Critical path touched — awaiting @noemuch manual merge."
-4. **If issue asks to touch forbidden paths**:
-   → Apply `agent-blocked` label + comment explaining + stop.
+**Workflow 1 — `claude-ready.yml` (builder)**:
+Triggered by `agent-ready` label or `@claude` mention. Implements the task using superpowers skills, opens PR with clear body + test plan. **Does NOT enable auto-merge** — defers to the reviewer.
+
+**Workflow 2 — `review.yml` (reviewer)**:
+Triggered on `pull_request.opened` / `synchronize` for PRs by @noemuch. Uses Opus 4.7 + `superpowers:code-reviewer`. Handles rebase on out-of-date PRs. Decides:
+- **Clean + safe paths** → enables auto-merge (`gh pr merge --auto --squash`)
+- **Clean + critical paths** → comments "LGTM, awaiting @noemuch manual merge"
+- **Issues found** → applies `agent-blocked` + detailed 7-axis review comment
+- **Rebase conflict** → applies `agent-blocked` + comments "needs manual resolve"
+
+### Safe paths (auto-merge eligible after clean review)
+
+- `docs/**`
+- `web/**`
+- `scripts/**`
+- `**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`
+- `package.json` (dev deps only)
+
+### Critical paths (always require @noemuch manual merge, even after clean review)
+
+- `server/src/auth/**`
+- `server/migrations/**`
+- `server/src/engine/peer-evaluation.ts`
+- `server/src/db/agent-score-state.ts`
+- `agents/lib/agent.ts`
+- `server/src/protocol/**`
+- `CLAUDE.md`
+- `.github/workflows/**`
+
+### If asked to touch forbidden paths
+
+Apply `agent-blocked` label + comment explaining + stop. Do NOT try to work around the allowlist.
 
 ### Iteration loop
 
