@@ -198,54 +198,80 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 - **peer_evaluations** -- Cross-company agent-to-agent artifact evaluations
 
 
-## Hardcode & Coherence Gate (MANDATORY — reviewer blocks on violations)
+## Quality Gate — 10 Blocking Checks
 
-The reviewer (Opus 4.7 + `superpowers:code-reviewer`) runs these **concrete, grepable checks** on every PR. Any FAIL → `agent-blocked` + comment listing the exact file:line + suggested fix. No ambiguous "style" subjective checks — only mechanical violations.
+Reviewer runs these greps on the PR diff. **Any match = BLOCK** (`gh pr review --request-changes` + `agent-blocked` label).
 
-### ❌ HARDCODE VIOLATIONS (never merge if detected)
+### Hardcode checks (diff must have 0 matches)
 
-1. **No secrets / credentials / API keys in code**
-   - Pattern: `grep -rE "(sk-[a-z0-9]|Bearer [A-Z0-9]|password\s*=\s*['\"]|api_?key\s*=\s*['\"])" <diff>` → must return 0 matches. Use env vars (documented in CLAUDE.md § Environment Variables).
-2. **No hardcoded URLs** (localhost, prod, IPs)
-   - Pattern: `grep -rE "https?://[a-z0-9.-]+\.(com|app|up\.railway\.app|io)/" <diff>` in non-docs files → must use `process.env.HIVE_API_URL` / `NEXT_PUBLIC_API_URL` / `LLM_BASE_URL`.
-3. **No hardcoded UUIDs / agent IDs / builder IDs**
-   - Pattern: `grep -rE "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"` in non-test, non-migration files → must be passed as parameters or fetched from DB.
-4. **No magic numbers** in business logic
-   - Example of violation: `if (score > 7.5)` without a named constant. Must be `const HEAR_QUALITY_THRESHOLD = 7.5` at the top of the file (or an existing constants module).
-5. **No SQL string concatenation** (security + scalability)
-   - Pattern: ``grep -rE "SELECT.*\$\{|INSERT.*\$\{" <diff>`` in `.ts` files → must use parameterized `$1, $2, …` with `pool.query(sql, [params])`.
+1. **Secrets**: `grep -nE '(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|Bearer [A-Z0-9]{20,}|(password|api_?key|secret|token)\s*[:=]\s*["'"'"'][^"'"'"' $]{8,})'`
+   - Fix: move to env var. See `CLAUDE.md § Environment Variables`.
 
-### ❌ COHERENCE VIOLATIONS (parallel implementations / divergence)
+2. **Hardcoded URLs** (in `.ts`/`.tsx`, excluding `docs/`): `grep -nE 'https?://[^"'"'"' ]+\.(com|app|io|net|railway\.app|vercel\.app)'`
+   - Fix: use `process.env.HIVE_API_URL` / `NEXT_PUBLIC_API_URL` / `LLM_BASE_URL`.
 
-6. **No duplicate logic that already exists in the codebase**
-   - Before writing a utility, reviewer runs `grep -rE "function <similar_name>|export (const|function) <similar>"` in `server/src/`, `web/src/`, `agents/lib/`. If a similar util exists (>70% overlap) → refactor to use existing one.
-7. **No new framework / library for a concern already solved**
-   - If `package.json` changes add a dep that duplicates an existing one (e.g. adding `axios` when codebase uses native `fetch`; adding `moment` when `Date` is used; adding ORM when raw SQL is the convention), reviewer blocks.
+3. **Hardcoded UUIDs** (in `.ts`/`.tsx`, excluding `__tests__/`, `migrations/`, `*.test.ts`): `grep -nE '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'`
+   - Fix: pass as parameter, fetch from DB, or use a `const` with justification comment.
 
-### ❌ SCALABILITY VIOLATIONS (catchable from diff)
+4. **Magic numbers** in business logic: manual scan for `> [0-9]` / `< [0-9]` / `=== [0-9]` in non-test code where the number has a business meaning (scores, thresholds, limits, timeouts).
+   - Fix: extract to named `const` at top of file. Example: `const HEAR_QUALITY_THRESHOLD = 7.5;`
 
-8. **No unindexed hot-path queries**
-   - Any new `WHERE` clause on a column not in an index in the relevant migration → must add an index OR document why (e.g. "low-cardinality + small table").
-9. **No `SELECT *` in server code**
-   - Explicit column lists only. Reviewer greps `SELECT \*` in `.ts` under `server/` → block.
-10. **No unbounded `LIMIT`-less queries** returning user-scoped data
-    - Any `pool.query("SELECT ... FROM (messages|artifacts|peer_evaluations|event_log)")` without `LIMIT` clause → block.
+5. **SQL string interpolation** in `.ts` files: `grep -nE '(SELECT|INSERT|UPDATE|DELETE).*\$\{'`
+   - Fix: use parameterized `$1, $2` with `pool.query(sql, [params])`.
 
-### ✅ What reviewer DOES NOT block on (too subjective)
+### Coherence checks
 
-- Variable naming style (unless inconsistent with the file)
-- Comment quantity (unless excessive or WHAT-explaining)
-- Function length (unless > 100 lines without extraction)
-- Test coverage % (CI handles this)
+6. **Duplicate utility**: before creating a function, reviewer searches for existing one:
+   ```bash
+   grep -rE "(function|const|export) <new_function_name>" server/src/ web/src/ agents/lib/
+   ```
+   - If a similar util exists (same purpose, >70% overlap) → refactor to reuse.
 
-### Enforcement flow
+7. **Redundant package dep**: if `package.json` diff adds a dep that duplicates an existing pattern:
+   - `axios` when codebase uses `fetch` → BLOCK
+   - `moment`/`dayjs` when codebase uses native `Date` → BLOCK
+   - Any ORM (`prisma`, `drizzle`, `typeorm`) when raw SQL is the convention → BLOCK
 
-1. Reviewer grep's the PR diff for the 10 patterns above.
-2. Each FAIL → adds a specific entry to its review comment with `file:line` + quick-fix suggestion.
-3. If ≥1 FAIL → `gh pr review --request-changes` + `agent-blocked` label + `gh pr merge --disable-auto`.
-4. Builder (or @noemuch) reads the review, pushes fix commits, `pull_request.synchronize` re-triggers reviewer, cycle until clean (max 3 iterations).
+### Scalability checks
 
-This is concrete, mechanical, reviewable. No "vibes-based" blocking.
+8. **Missing index on new `WHERE` clause**: for any new `WHERE <col> =` / `WHERE <col> IN`:
+   - Check: is `<col>` indexed in the latest migration for that table?
+   - If NO → BLOCK + ask for `CREATE INDEX` OR a comment justifying (e.g. `-- low-cardinality, table < 1000 rows`).
+
+9. **`SELECT *` in server code**: `grep -nE 'SELECT \*' server/src/**/*.ts`
+   - Fix: list explicit columns.
+
+10. **Unbounded queries** on partitioned/growing tables: `grep -nE 'FROM (messages|artifacts|peer_evaluations|event_log|quality_evaluations)' server/src/**/*.ts`
+    - Each match must also contain `LIMIT` or a WHERE clause that bounds (e.g. `WHERE id = $1`).
+    - If neither → BLOCK.
+
+### Not blocking (too subjective, let it ship)
+
+- Variable naming style
+- Comment quantity (unless explaining WHAT instead of WHY)
+- Function length (unless > 100 lines)
+- Test coverage %
+
+### Reviewer execution
+
+For each of the 10 checks above, reviewer runs the grep, records file:line of any match, includes it in the review comment with a specific fix suggestion. If 0 matches across all 10 → proceed to merge decision.
+
+## Merge Authority — Reviewer merges everything if clean
+
+Reviewer (Opus 4.7) has **full merge authority** on PRs that pass:
+- All 10 Quality Gate checks (0 matches)
+- CI green (`bun test` + `bun run lint`)
+- No unresolved conversations
+
+If all three pass → `gh pr merge <N> --auto --squash --delete-branch`. No path-based restrictions (previous `critical paths` list retired — @noemuch trusts reviewer's judgment).
+
+Reviewer only escalates to @noemuch when:
+- Architectural decision needed (e.g. two valid approaches, requires product call)
+- Ambiguous requirements in the linked issue
+- Repeated auto-fix failures (3+ iterations on the same PR)
+- Security red flag the reviewer can't self-fix (e.g. new auth flow design)
+
+In those cases: `agent-blocked` label + comment explaining WHY it needs human judgment.
 
 ## Autonomous workflow (Claude Code as @noemuch)
 
