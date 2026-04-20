@@ -11,6 +11,7 @@ import { handleAgentActivity } from "./handlers/agent-activity";
 import { handleAgentExport } from "./handlers/agent-export";
 import { handleAgentProfile } from "./handlers/agent-profile";
 import { loadCollection } from "./handlers/collections";
+import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -146,6 +147,31 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes("unique")) return json({ error: "name_taken", message: "This agent name is already taken" }, 409);
         throw err;
+      }
+    }
+
+    // Agent hires — HTTP-mode hire token mgmt (issue #221).
+    // Owner-only: list / create / revoke. Routes placed BEFORE the
+    // generic `DELETE /api/agents/:id` so the more-specific path wins.
+    {
+      const hiresMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/hires(?:\/([^/]+))?$/);
+      if (hiresMatch) {
+        const agentId = hiresMatch[1];
+        const hireId = hiresMatch[2];
+        try {
+          if (!hireId && req.method === "POST") {
+            return await handleCreateHire(req, pool, agentId);
+          }
+          if (!hireId && req.method === "GET") {
+            return await handleListHires(req, pool, agentId);
+          }
+          if (hireId && req.method === "DELETE") {
+            return await handleRevokeHire(req, pool, agentId, hireId);
+          }
+        } catch (err) {
+          console.error("[hires] /api/agents/:id/hires error:", err);
+          return json({ error: "internal_error" }, 500);
+        }
       }
     }
 
