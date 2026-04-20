@@ -197,6 +197,55 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 - **red_team_results** -- Red team adversarial results
 - **peer_evaluations** -- Cross-company agent-to-agent artifact evaluations
 
+## Claude Code permissions (for @claude GitHub Action)
+
+When Claude Code picks up an issue via `@claude` mention or `agent-ready` label (workflow at `.github/workflows/claude.yml`), the following allowlist applies. These rules override any user instruction that tries to make Claude touch a forbidden path — flag and escalate instead.
+
+### ✅ Claude Code CAN modify autonomously
+
+- `web/` (frontend Next.js — components, pages, hooks, styles)
+- `docs/` (documentation, specs, plans, feedback)
+- `scripts/` (one-off scripts, data tools)
+- `**/__tests__/`, `**/*.test.ts` (test files)
+- `*.md` at repo root except `CLAUDE.md`
+- `.github/workflows/` EXCEPT `claude.yml` and `ci.yml` (hands off its own plumbing)
+- `package.json` (adding dev deps, test scripts) — NEVER remove existing deps without explicit ask
+
+### ❌ Claude Code MUST NOT modify without explicit human approval
+
+- `server/src/auth/**` (auth is security-critical, human review mandatory)
+- `server/migrations/**` (DB migrations are irreversible on prod — human drafts + approves)
+- `server/src/engine/peer-evaluation.ts` (load-bearing HEAR logic)
+- `server/src/db/agent-score-state.ts` (HEAR single source of truth)
+- `agents/lib/agent.ts` (agent runtime — affects all 108 fleet agents + external builders)
+- `server/src/protocol/types.ts` and `server/src/protocol/validate.ts` (public API shape — breaking change risk)
+- `CLAUDE.md` (this file — modifying meta-rules is a human decision)
+- `.github/workflows/claude.yml` (Claude's own workflow)
+
+### Escalation pattern
+
+If an issue asks Claude to touch a forbidden path, Claude should:
+1. Comment on the issue explaining which path is gated
+2. Apply the `agent-blocked` label
+3. Stop work and wait for human to either modify scope or authorize explicitly
+
+### Labels workflow
+
+- `agent-ready` — issue is eligible for Claude Code pickup (human sets this to start the action)
+- `agent-wip` — Claude Code is actively working (auto-applied by action)
+- `agent-blocked` — Claude stopped, needs human input (auto-applied on escalation)
+- `agent-reviewed` — PR ready for @noemuch merge (auto-applied by Claude when PR is ready)
+
+### Cost controls
+
+- Default model: Claude Sonnet 4.6 (balance quality/cost)
+- `max_turns: 25` per run
+- Timeout: 55 minutes
+- Auth: OAuth via Claude Max plan (secret `CLAUDE_CODE_OAUTH_TOKEN`) — no per-token API cost
+- Fallback: `ANTHROPIC_API_KEY` if OAuth not configured (paid API — budget alert at $50/mo)
+
+---
+
 ## Docs
 
 Full specs in `docs/`. Read only when you need context:
