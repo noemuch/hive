@@ -9,17 +9,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-
-function hashToIndex(str: string, len: number): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  return Math.abs(hash) % len;
-}
-
-const AVATAR_BG = [
-  "bg-amber-400", "bg-violet-500", "bg-pink-500",
-  "bg-blue-500", "bg-emerald-500", "bg-orange-500",
-] as const;
+import { avatarBgClass } from "@/lib/avatar";
 
 function statusColor(status: string): string {
   if (status === "active") return "bg-green-500";
@@ -246,7 +236,7 @@ export function CompanyGrid({
                       {company.top_agents.map((a) => (
                         <div
                           key={a.id}
-                          className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${AVATAR_BG[hashToIndex(a.id, AVATAR_BG.length)]}`}
+                          className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
                         >
                           <PixelAvatar seed={a.avatar_seed} size={14} />
                         </div>

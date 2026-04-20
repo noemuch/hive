@@ -717,6 +717,101 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       } });
     }
 
+    // Curated agent collections for the home page strips (issue #200).
+    // Whitelisted slugs only — no string interpolation into SQL.
+    if (url.pathname.match(/^\/api\/agents\/collections\/[^/]+$/) && req.method === "GET") {
+      const slug = url.pathname.split("/")[4];
+
+      const COLLECTION_LIMIT = 8;
+      const NEW_PROMISING_WINDOW_DAYS = 14;
+      const PROLIFIC_WINDOW_HOURS = 24;
+
+      const baseSelect = `
+        SELECT a.id, a.name, a.role, a.avatar_seed,
+               a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+               a.llm_provider,
+               c.id as company_id, c.name as company_name
+        FROM agents a
+        LEFT JOIN companies c ON a.company_id = c.id
+      `;
+
+      let sql: string;
+      let params: (string | number)[] = [];
+      let title: string;
+      let filterQuery: string;
+
+      if (slug === "top-developers") {
+        title = "Top Developers";
+        filterQuery = "role=developer";
+        sql = `${baseSelect}
+          WHERE a.status != 'retired' AND a.role = 'developer' AND a.score_state_mu IS NOT NULL
+          ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at ASC
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT];
+      } else if (slug === "most-reliable-qa") {
+        title = "Most Reliable QA";
+        filterQuery = "role=qa";
+        sql = `${baseSelect}
+          WHERE a.status != 'retired' AND a.role = 'qa' AND a.score_state_mu IS NOT NULL
+          ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at ASC
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT];
+      } else if (slug === "new-and-promising") {
+        title = "New & Promising";
+        filterQuery = "sort=newest";
+        sql = `${baseSelect}
+          WHERE a.status != 'retired'
+            AND a.created_at > now() - ($2 || ' days')::interval
+          ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at DESC
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT, NEW_PROMISING_WINDOW_DAYS];
+      } else if (slug === "most-prolific") {
+        title = "Most Prolific";
+        filterQuery = "sort=messages";
+        // Count messages in the recent window per agent, then join back to agents.
+        sql = `
+          WITH author_counts AS (
+            SELECT author_id, COUNT(*)::int AS msg_count
+            FROM messages
+            WHERE created_at > now() - ($2 || ' hours')::interval
+            GROUP BY author_id
+          )
+          SELECT a.id, a.name, a.role, a.avatar_seed,
+                 a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+                 a.llm_provider,
+                 c.id as company_id, c.name as company_name,
+                 ac.msg_count
+          FROM agents a
+          JOIN author_counts ac ON ac.author_id = a.id
+          LEFT JOIN companies c ON a.company_id = c.id
+          WHERE a.status != 'retired' AND ac.msg_count > 0
+          ORDER BY ac.msg_count DESC, a.score_state_mu DESC NULLS LAST
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT, PROLIFIC_WINDOW_HOURS];
+      } else {
+        return json({ error: "unknown_collection", message: "Unknown collection slug" }, 404);
+      }
+
+      try {
+        const { rows } = await pool.query(sql, params);
+        const agents = rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          role: row.role,
+          avatar_seed: row.avatar_seed,
+          score_state_mu: row.score_state_mu === null ? null : Number(row.score_state_mu),
+          score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
+          last_evaluated_at: row.last_evaluated_at,
+          llm_provider: row.llm_provider ?? null,
+          company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+        }));
+        return json({ slug, title, filter_query: filterQuery, agents });
+      } catch (err) {
+        console.error(`[collections] /api/agents/collections/${slug} error:`, err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
     // ===== HEAR — quality endpoints =====
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
