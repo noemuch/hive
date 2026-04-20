@@ -22,6 +22,7 @@ import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { DeployModal } from "@/components/DeployModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
+import { EmptyState, type AgentTemplate } from "@/components/dashboard/EmptyState";
 import { getInitials } from "@/lib/initials";
 import { formatScore } from "@/lib/score";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
@@ -370,6 +371,7 @@ export function DashboardContent() {
   useAgentScoreRefresh(applyScoreRefresh);
   const [editOpen, setEditOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
+  const [deployTemplate, setDeployTemplate] = useState<AgentTemplate | null>(null);
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [retireTarget, setRetireTarget] = useState<{ id: string; name: string } | null>(null);
 
@@ -559,110 +561,115 @@ export function DashboardContent() {
 
         {/* ─── Right content ────────────────────────────────────────── */}
         <main className="flex-1 min-w-0 flex flex-col gap-8">
-          {/* Deployed Agents */}
-          <section className="rounded-xl border bg-card">
-            <div className="flex items-center justify-between px-5 py-3 border-b">
-              <h2 className="text-sm font-semibold">Your agents</h2>
-              <Button
-                size="sm"
-                disabled={slotsFull}
-                title={slotsFull ? "Slot limit reached for your tier" : undefined}
-                onClick={() => setDeployOpen(true)}
-              >
-                <PlusIcon className="size-3.5" />
-                Deploy agent
-              </Button>
-            </div>
-
-            <div className="px-5 py-4">
-              {agents.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
-                  <p className="text-sm font-medium">No agents deployed yet.</p>
-                  <p className="text-sm text-muted-foreground">
-                    Deploy your first agent to get started.
-                  </p>
+          {agents.length === 0 ? (
+            <EmptyState
+              displayName={displayData.display_name}
+              onSelectTemplate={(template) => {
+                setDeployTemplate(template);
+                setDeployOpen(true);
+              }}
+              onDeployNow={() => {
+                setDeployTemplate(null);
+                setDeployOpen(true);
+              }}
+            />
+          ) : (
+            <>
+              {/* Deployed Agents */}
+              <section className="rounded-xl border bg-card">
+                <div className="flex items-center justify-between px-5 py-3 border-b">
+                  <h2 className="text-sm font-semibold">Your agents</h2>
+                  <Button
+                    size="sm"
+                    disabled={slotsFull}
+                    title={slotsFull ? "Slot limit reached for your tier" : undefined}
+                    onClick={() => setDeployOpen(true)}
+                  >
+                    <PlusIcon className="size-3.5" />
+                    Deploy agent
+                  </Button>
                 </div>
-              ) : (
-                <div className="divide-y">
-                  {agents.map((agent) => (
-                    <div
-                      key={agent.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setProfileAgentId(agent.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
-                      className="group flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 text-left transition-colors hover:bg-muted/30 -mx-5 px-5"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <PixelAvatar seed={agent.avatar_seed} size={36} className="rounded-full shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{agent.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
-                          </p>
+
+                <div className="px-5 py-4">
+                  <div className="divide-y">
+                    {agents.map((agent) => (
+                      <div
+                        key={agent.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setProfileAgentId(agent.id)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
+                        className="group flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 text-left transition-colors hover:bg-muted/30 -mx-5 px-5"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <PixelAvatar seed={agent.avatar_seed} size={36} className="rounded-full shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{agent.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="secondary" className="tabular-nums">
+                            {formatScore(agent.score_state_mu)}
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRetireTarget({ id: agent.id, name: agent.name });
+                            }}
+                            className="hidden cursor-pointer group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
+                            aria-label={`Retire ${agent.name}`}
+                          >
+                            Retire
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="secondary" className="tabular-nums">
-                          {formatScore(agent.score_state_mu)}
-                        </Badge>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRetireTarget({ id: agent.id, name: agent.name });
-                          }}
-                          className="hidden cursor-pointer group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-                          aria-label={`Retire ${agent.name}`}
-                        >
-                          Retire
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
 
-              {slotsFull && (
-                <p className="mt-4 text-center text-xs text-muted-foreground">
-                  Slot limit reached — upgrade your tier to deploy more agents.
-                </p>
-              )}
-            </div>
-          </section>
+                  {slotsFull && (
+                    <p className="mt-4 text-center text-xs text-muted-foreground">
+                      Slot limit reached — upgrade your tier to deploy more agents.
+                    </p>
+                  )}
+                </div>
+              </section>
 
-          {/* Activity summary */}
-          {agents.length > 0 && (
-            <section className="rounded-xl border bg-card overflow-hidden">
-              <div className="px-5 py-3 border-b">
-                <h2 className="text-sm font-semibold">Activity</h2>
-              </div>
-              <div className="grid grid-cols-1 gap-px sm:grid-cols-3 bg-border">
-                <div className="bg-card px-5 py-4">
-                  <p className="text-2xl font-bold tabular-nums">
-                    {agents.reduce((sum, a) => sum + a.messages_sent, 0).toLocaleString()}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Total messages</p>
+              {/* Activity summary */}
+              <section className="rounded-xl border bg-card overflow-hidden">
+                <div className="px-5 py-3 border-b">
+                  <h2 className="text-sm font-semibold">Activity</h2>
                 </div>
-                <div className="bg-card px-5 py-4">
-                  <p className="text-2xl font-bold tabular-nums">
-                    {agents.filter(a => a.status === "active").length} / {agents.length}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Agents online</p>
+                <div className="grid grid-cols-1 gap-px sm:grid-cols-3 bg-border">
+                  <div className="bg-card px-5 py-4">
+                    <p className="text-2xl font-bold tabular-nums">
+                      {agents.reduce((sum, a) => sum + a.messages_sent, 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Total messages</p>
+                  </div>
+                  <div className="bg-card px-5 py-4">
+                    <p className="text-2xl font-bold tabular-nums">
+                      {agents.filter(a => a.status === "active").length} / {agents.length}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Agents online</p>
+                  </div>
+                  <div className="bg-card px-5 py-4">
+                    <p className="text-2xl font-bold tabular-nums">
+                      {agents[0]?.last_active_at
+                        ? new Date(agents.reduce((latest, a) =>
+                            a.last_active_at && a.last_active_at > latest ? a.last_active_at : latest,
+                            agents[0].last_active_at ?? ""
+                          )).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Last active</p>
+                  </div>
                 </div>
-                <div className="bg-card px-5 py-4">
-                  <p className="text-2xl font-bold tabular-nums">
-                    {agents[0]?.last_active_at
-                      ? new Date(agents.reduce((latest, a) =>
-                          a.last_active_at && a.last_active_at > latest ? a.last_active_at : latest,
-                          agents[0].last_active_at ?? ""
-                        )).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                      : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Last active</p>
-                </div>
-              </div>
-            </section>
+              </section>
+            </>
           )}
         </main>
       </div>
@@ -678,8 +685,12 @@ export function DashboardContent() {
       {/* Deploy Modal */}
       <DeployModal
         open={deployOpen}
-        onOpenChange={setDeployOpen}
+        onOpenChange={(v) => {
+          setDeployOpen(v);
+          if (!v) setDeployTemplate(null);
+        }}
         onDeployed={handleDeployed}
+        initialValues={deployTemplate ?? undefined}
       />
 
       {/* Retire dialog */}

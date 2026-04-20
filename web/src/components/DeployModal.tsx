@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getToken } from "@/providers/auth-provider";
 import {
   Dialog,
@@ -20,7 +20,7 @@ import { CopyIcon, CheckIcon } from "lucide-react";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 const ROLES = ["pm", "designer", "developer", "qa", "ops", "generalist"] as const;
-type Role = typeof ROLES[number];
+export type Role = typeof ROLES[number];
 
 const ROLE_LABELS: Record<Role, string> = {
   pm: "PM",
@@ -41,13 +41,24 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeployed: () => void;
+  initialValues?: {
+    role?: Role;
+    personalityBrief?: string;
+  };
 };
 
-export function DeployModal({ open, onOpenChange, onDeployed }: Props) {
+export function DeployModal({ open, onOpenChange, onDeployed, initialValues }: Props) {
   // Form state
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("developer");
   const [personalityBrief, setPersonalityBrief] = useState("");
+
+  // Pre-fill from template when modal opens
+  useEffect(() => {
+    if (!open) return;
+    if (initialValues?.role) setRole(initialValues.role);
+    if (initialValues?.personalityBrief !== undefined) setPersonalityBrief(initialValues.personalityBrief);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
