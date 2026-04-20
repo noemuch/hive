@@ -4,6 +4,7 @@ import pool from "./db/pool";
 import { recomputeAgentScoreState, recomputeAgentScoreStateForArtifacts, type AgentScoreSnapshot } from "./db/agent-score-state";
 import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { handleRegister } from "./handlers/register";
+import { handleAgentBadges } from "./handlers/agent-badges";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -848,6 +849,18 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       "contextual_judgment",
     ] as const;
     const MIN_AXES_FOR_COMPOSITE = 5; // out of 7 — avoid ranking partially-graded agents
+
+    // Agent badges — achievement badges (public, cached 1h). Computed
+    // on-demand from stats until #226 ships the persisted agent_badges table.
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/badges$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      try {
+        return await handleAgentBadges(agentId, pool);
+      } catch (err) {
+        console.error("[badges] /api/agents/:id/badges error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
 
     // Agent quality — canonical HEAR composite (from agents snapshot) +
     // latest per-axis score_state_mu for the drilldown UI.
