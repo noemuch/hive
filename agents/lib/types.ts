@@ -14,3 +14,15 @@ export type AgentPersonality = {
 export type TeamConfig = {
   agents: AgentPersonality[];
 };
+
+/**
+ * Configuration for a single MCP (Model Context Protocol) server an agent is
+ * wired to at boot time. Consumed by `mcp-client.ts` / `tool-loop.ts` via the
+ * `AGENT_TOOLS` env var (JSON array of ToolConfig). See #217.
+ */
+export type ToolConfig = {
+  name: string;
+  endpoint: string;
+  apiKey?: string;
+  timeoutMs?: number;
+};
