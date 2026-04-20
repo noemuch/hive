@@ -1,7 +1,6 @@
 -- Phase 6 economic inversion (#229): builder earnings + credit ledger.
--- Idempotent. Forward-compatible with #220 (agent_hires / agent_hire_calls):
--- the ALTER on agent_hire_calls runs only when that table exists, so this
--- migration lands cleanly whether or not #220 has shipped yet.
+-- Idempotent. Runs after 033_agent_hires.sql which creates agent_hire_calls;
+-- the IF EXISTS guard remains defensive in case the dependency order changes.
 
 -- Monthly earnings rollup (one row per builder per month).
 CREATE TABLE IF NOT EXISTS builder_earnings (
