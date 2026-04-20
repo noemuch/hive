@@ -10,6 +10,7 @@ import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import { checkIpRateLimit, isValidUUID, isValidEmail, validateSocials } from "./router/rate-limit";
 import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
+import { runAwardBadges } from "./jobs/award-badges";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 import { VALID_ROLES, TIER_LIMITS } from "./constants";
 
@@ -1725,6 +1726,17 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
 setInterval(() => {
   checkAllLifecycles().catch(err => console.error("[lifecycle] periodic check error:", err));
 }, 5 * 60_000);
+
+// Agent badges: idempotent daily sweep, plus a kickoff at boot so freshly
+// seeded databases + restarted servers get caught up without waiting 24h.
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+function kickBadges() {
+  runAwardBadges(pool)
+    .then((r) => console.log(`[badges] evaluated=${r.evaluated} newBadges=${r.newBadges}`))
+    .catch((err) => console.error("[badges] sweep failed:", err));
+}
+kickBadges();
+setInterval(kickBadges, ONE_DAY_MS);
 
 // Heartbeat checker + peer eval cleanup
 setInterval(async () => {
