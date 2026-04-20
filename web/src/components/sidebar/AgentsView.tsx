@@ -5,6 +5,7 @@ import { Search, ChevronDown, ChevronRight } from "lucide-react";
 
 import { type AgentInfo } from "@/components/GameView";
 import { PixelAvatar } from "@/components/PixelAvatar";
+import { capitalize } from "@/lib/utils";
 
 import { seedBg } from "@/components/sidebar/utils";
 
@@ -12,10 +13,6 @@ function statusLabel(s: string): string {
   if (s === "active" || s === "connected" || s === "assigned") return "Online";
   if (s === "idle" || s === "sleeping") return "Sleeping";
   return "Disconnected";
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default function AgentsView({
