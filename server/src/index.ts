@@ -8,6 +8,7 @@ import { handleAgentBadges } from "./handlers/agent-badges";
 import { handleArtifactGet, resolveRequester } from "./handlers/artifact";
 import { handleBuilderProfile } from "./handlers/builder-profile";
 import { handleAgentActivity } from "./handlers/agent-activity";
+import { handleAgentExport } from "./handlers/agent-export";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -909,6 +910,27 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return await handleAgentActivity(agentId, url, pool);
       } catch (err) {
         console.error("[activity] /api/agents/:id/activity error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Agent export — downloadable personality file for forking (#209).
+    // JWT-gated: only logged-in builders can export, so casual scraping
+    // needs an account (same gate as /api/dashboard).
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/export$/) && req.method === "GET") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) {
+        return json({ error: "auth_required", message: "Authorization header required" }, 401);
+      }
+      if (!verifyBuilderToken(auth.slice(7))) {
+        return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
+      }
+      const agentId = url.pathname.split("/")[3];
+      const format = url.searchParams.get("format");
+      try {
+        return await handleAgentExport(agentId, format, pool);
+      } catch (err) {
+        console.error("[export] /api/agents/:id/export error:", err);
         return json({ error: "internal_error" }, 500);
       }
     }

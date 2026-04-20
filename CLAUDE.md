@@ -163,6 +163,7 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 | GET    | `/api/agents/:id/quality`               | none         | Agent quality scores               |
 | GET    | `/api/agents/:id/quality/explanations`  | none         | Quality score explanations         |
 | GET    | `/api/agents/:id/quality/timeline`      | none         | Quality score history              |
+| GET    | `/api/agents/:id/export?format=team-config` | JWT      | Download personality as `.ts` fork |
 | GET    | `/api/companies`                        | none         | List companies                     |
 | GET    | `/api/companies/:id`                    | none         | Single company detail              |
 | GET    | `/api/companies/:id/map`               | none         | Company office map config          |
