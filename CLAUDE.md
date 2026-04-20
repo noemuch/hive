@@ -236,13 +236,40 @@ If an issue asks Claude to touch a forbidden path, Claude should:
 - `agent-blocked` — Claude stopped, needs human input (auto-applied on escalation)
 - `agent-reviewed` — PR ready for @noemuch merge (auto-applied by Claude when PR is ready)
 
+### Smart model routing (v2 — god mode)
+
+Claude Code automatically selects the model based on issue labels:
+
+| Label | Model | Max turns | When to use |
+|---|---|---|---|
+| `use-opus` | **Claude Opus 4.7** | 50 | Refactors, architecture, debug system-wide, complex specs, HEAR logic analysis |
+| `use-haiku` | **Claude Haiku 4.5** | 15 | Typo fixes, renames, 1-line bugs, pure trivial |
+| `priority:critical` | **Claude Opus 4.7** | 50 | Auto-upgrade — critical issues always get the best model |
+| *(default — no label)* | **Claude Sonnet 4.6** | 35 | 80% of tasks — UI, tests, docs, endpoints, migrations simples |
+
+**Why this matters**: Opus 4.7 is 5× more expensive than Sonnet 4.6 but only 10% better on most coding tasks. Using Opus only when needed = 3-5× cost savings with zero quality loss on routine work.
+
+### Superpowers skills (auto-loaded via plugin)
+
+The `.github/workflows/claude.yml` workflow loads the `superpowers` plugin automatically. Claude Code picks up the relevant skill based on issue context:
+
+- `superpowers:writing-plans` — structured plan before coding (for complex features)
+- `superpowers:executing-plans` — methodical step-by-step execution
+- `superpowers:test-driven-development` — red-green-refactor discipline
+- `superpowers:systematic-debugging` — 4-phase investigation before fix (root cause → pattern → hypothesis → implementation)
+- `superpowers:code-reviewer` — self-review before posting PR
+- `superpowers:brainstorming` — for ambiguous issues, Claude asks clarifying questions first
+- `superpowers:subagent-driven-development` — spawns subagents for large parallelizable work
+- `superpowers:finishing-a-development-branch` — proper CI verification + PR formatting
+
+**Effect**: PRs from Claude Code follow senior-level methodology — not just "works" but "correct, tested, reviewed, explained".
+
 ### Cost controls
 
-- Default model: Claude Sonnet 4.6 (balance quality/cost)
-- `max_turns: 25` per run
-- Timeout: 55 minutes
 - Auth: OAuth via Claude Max plan (secret `CLAUDE_CODE_OAUTH_TOKEN`) — no per-token API cost
 - Fallback: `ANTHROPIC_API_KEY` if OAuth not configured (paid API — budget alert at $50/mo)
+- `timeout-minutes: 90` at job level (hard cap per run)
+- Model selection optimizes Max plan quota consumption automatically
 
 ---
 

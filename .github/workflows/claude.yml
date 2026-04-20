@@ -1,17 +1,20 @@
 name: Claude Code
 
-# Trigger Claude Code when:
-#   1. An issue is labeled `agent-ready` (primary workflow — label-gated)
-#   2. A collaborator comments `@claude <task>` on an issue or PR
-#   3. A collaborator assigns an issue to themselves with body containing `@claude`
+# God-mode config (v2 — 2026-04-20):
+#   - Smart routing: Opus 4.7 / Sonnet 4.6 / Haiku 4.5 selected by label
+#     + auto-upgrade to Opus on priority:critical
+#   - Superpowers plugin loaded automatically (TDD, systematic debugging,
+#     writing-plans, code-reviewer, brainstorming, subagent-driven-development)
+#   - track_progress + include_fix_links + sticky_comment for clean PR UX
+#   - Higher max_turns on Opus (50) vs Sonnet (35) vs Haiku (15)
 #
-# Auth: OAuth token from user's Claude Max plan (cost absorbed by subscription).
-# Fallback: ANTHROPIC_API_KEY if Max plan not configured.
+# Auth: OAuth via Claude Max plan (free, no per-token cost).
+# Fallback: ANTHROPIC_API_KEY if OAuth not configured.
 #
 # Safety:
-#   - Only OWNER / MEMBER / COLLABORATOR can trigger via @claude (prevents abuse on public repo)
-#   - Branch protection on `main` enforces human review before merge
-#   - `claude_args` passes model + max_turns; CLAUDE.md allowlist restricts file scope
+#   - Only OWNER / MEMBER / COLLABORATOR can trigger via @claude
+#   - Branch protection on main enforces human review before merge
+#   - CLAUDE.md allowlist restricts file scope (auth, migrations, engine forbidden)
 
 on:
   issues:
@@ -25,7 +28,6 @@ on:
 
 jobs:
   claude:
-    # Gate: fire only on intentional triggers from authorized users
     if: |
       (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent-ready')
       ||
@@ -46,7 +48,7 @@ jobs:
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
 
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     permissions:
       contents: write
@@ -61,15 +63,68 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code
+      - name: Smart routing — select model based on labels
+        id: config
+        shell: bash
+        env:
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          # Fallback chain: issue labels → PR labels → empty
+          LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
+          echo "Detected labels: $LABELS"
+
+          if echo "$LABELS" | grep -iq '"use-opus"'; then
+            MODEL="claude-opus-4-7"
+            MAX_TURNS=50
+            REASON="explicit use-opus label"
+          elif echo "$LABELS" | grep -iq '"use-haiku"'; then
+            MODEL="claude-haiku-4-5"
+            MAX_TURNS=15
+            REASON="explicit use-haiku label (trivial task)"
+          elif echo "$LABELS" | grep -iq '"priority:critical"'; then
+            MODEL="claude-opus-4-7"
+            MAX_TURNS=50
+            REASON="auto-upgrade on priority:critical"
+          else
+            MODEL="claude-sonnet-4-6"
+            MAX_TURNS=35
+            REASON="default (balanced)"
+          fi
+
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+          echo "max_turns=$MAX_TURNS" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Smart routing::$MODEL selected — $REASON (max_turns=$MAX_TURNS)"
+
+      - name: Run Claude Code (with superpowers)
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Falls back to ANTHROPIC_API_KEY if OAuth not set:
+          # Fallback if OAuth not set:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Custom trigger label (default is "claude"):
+
+          # Custom trigger (default is 'claude'):
           label_trigger: "agent-ready"
           trigger_phrase: "@claude"
+
+          # Enhanced PR experience:
+          track_progress: true
+          include_fix_links: true
+          use_sticky_comment: true
+          display_report: true
+
+          # Superpowers plugin — auto-loads skills:
+          #   writing-plans, executing-plans, test-driven-development,
+          #   systematic-debugging, code-reviewer, brainstorming,
+          #   subagent-driven-development, finishing-a-development-branch
+          plugin_marketplaces: |
+            claude-plugins-official=https://github.com/anthropics/claude-plugins-official
+          plugins: |
+            superpowers@claude-plugins-official
+
+          # Dynamic model + max_turns from smart routing:
           claude_args: |
-            --model claude-sonnet-4-6
-            --max-turns 25
+            --model ${{ steps.config.outputs.model }}
+            --max-turns ${{ steps.config.outputs.max_turns }}
