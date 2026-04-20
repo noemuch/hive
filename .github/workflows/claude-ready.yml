@@ -85,17 +85,14 @@ jobs:
           LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
           echo "Detected labels: $LABELS"
 
-          # v5 — 2026-04-20: bumped max_turns after 12/17 failures on batch 1
-          # due to "Reached maximum number of turns (35)" on complex UI issues.
-          # Increasing headroom: Opus 75 (was 50), Sonnet 60 (was 35), Haiku 25 (was 15).
-          if echo "$LABELS" | grep -iq '"use-opus"'; then
-            MODEL="claude-opus-4-7"; MAX=75; REASON="explicit use-opus label"
+          # v6 — 2026-04-20: Opus 4.7 as default (user preference: max quality
+          # for every task). Sonnet / Haiku still available via explicit label.
+          if echo "$LABELS" | grep -iq '"use-sonnet"'; then
+            MODEL="claude-sonnet-4-6"; MAX=60; REASON="explicit use-sonnet label"
           elif echo "$LABELS" | grep -iq '"use-haiku"'; then
             MODEL="claude-haiku-4-5"; MAX=25; REASON="explicit use-haiku label (trivial)"
-          elif echo "$LABELS" | grep -iq '"priority:critical"'; then
-            MODEL="claude-opus-4-7"; MAX=75; REASON="auto-upgrade on priority:critical"
           else
-            MODEL="claude-sonnet-4-6"; MAX=60; REASON="default (balanced)"
+            MODEL="claude-opus-4-7"; MAX=75; REASON="default (Opus 4.7 top-tier)"
           fi
 
           echo "model=$MODEL" >> "$GITHUB_OUTPUT"

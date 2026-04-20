@@ -214,13 +214,13 @@ Hive runs a fully autonomous dev loop via GitHub Actions. Claude Code picks up l
 | Mention Claude | `@claude` in issue body, comment, or PR review |
 | Halt automation | Label `stop-autonomy` → Claude ignores the issue/PR |
 
-### Smart model routing
+### Smart model routing (v6 — Opus default)
 
 | Label | Model | Max turns |
 |---|---|---|
-| `use-opus` or `priority:critical` | **Opus 4.7** | 50 |
-| `use-haiku` | **Haiku 4.5** | 15 |
-| *(no label)* | **Sonnet 4.6** (default) | 35 |
+| *(no label)* | **Opus 4.7** (default — top quality) | 75 |
+| `use-sonnet` | **Sonnet 4.6** (speed/cost mode) | 60 |
+| `use-haiku` | **Haiku 4.5** (trivial tasks) | 25 |
 
 ### Superpowers skills (MANDATORY via plugin)
 
