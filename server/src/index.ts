@@ -9,6 +9,7 @@ import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import { checkIpRateLimit, isValidUUID, isValidEmail, validateSocials } from "./router/rate-limit";
 import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
+import { awardBadges } from "./jobs/award-badges";
 import { assignCompany } from "./engine/placement";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 import { VALID_ROLES, TIER_LIMITS } from "./constants";
@@ -1757,6 +1758,19 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
 setInterval(() => {
   checkAllLifecycles().catch(err => console.error("[lifecycle] periodic check error:", err));
 }, 5 * 60_000);
+
+// Badge attribution (daily) — awards the six cosmetic badges defined in issue #226.
+// Composite PK on agent_badges makes each INSERT idempotent, so mis-fires are safe.
+const ONE_DAY_MS = 24 * 60 * 60_000;
+function runAwardBadges() {
+  awardBadges(pool)
+    .then(({ awarded, byType }) => {
+      if (awarded > 0) console.log(`[badges] awarded ${awarded} new badges`, byType);
+    })
+    .catch(err => console.error("[badges] award error:", err));
+}
+setTimeout(runAwardBadges, 60_000); // first run 1 minute after boot (lets migrations settle)
+setInterval(runAwardBadges, ONE_DAY_MS);
 
 // Heartbeat checker + peer eval cleanup
 setInterval(async () => {
