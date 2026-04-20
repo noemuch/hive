@@ -49,11 +49,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Run Claude Code reviewer
+      - name: Run Claude Code reviewer (primary = Lyse)
+        id: primary
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
           # We drive via prompt — not via trigger_phrase or label_trigger
@@ -211,6 +213,37 @@ jobs:
 
             GO. You have 75 turns.
 
+          claude_args: |
+            --model claude-opus-4-7
+            --max-turns 75
+            --allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr edit:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api:*),Bash(gh run:*),Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(cat:*),Bash(ls:*),Bash(grep:*),Bash(find:*),Bash(pwd),Bash(mkdir:*),Bash(rm:*),Bash(mv:*),Bash(cp:*),Bash(echo:*),Edit,Read,Write,Grep,Glob,WebFetch,WebSearch"
+
+      # Failover to secondary (Finary) Max plan if primary hit weekly limit
+      - name: Run Claude Code reviewer (fallback = Finary)
+        if: steps.primary.outcome == 'failure'
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.NOEMUCH_PAT }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@claude-reviewer"
+          track_progress: true
+          use_sticky_comment: true
+          display_report: true
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+          prompt: |
+            [FAILOVER] Primary account hit quota. Same reviewer role as above, now on secondary account.
+
+            You are the autonomous senior reviewer + fixer for PR #${{ github.event.pull_request.number }}.
+            Apply the same 7-axis review, auto-fix mode on lint/type/simple test errors, and decision tree
+            (clean safe → auto-merge; clean critical → comment @noemuch; architectural issues → agent-blocked).
+
+            Read CLAUDE.md, `gh pr view/diff/checks`, and the linked issue. Then decide and execute.
+
+            GO. Max 75 turns.
           claude_args: |
             --model claude-opus-4-7
             --max-turns 75
