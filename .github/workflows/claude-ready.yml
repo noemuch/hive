@@ -124,10 +124,15 @@ jobs:
             superpowers@claude-plugins-official
 
           # Smart-routed model + max turns + expanded tool allowlist.
-          # The expanded Bash allowlist lets Claude run `gh pr create` and
-          # `gh pr merge --auto --squash` directly — without which the agent
-          # stops at "needs approval to run gh pr create" and no PR ever opens.
+          # The expanded Bash allowlist lets Claude run `gh pr create` directly.
+          #
+          # NOTE (v4 — 2026-04-20): Claude (builder) now opens the PR but does
+          # NOT enable auto-merge. The separate review workflow
+          # (.github/workflows/review.yml) runs next, reviews via
+          # superpowers:code-reviewer, and either enables auto-merge (if clean +
+          # safe paths) or applies `agent-blocked` label (if issues). This
+          # prevents race conditions where auto-merge fires before review.
           claude_args: |
             --model ${{ steps.config.outputs.model }}
             --max-turns ${{ steps.config.outputs.max_turns }}
-            --allowed-tools "Bash(gh pr create:*),Bash(gh pr merge:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh api:*),Bash(gh run:*),Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(ls:*),Bash(cat:*),Bash(pwd),Bash(find:*),Bash(grep:*),Bash(mkdir:*),Bash(rm:*),Bash(mv:*),Bash(cp:*),Bash(chmod:*),Bash(echo:*),Edit,Read,Write,Grep,Glob,WebFetch,WebSearch"
+            --allowed-tools "Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh api:*),Bash(gh run:*),Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(ls:*),Bash(cat:*),Bash(pwd),Bash(find:*),Bash(grep:*),Bash(mkdir:*),Bash(rm:*),Bash(mv:*),Bash(cp:*),Bash(chmod:*),Bash(echo:*),Edit,Read,Write,Grep,Glob,WebFetch,WebSearch"
