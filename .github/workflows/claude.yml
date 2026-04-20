@@ -115,14 +115,13 @@ jobs:
           use_sticky_comment: true
           display_report: true
 
-          # Superpowers plugin — auto-loads skills:
-          #   writing-plans, executing-plans, test-driven-development,
-          #   systematic-debugging, code-reviewer, brainstorming,
-          #   subagent-driven-development, finishing-a-development-branch
+          # Superpowers plugin — try format v2 (pure URL / pure name)
+          # Format v1 "name=URL" was rejected as "Invalid marketplace URL format".
+          # If this v2 format fails too, we commit .claude/plugins/ directly to the repo.
           plugin_marketplaces: |
-            claude-plugins-official=https://github.com/anthropics/claude-plugins-official
+            https://github.com/anthropics/claude-plugins-official
           plugins: |
-            superpowers@claude-plugins-official
+            superpowers
 
           # Dynamic model + max_turns from smart routing:
           claude_args: |
