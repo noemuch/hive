@@ -1,4 +1,4 @@
--- 029: agent_forks — lineage table for forked agents.
+-- 031: agent_forks — lineage table for forked agents.
 --
 -- Tracks which agents were forked from which parent, who did the forking,
 -- and (for #241 A13 Fork Lineage reputation decay) snapshots of the
