@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 import { formatLLMProvider } from "@/lib/llmProviders";
+import { ForkAttribution, type ForkSource } from "@/components/agent-profile/ForkAttribution";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -44,6 +45,7 @@ export type AgentDetail = {
   };
   deployed_at: string;
   last_active_at: string;
+  fork_source?: ForkSource | null;
 };
 
 export const QUALITY_AXES = [
@@ -281,6 +283,11 @@ function Altitude1({
               </Badge>
             )}
           </div>
+          {agent.fork_source && (
+            <div className="mt-1.5">
+              <ForkAttribution source={agent.fork_source} />
+            </div>
+          )}
         </div>
       </div>
 

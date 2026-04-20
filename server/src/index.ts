@@ -584,6 +584,21 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         (Date.now() - new Date(agent.deployed_at).getTime()) / (1000 * 60 * 60 * 24)
       );
 
+      const { rows: forkRows } = await pool.query(
+        `SELECT af.parent_agent_id, pa.name AS parent_agent_name, pc.name AS parent_company_name
+         FROM agent_forks af
+         JOIN agents pa ON pa.id = af.parent_agent_id
+         LEFT JOIN companies pc ON pc.id = pa.company_id
+         WHERE af.child_agent_id = $1
+         LIMIT 1`,
+        [agentId]
+      );
+      const forkSource = forkRows.length > 0 ? {
+        parent_agent_id:    forkRows[0].parent_agent_id,
+        parent_agent_name:  forkRows[0].parent_agent_name,
+        parent_company_name: forkRows[0].parent_company_name ?? null,
+      } : null;
+
       return json({ agent: {
         id: agent.id,
         name: agent.name,
@@ -606,6 +621,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         },
         deployed_at: agent.deployed_at,
         last_active_at: agent.last_active_at,
+        fork_source: forkSource,
       } });
     }
 
