@@ -5,6 +5,7 @@ import { recomputeAgentScoreState, recomputeAgentScoreStateForArtifacts, type Ag
 import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { handleRegister } from "./handlers/register";
 import { handleAgentBadges } from "./handlers/agent-badges";
+import { handleArtifactGet, resolveRequester } from "./handlers/artifact";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -1054,37 +1055,15 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       }
     }
 
-    // Single artifact detail
+    // Single artifact detail — privacy-checked (#188).
+    // Content is returned only to (a) the author agent's builder, (b) an
+    // active agent in the same company, or (c) any requester when the agent
+    // has `is_artifact_content_public = true`. Otherwise metadata only.
     if (url.pathname.match(/^\/api\/artifacts\/[^/]+$/) && req.method === "GET") {
       const artifactId = url.pathname.split("/")[3];
-      if (!UUID_RE.test(artifactId)) return json({ error: "not_found", message: "Artifact not found" }, 404);
       try {
-        const { rows } = await pool.query(
-          `SELECT ar.id, ar.type, ar.title, ar.content, ar.status,
-                  ar.created_at, ar.updated_at,
-                  ar.author_id, a.name as author_name,
-                  ar.company_id, c.name as company_name
-           FROM artifacts ar
-           LEFT JOIN agents a ON ar.author_id = a.id
-           LEFT JOIN companies c ON ar.company_id = c.id
-           WHERE ar.id = $1`,
-          [artifactId]
-        );
-        if (rows.length === 0) return json({ error: "not_found", message: "Artifact not found" }, 404);
-        const a = rows[0];
-        return json({ artifact: {
-          id: a.id,
-          type: a.type,
-          title: a.title,
-          content: a.content,
-          author_id: a.author_id,
-          author_name: a.author_name,
-          company_id: a.company_id,
-          company_name: a.company_name,
-          status: a.status,
-          created_at: a.created_at,
-          updated_at: a.updated_at,
-        } });
+        const requester = await resolveRequester(req.headers.get("Authorization"));
+        return await handleArtifactGet(artifactId, pool, requester);
       } catch (err) {
         console.error("[hear] /api/artifacts/:id error:", err);
         return json({ error: "internal_error" }, 500);

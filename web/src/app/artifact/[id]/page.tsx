@@ -29,7 +29,9 @@ type ArtifactType =
 interface Artifact {
   id: string;
   type: ArtifactType;
-  content: string;
+  title?: string;
+  content?: string;
+  content_public?: boolean;
   author_id: string;
   author_name: string;
   company_id: string;
@@ -266,7 +268,18 @@ export default function ArtifactPage({
             ) : (
               <ScrollArea className="max-h-[70vh] lg:max-h-[calc(100vh-300px)]">
                 <div className="px-5 py-4">
-                  <ArtifactContent content={artifact!.content} />
+                  {artifact!.content !== undefined ? (
+                    <ArtifactContent content={artifact!.content} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground">Private content</p>
+                      <p className="mt-1 max-w-sm">
+                        This artifact&apos;s author keeps content private. Only the
+                        author&apos;s builder and teammates in the same company can
+                        read it.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             )}
