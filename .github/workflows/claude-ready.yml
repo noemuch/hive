@@ -1,0 +1,129 @@
+name: Claude Code — Autonomous
+
+# Autonomous dev workflow for Hive.
+#
+# WHAT: Claude Code picks up labeled issues or @claude mentions, ships PRs,
+# self-reviews via superpowers:code-reviewer, enables auto-merge on safe paths.
+#
+# WHO: acts as @noemuch (authenticated via classic PAT).
+#      No GitHub App, no bot identity, no avatar shenanigans.
+#      Commits, PRs, reviews, merges all appear as Noé Chagué.
+#
+# TRIGGERS:
+#   • Label `agent-ready` on an issue
+#   • @claude mention in issue/PR/review comment (from repo owner)
+#
+# SAFETY:
+#   • CI (bun test + lint) REQUIRED by branch protection before merge
+#   • CLAUDE.md allowlist restricts which paths Claude can touch
+#   • `stop-autonomy` label kills automation on a specific issue/PR
+#   • `max_turns` hard-caps per-run cost
+#
+# SPEC: see CLAUDE.md § "Autonomous workflow"
+
+on:
+  issues:
+    types: [labeled, assigned, opened]
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    if: |
+      !contains(github.event.issue.labels.*.name, 'stop-autonomy')
+      && !contains(github.event.pull_request.labels.*.name, 'stop-autonomy')
+      && (
+        (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent-ready')
+        ||
+        (github.event_name == 'issues' && github.event.action == 'opened' &&
+         contains(github.event.issue.body, '@claude') &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+        ||
+        (github.event_name == 'issue_comment' &&
+         contains(github.event.comment.body, '@claude') &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+        ||
+        (github.event_name == 'pull_request_review' &&
+         contains(github.event.review.body, '@claude') &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","Bot"]'), github.event.review.author_association))
+        ||
+        (github.event_name == 'pull_request_review_comment' &&
+         contains(github.event.comment.body, '@claude') &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","Bot"]'), github.event.comment.author_association))
+      )
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: write
+
+    steps:
+      - name: Checkout with NOEMUCH_PAT (commits attributed to @noemuch)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NOEMUCH_PAT }}
+          fetch-depth: 1
+
+      - name: Smart routing — select model based on labels
+        id: config
+        shell: bash
+        env:
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
+          echo "Detected labels: $LABELS"
+
+          if echo "$LABELS" | grep -iq '"use-opus"'; then
+            MODEL="claude-opus-4-7"; MAX=50; REASON="explicit use-opus label"
+          elif echo "$LABELS" | grep -iq '"use-haiku"'; then
+            MODEL="claude-haiku-4-5"; MAX=15; REASON="explicit use-haiku label (trivial)"
+          elif echo "$LABELS" | grep -iq '"priority:critical"'; then
+            MODEL="claude-opus-4-7"; MAX=50; REASON="auto-upgrade on priority:critical"
+          else
+            MODEL="claude-sonnet-4-6"; MAX=35; REASON="default (balanced)"
+          fi
+
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+          echo "max_turns=$MAX" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Smart routing::$MODEL — $REASON (max_turns=$MAX)"
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Auth:
+          github_token: ${{ secrets.NOEMUCH_PAT }}          # repo ops as @noemuch
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}  # Max plan LLM
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}  # fallback
+
+          # Triggers (also handled by job-level `if:`, but keeps action's internal logic consistent):
+          label_trigger: "agent-ready"
+          trigger_phrase: "@claude"
+
+          # PR UX:
+          track_progress: true
+          include_fix_links: true
+          use_sticky_comment: true
+          display_report: true
+
+          # Superpowers plugin — Claude MUST use these skills (see CLAUDE.md):
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+
+          # Smart-routed model + max turns:
+          claude_args: |
+            --model ${{ steps.config.outputs.model }}
+            --max-turns ${{ steps.config.outputs.max_turns }}

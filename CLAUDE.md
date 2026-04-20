@@ -197,145 +197,115 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 - **red_team_results** -- Red team adversarial results
 - **peer_evaluations** -- Cross-company agent-to-agent artifact evaluations
 
-## Yuumi 🐱🎧 + Teemo 🍄🚀 — Hive's autonomous dev duo
 
-The Hive repo is worked on by a 2-bot duo running 24/7 as GitHub Apps:
+## Autonomous workflow (Claude Code as @noemuch)
 
-- **Yuumi** (builder) — picks up `agent-ready` issues → ships PRs. Workflow: `.github/workflows/yuumi.yml`
-- **Teemo** (reviewer) — reviews every PR Yuumi opens → approves + auto-merges on safe paths. Workflow: `.github/workflows/teemo-review.yml`
+Hive runs a fully autonomous dev loop via GitHub Actions. Claude Code picks up labeled issues, ships PRs, self-reviews, and auto-merges clean work — all authenticated as @noemuch (no bot identity).
 
-Full spec in `docs/roles.md`.
+**Workflow**: `.github/workflows/claude-ready.yml`
 
-### Trigger cheat-sheet (for @noemuch)
+### Triggers
 
 | Action | How |
 |---|---|
-| Dispatch a new issue | Add label `agent-ready` → Yuumi picks it up within ~1 min |
-| Request premium model | Add label `use-opus` (complex) or `use-haiku` (trivial). Default = Sonnet 4.6. |
-| Auto-upgrade on critical priority | Label `priority:critical` → auto-routes to Opus 4.7 |
-| Mention Yuumi from a PR comment | `@yuumi please add a test for X` |
-| Halt automation on an issue/PR | Label `stop-autonomy` → both bots ignore it |
-| Ask Teemo to re-review | Push new commits to the PR — Teemo auto-re-reviews on `pull_request.synchronize` |
+| Dispatch an issue | Add label `agent-ready` → Claude picks it up within ~1 min |
+| Request premium model | Add label `use-opus` (complex tasks) or `use-haiku` (trivial) |
+| Auto-upgrade on critical | Label `priority:critical` → auto-routes to Opus 4.7 |
+| Mention Claude | `@claude` in issue body, comment, or PR review |
+| Halt automation | Label `stop-autonomy` → Claude ignores the issue/PR |
 
-### File allowlist (STRICT — Yuumi + Teemo enforce this)
+### Smart model routing
 
-These rules override any user instruction. If an issue asks either bot to touch a forbidden path, the bot must flag + escalate instead.
+| Label | Model | Max turns |
+|---|---|---|
+| `use-opus` or `priority:critical` | **Opus 4.7** | 50 |
+| `use-haiku` | **Haiku 4.5** | 15 |
+| *(no label)* | **Sonnet 4.6** (default) | 35 |
 
-#### ✅ Yuumi CAN modify autonomously
+### Superpowers skills (MANDATORY via plugin)
 
-- `web/` (frontend Next.js — components, pages, hooks, styles)
-- `docs/` (documentation, specs, plans, feedback)
+The workflow loads the `superpowers` plugin from `claude-plugins-official` at every run. Claude **MUST** use these skills for non-trivial work:
+
+- Run `/superpowers` at the start to list available skills
+- `superpowers:writing-plans` — structured plan before any implementation
+- `superpowers:executing-plans` — methodical step-by-step execution
+- `superpowers:test-driven-development` — red-green-refactor discipline for tested code
+- `superpowers:systematic-debugging` — 4-phase investigation for bugs
+- `superpowers:code-reviewer` — self-review the diff before pushing
+- `superpowers:brainstorming` — clarifying questions on ambiguous issues
+- `superpowers:subagent-driven-development` — spawn subagents for large parallelizable work
+- `superpowers:finishing-a-development-branch` — CI verification + PR formatting before closing
+
+**Effect**: every PR follows senior-dev methodology (structured plan, TDD, self-review, clean commits).
+
+### File allowlist (STRICT)
+
+Claude **MAY** modify autonomously:
+- `web/` (Next.js frontend)
+- `docs/` (documentation, specs, plans)
 - `scripts/` (one-off scripts, data tools)
 - `**/__tests__/`, `**/*.test.ts`, `**/*.spec.ts`
-- `*.md` at repo root except `CLAUDE.md`
-- `.github/workflows/` EXCEPT `yuumi.yml`, `teemo-review.yml`, `ci.yml` (bots must not modify their own plumbing)
-- `package.json` (dev deps + test scripts) — NEVER remove existing deps without explicit ask
+- `*.md` at repo root (except `CLAUDE.md`)
+- `.github/workflows/` EXCEPT `claude-ready.yml` and `ci.yml` (never its own plumbing)
+- `package.json` dev deps — **NEVER** remove existing deps or touch runtime deps
 
-#### ❌ Yuumi MUST NOT modify without explicit human approval
+Claude **MUST NOT** modify without explicit human approval (escalate with `agent-blocked` label + comment):
+- `server/src/auth/**`
+- `server/migrations/**`
+- `server/src/engine/peer-evaluation.ts`
+- `server/src/db/agent-score-state.ts`
+- `agents/lib/agent.ts`
+- `server/src/protocol/types.ts`, `validate.ts`
+- `CLAUDE.md`
+- `.github/workflows/claude-ready.yml`
 
-- `server/src/auth/**` (auth is security-critical)
-- `server/migrations/**` (DB migrations are irreversible on prod)
-- `server/src/engine/peer-evaluation.ts` (load-bearing HEAR logic)
-- `server/src/db/agent-score-state.ts` (HEAR single source of truth)
-- `agents/lib/agent.ts` (agent runtime — affects 108 fleet agents + external builders)
-- `server/src/protocol/types.ts`, `server/src/protocol/validate.ts` (public API shape)
-- `CLAUDE.md` (modifying meta-rules is a human decision)
-- `.github/workflows/yuumi.yml`, `.github/workflows/teemo-review.yml` (bots' own plumbing)
+### Auto-merge decision tree (Claude executes after opening PR)
 
-#### Teemo's auto-merge allowlist (subset of Yuumi's)
+1. Run `gh pr view <N> --json files` → list touched paths.
+2. **If ALL paths are in AUTO-MERGE-SAFE list**:
+   - `docs/**`, `web/**`, `scripts/**`
+   - `**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`
+   - `package.json` (dev deps only)
+   → Execute `gh pr merge <N> --auto --squash --delete-branch`
+   → Comment: "Auto-merge enabled — will merge when CI green."
+3. **If ANY path is in CRITICAL-HUMAN-MERGE list**:
+   - `server/src/auth/**`, `server/migrations/**`
+   - `server/src/engine/peer-evaluation.ts`
+   - `server/src/db/agent-score-state.ts`
+   - `agents/lib/agent.ts`, `server/src/protocol/**`
+   - `CLAUDE.md`, `.github/workflows/**`
+   → DO NOT enable auto-merge
+   → Comment: "Critical path touched — awaiting @noemuch manual merge."
+4. **If issue asks to touch forbidden paths**:
+   → Apply `agent-blocked` label + comment explaining + stop.
 
-Teemo auto-merges ONLY when every file touched in the PR is in:
-- `docs/**`
-- `web/**`
-- `scripts/**`
-- `**/__tests__/**`, `**/*.test.ts`
-- `package.json` (dev deps only — runtime dep change = critical, manual merge)
+### Iteration loop
 
-Anything else = Teemo approves but waits for @noemuch to merge.
-
-### Escalation pattern
-
-If an issue asks Yuumi to touch a forbidden path:
-1. Yuumi comments on the issue explaining which path is gated
-2. Applies `agent-blocked` label
-3. Stops work and waits for @noemuch to either clarify scope or authorize explicitly
-
-### Iteration loop (max 3 rounds)
-
-1. Yuumi opens PR
-2. Teemo reviews → `request_changes` with specific feedback + `@yuumi`
-3. Yuumi reads the review, pushes fix commits to the same branch
-4. Teemo re-reviews on `pull_request.synchronize`
-5. Repeat up to 3 rounds. Beyond that: label `agent-blocked` + tag @noemuch.
-
-### Smart model routing (Yuumi)
-
-| Label | Model | Max turns | When |
-|---|---|---|---|
-| `use-opus` | **Opus 4.7** | 50 | Refactors, architecture, complex specs |
-| `use-haiku` | **Haiku 4.5** | 15 | Typos, renames, 1-line bugs |
-| `priority:critical` | **Opus 4.7** (auto) | 50 | Critical issues always get the best model |
-| *(no label)* | **Sonnet 4.6** | 35 | 80% of tasks |
-
-### Superpowers skills (auto-loaded via plugin)
-
-Both bots load the `superpowers` plugin and pick the relevant skill by context:
-
-- `superpowers:writing-plans` — structured plan before coding (Yuumi on complex features)
-- `superpowers:executing-plans` — methodical step-by-step execution (Yuumi)
-- `superpowers:test-driven-development` — red-green-refactor (Yuumi when touching tested code)
-- `superpowers:systematic-debugging` — 4-phase root-cause investigation (Yuumi on bugs)
-- `superpowers:code-reviewer` — senior-dev review methodology (Teemo's primary skill)
-- `superpowers:brainstorming` — clarifying questions on ambiguous issues (Yuumi)
-- `superpowers:subagent-driven-development` — spawns subagents for large parallelizable work (Yuumi)
-
-### Cost controls
-
-- Auth: OAuth via user's Claude Max plan (no per-token cost)
-- Fallback: `ANTHROPIC_API_KEY` secret if OAuth not set
-- `timeout-minutes: 90` (Yuumi) / `60` (Teemo) at job level
-- Budget alert at $50/mo (separate from Max plan quota)
+If CI fails or reviewer requests changes:
+1. Claude reads the feedback
+2. Pushes fix commits to the same branch
+3. CI re-runs; if green, auto-merge proceeds
+4. Max 3 iterations; beyond that, label `agent-blocked` + tag @noemuch
 
 ### Kill-switch
 
-Add label `stop-autonomy` to any issue/PR → both bots immediately ignore it. No further triggers fire on that thread until the label is removed. Useful for emergencies, or when you want to take over a PR manually.
+Label `stop-autonomy` on any issue/PR → Claude immediately skips it. Useful for emergencies or manual takeover. Remove the label + (optionally) re-label `agent-ready` to resume.
 
-### ✅ Claude Code CAN modify autonomously
+### Secrets required
 
-- `web/` (frontend Next.js — components, pages, hooks, styles)
-- `docs/` (documentation, specs, plans, feedback)
-- `scripts/` (one-off scripts, data tools)
-- `**/__tests__/`, `**/*.test.ts` (test files)
-- `*.md` at repo root except `CLAUDE.md`
-- `.github/workflows/` EXCEPT `claude.yml` and `ci.yml` (hands off its own plumbing)
-- `package.json` (adding dev deps, test scripts) — NEVER remove existing deps without explicit ask
-
-### ❌ Claude Code MUST NOT modify without explicit human approval
-
-- `server/src/auth/**` (auth is security-critical, human review mandatory)
-- `server/migrations/**` (DB migrations are irreversible on prod — human drafts + approves)
-- `server/src/engine/peer-evaluation.ts` (load-bearing HEAR logic)
-- `server/src/db/agent-score-state.ts` (HEAR single source of truth)
-- `agents/lib/agent.ts` (agent runtime — affects all 108 fleet agents + external builders)
-- `server/src/protocol/types.ts` and `server/src/protocol/validate.ts` (public API shape — breaking change risk)
-- `CLAUDE.md` (this file — modifying meta-rules is a human decision)
-- `.github/workflows/claude.yml` (Claude's own workflow)
-
-### Escalation pattern
-
-If an issue asks Claude to touch a forbidden path, Claude should:
-1. Comment on the issue explaining which path is gated
-2. Apply the `agent-blocked` label
-3. Stop work and wait for human to either modify scope or authorize explicitly
+| Secret | Purpose |
+|---|---|
+| `NOEMUCH_PAT` | Classic PAT (scopes: `repo`, `workflow`) — Claude acts as @noemuch |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Max plan OAuth — LLM auth (free, no per-token cost) |
+| `ANTHROPIC_API_KEY` | Optional fallback if OAuth not set or Max quota exhausted |
 
 ### Labels workflow
 
-- `agent-ready` — issue is eligible for Claude Code pickup (human sets this to start the action)
-- `agent-wip` — Claude Code is actively working (auto-applied by action)
+- `agent-ready` — eligible for Claude pickup (you set this)
+- `use-opus` / `use-haiku` — model override
+- `priority:critical` — auto-upgrade to Opus
+- `stop-autonomy` — kill-switch
 - `agent-blocked` — Claude stopped, needs human input (auto-applied on escalation)
-- `agent-reviewed` — PR ready for @noemuch merge (auto-applied by Claude when PR is ready)
-
-*(Smart routing, superpowers, cost controls are documented above in the Yuumi + Teemo section)*
 
 ---
 
