@@ -382,11 +382,56 @@ Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remov
 
 ### Labels workflow
 
-- `agent-ready` — eligible for Claude pickup (you set this)
-- `use-opus` / `use-haiku` — model override
-- `priority:critical` — auto-upgrade to Opus
+- `agent-ready` — user enrolls issue (intention)
+- `ready-to-ship` — dep-cron applies when all deps closed (auto)
+- `waiting-deps` — dep-cron applies when blockers still open (auto)
+- `use-sonnet` / `use-haiku` — model override
+- `trivial-task` — skip writing-plans + TDD
 - `stop-autonomy` — kill-switch
-- `agent-blocked` — Claude stopped, needs human input (auto-applied on escalation)
+- `agent-blocked` — escalated to @noemuch (auto)
+- `quota-paused` — paused due to LLM quota exhaustion (auto, resumes on reset)
+- `autofix-iter-1/2/3` — reviewer autofix iteration counter (auto)
+- `qa-digest` — daily morning digest issue
+
+## Daily QA Digest
+
+Every morning at **08:00 UTC (≈ 9h Paris)**, workflow `.github/workflows/daily-qa-digest.yml` opens a new issue labelled `qa-digest` + assigned to @noemuch, summarizing:
+
+- Features shipped in the last 24h (user-facing, pedagogical French)
+- Visual QA checklist with clickable URLs (pages to test, UI to review)
+- Action items requiring human intervention (blockers, conflicts)
+- Daily stats (PRs merged, quotas, cost)
+- Queue state (ready-to-ship, waiting-deps)
+
+**Goal**: Noé reads digest with coffee (3 min), tests UX (15 min), gives feedback via `@claude` on the relevant PR. Rest is autonomous.
+
+Manual trigger: `gh workflow run daily-qa-digest.yml --repo noemuch/hive`.
+
+## Quota Resilience
+
+When a Claude Max account hits its weekly limit, the builder/reviewer workflows automatically:
+
+1. Detect the "hit your limit" error from the action log
+2. Parse the reset time from the error message (e.g. "resets 4pm UTC")
+3. Commit `.github/quota-state.json` with the deadline
+4. Apply `quota-paused` label on the triggering issue/PR
+
+Workflow `.github/workflows/quota-monitor.yml` runs every 30 min. When the deadline passes, it:
+1. Clears the state file
+2. Removes `quota-paused` from all affected issues
+3. Dispatch-ready cron naturally re-applies `ready-to-ship` → builder resumes
+
+**Resilience**: both Claude Max accounts can exhaust simultaneously; work pauses cleanly; resumes automatically; Noé only sees it in next morning's QA digest stats. No manual intervention needed.
+
+State file schema (`.github/quota-state.json`):
+```json
+{
+  "primary_exhausted_until": "2026-04-20T20:00:00Z" | null,
+  "secondary_exhausted_until": null,
+  "last_check": "2026-04-20T18:00:00Z",
+  "history": [{ "account", "detected_at", "reset_at", "run_url" }]
+}
+```
 
 ---
 

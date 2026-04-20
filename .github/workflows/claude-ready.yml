@@ -267,6 +267,130 @@ jobs:
             --max-turns ${{ needs.preflight.outputs.max_turns }}
             --dangerously-skip-permissions
 
+      - name: Detect quota exhaustion + persist state
+        if: failure() || steps.primary.outcome == 'failure'
+        uses: actions/github-script@v7
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ISSUE_NUM: ${{ github.event.issue.number || github.event.pull_request.number }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+
+            // Fetch logs for the Run Claude Code steps — look for "hit your limit · resets X"
+            let limitHit = null;
+            try {
+              const log = execSync(`gh run view ${process.env.RUN_ID} --repo ${context.repo.owner}/${context.repo.repo} --log 2>&1 | grep -iE "hit your limit|resets [0-9]+(am|pm|UTC|utc)" | head -5`, {
+                encoding: 'utf8', env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+              });
+              const match = log.match(/hit your limit[^\n]*?resets\s+(\d{1,2}(?::\d{2})?(?:am|pm)?\s*(?:\(?UTC\)?)?)/i);
+              if (match) {
+                limitHit = match[1];
+              } else if (/hit your limit/i.test(log)) {
+                limitHit = 'unknown';
+              }
+            } catch (e) {
+              core.warning(`Could not fetch logs: ${e.message}`);
+            }
+
+            if (!limitHit) {
+              core.info('No quota exhaustion detected; skipping state update.');
+              return;
+            }
+
+            // Compute reset deadline
+            let resetAt;
+            if (limitHit === 'unknown') {
+              // fallback: 2h conservative
+              resetAt = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+            } else {
+              // Parse "4pm UTC" / "16:00 UTC" / "4pm" etc. as today's next occurrence
+              const now = new Date();
+              const hourMatch = limitHit.match(/(\d{1,2})(?::(\d{2}))?(am|pm)?/i);
+              if (hourMatch) {
+                let h = parseInt(hourMatch[1], 10);
+                const m = hourMatch[2] ? parseInt(hourMatch[2], 10) : 0;
+                const ampm = (hourMatch[3] || '').toLowerCase();
+                if (ampm === 'pm' && h < 12) h += 12;
+                if (ampm === 'am' && h === 12) h = 0;
+                const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), h, m, 0));
+                if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 1);
+                resetAt = d.toISOString();
+              } else {
+                resetAt = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+              }
+            }
+
+            // Determine which account was hit (primary is tried first)
+            // Heuristic: if failover step also ran and failed → both; else primary only
+            const account = '${{ steps.primary.outcome }}' === 'failure' ? 'primary' : 'secondary';
+            // Actually: if primary failed AND we ran failover → hit is on primary (+ possibly secondary)
+            // Simplification: mark whichever was last attempted
+            const accountKey = account === 'primary' ? 'primary_exhausted_until' : 'secondary_exhausted_until';
+
+            // Read current state from main
+            let state;
+            try {
+              const { data } = await github.rest.repos.getContent({
+                owner: context.repo.owner, repo: context.repo.repo,
+                path: '.github/quota-state.json', ref: 'main'
+              });
+              state = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+            } catch (e) {
+              state = { primary_exhausted_until: null, secondary_exhausted_until: null, last_check: null, history: [] };
+            }
+
+            state[accountKey] = resetAt;
+            state.last_check = new Date().toISOString();
+            state.history = state.history || [];
+            state.history.push({
+              account,
+              detected_at: new Date().toISOString(),
+              reset_at: resetAt,
+              run_url: process.env.RUN_URL,
+              issue: parseInt(process.env.ISSUE_NUM, 10) || null
+            });
+            if (state.history.length > 100) state.history = state.history.slice(-100);
+
+            // Commit the state file
+            const body = Buffer.from(JSON.stringify(state, null, 2) + '\n').toString('base64');
+            try {
+              const { data: current } = await github.rest.repos.getContent({
+                owner: context.repo.owner, repo: context.repo.repo,
+                path: '.github/quota-state.json', ref: 'main'
+              });
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: context.repo.owner, repo: context.repo.repo,
+                path: '.github/quota-state.json',
+                message: `chore(quota): mark ${account} exhausted until ${resetAt}`,
+                content: body,
+                sha: current.sha,
+                branch: 'main',
+                committer: { name: 'Noé Chagué', email: 'noe@finary.com' },
+                author: { name: 'Noé Chagué', email: 'noe@finary.com' }
+              });
+              core.info(`Persisted quota state: ${account} until ${resetAt}`);
+            } catch (e) {
+              core.warning(`Failed to commit state: ${e.message}`);
+            }
+
+            // Apply quota-paused label on the triggering issue
+            if (process.env.ISSUE_NUM) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: parseInt(process.env.ISSUE_NUM, 10),
+                  labels: ['quota-paused']
+                });
+              } catch (e) {
+                core.warning(`Failed to label issue ${process.env.ISSUE_NUM}: ${e.message}`);
+              }
+            }
+
       - name: Post run summary to automation log (#257)
         if: always()
         env:
@@ -276,5 +400,4 @@ jobs:
           ISSUE_OR_PR="${{ github.event.issue.number || github.event.pull_request.number }}"
           MODEL="${{ needs.preflight.outputs.model }}"
           OUTCOME_PRIMARY="${{ steps.primary.outcome }}"
-          STATUS="$OUTCOME_PRIMARY"
           gh issue comment 257 --repo noemuch/hive --body "🤖 **Builder run** for #${ISSUE_OR_PR} — model: \`$MODEL\` — primary: \`$OUTCOME_PRIMARY\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

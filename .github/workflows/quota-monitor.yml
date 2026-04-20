@@ -1,0 +1,129 @@
+name: Quota Monitor — Auto-resume on reset
+
+# Reads .github/quota-state.json and:
+#   - Clears exhausted_until deadlines that have passed
+#   - Removes `quota-paused` label from issues once both accounts are healthy
+#   - Commits the updated state file (keeps last_check fresh)
+#
+# Triggers:
+#   - schedule every 30 min (cron '0,30 * * * *')
+#   - workflow_dispatch (manual test)
+#   - workflow_run on claude-ready or review workflows (react quickly to new quota hits)
+#
+# Autonomy goal: when both Claude Max accounts exhaust simultaneously, paused
+# issues resume the moment quotas reset (hourly bucket or weekly), without
+# any human action. User sees the outcome in the next morning's QA digest.
+
+on:
+  schedule:
+    - cron: '0,30 * * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Claude Code — Autonomous Builder", "Claude Code — Autonomous Reviewer"]
+    types: [completed]
+
+concurrency:
+  group: quota-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NOEMUCH_PAT }}
+
+      - name: Evaluate + update quota state
+        id: eval
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const fs = require('fs');
+            const path = '.github/quota-state.json';
+            const state = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const now = new Date();
+            const nowIso = now.toISOString();
+
+            state.last_check = nowIso;
+
+            const wasExhausted = (key) => !!state[key];
+            const expired = (key) => state[key] && new Date(state[key]) <= now;
+
+            const changes = [];
+            for (const key of ['primary_exhausted_until', 'secondary_exhausted_until']) {
+              if (expired(key)) {
+                changes.push(`cleared ${key} (deadline ${state[key]} passed)`);
+                state[key] = null;
+              }
+            }
+
+            // Both accounts healthy now?
+            const bothHealthy = !state.primary_exhausted_until && !state.secondary_exhausted_until;
+
+            let unblocked = [];
+            if (bothHealthy) {
+              // Find all issues + PRs with quota-paused label
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: 'quota-paused',
+                state: 'open',
+                per_page: 100
+              });
+
+              for (const item of issues) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: item.number,
+                    name: 'quota-paused'
+                  });
+                  unblocked.push(`#${item.number}`);
+                } catch (e) {
+                  core.warning(`Failed to remove quota-paused from #${item.number}: ${e.message}`);
+                }
+              }
+            }
+
+            // Write updated state
+            fs.writeFileSync(path, JSON.stringify(state, null, 2) + '\n');
+
+            core.info(`Changes: ${changes.length ? changes.join(', ') : 'none'}`);
+            core.info(`Unblocked: ${unblocked.length ? unblocked.join(', ') : 'none'}`);
+
+            core.setOutput('changes', changes.join('; '));
+            core.setOutput('unblocked', unblocked.join(','));
+            core.setOutput('both_healthy', bothHealthy ? 'true' : 'false');
+            core.setOutput('has_diff', (changes.length + unblocked.length) > 0 ? 'true' : 'false');
+
+      - name: Commit state change (only if anything happened)
+        if: steps.eval.outputs.has_diff == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "Noé Chagué"
+          git config user.email "noe@finary.com"
+          git add .github/quota-state.json
+          if git diff --cached --quiet; then
+            echo "No actual diff to commit."
+          else
+            git commit -m "chore(quota): auto-resume — ${{ steps.eval.outputs.changes || 'no state change' }}; unblocked=${{ steps.eval.outputs.unblocked || 'none' }}"
+            git push origin main
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+
+      - name: Summary comment to #257 (automation log)
+        if: steps.eval.outputs.has_diff == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          gh issue comment 257 --repo noemuch/hive --body "🔋 **Quota monitor** — ${{ steps.eval.outputs.changes || 'no change' }} · unblocked: ${{ steps.eval.outputs.unblocked || 'none' }} · [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

@@ -1,0 +1,253 @@
+name: Daily QA Digest
+
+# Every morning at 08:00 UTC (~9h Paris in winter, 10h in summer during DST).
+# Claude Sonnet 4.6 reads yesterday's merged PRs and writes a pedagogical
+# French digest as a GitHub issue, so Noé can sip coffee and know exactly
+# what to visually QA without touching git or terminal.
+#
+# User-facing audience: @noemuch only. Tone: pedagogue, non-technical,
+# structured, actionable.
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # 08:00 UTC daily
+  workflow_dispatch:  # manual trigger for testing
+
+concurrency:
+  group: daily-qa-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+
+    steps:
+      - name: Secret sanity
+        env:
+          PAT: ${{ secrets.NOEMUCH_PAT }}
+          PRIMARY: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
+          SECONDARY: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
+        run: |
+          set -euo pipefail
+          MISSING=()
+          [ -z "$PAT" ] && MISSING+=("NOEMUCH_PAT")
+          [ -z "$PRIMARY" ] && MISSING+=("CLAUDE_OAUTH_PRIMARY")
+          [ -z "$SECONDARY" ] && MISSING+=("CLAUDE_OAUTH_SECONDARY")
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error title=Missing secrets::${MISSING[*]}"
+            exit 1
+          fi
+
+      - name: Check quota availability (don't run if both exhausted)
+        id: quota_check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const https = require('https');
+            // Fetch quota-state.json from main
+            const res = await fetch('https://raw.githubusercontent.com/noemuch/hive/main/.github/quota-state.json');
+            if (!res.ok) {
+              core.info('quota-state.json unreachable; proceeding anyway');
+              return 'ok';
+            }
+            const state = await res.json();
+            const now = new Date();
+            const primaryDead = state.primary_exhausted_until && new Date(state.primary_exhausted_until) > now;
+            const secondaryDead = state.secondary_exhausted_until && new Date(state.secondary_exhausted_until) > now;
+            if (primaryDead && secondaryDead) {
+              core.warning('Both quotas exhausted; skipping digest generation.');
+              core.setOutput('skip', 'true');
+            } else {
+              core.setOutput('skip', 'false');
+            }
+
+      - name: Checkout (for plugin + CLAUDE.md context)
+        if: steps.quota_check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NOEMUCH_PAT }}
+          fetch-depth: 1
+
+      - name: Generate + open QA digest issue
+        if: steps.quota_check.outputs.skip != 'true'
+        id: digest
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.NOEMUCH_PAT }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@qa-digest-bot"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+          prompt: |
+            You are the **QA Digest bot** for @noemuch (Hive project).
+            Your single task: produce a pedagogical French morning digest as
+            a NEW GitHub issue, labelled `qa-digest`, assigned to @noemuch.
+
+            ## Audience
+
+            Noé is a **non-technical product owner**. He wants to know:
+            1. What was shipped yesterday (user-facing features)
+            2. What he should click / test (visual QA checklist)
+            3. Anything that needs his human intervention
+            4. Quick stats for confidence
+
+            **Tone**: pedagogue, warm, actionable. French. No jargon.
+            **Length**: ≤ 400 words body. Scannable in 3 minutes.
+
+            ## Data gathering
+
+            ```bash
+            # List PRs merged in the last 24h
+            YESTERDAY=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)
+            gh pr list --repo noemuch/hive --state merged --search "merged:>=$YESTERDAY" --json number,title,mergedAt,files,body --limit 50
+
+            # For each PR, infer user-facing impact from touched files:
+            #   - web/src/app/<route>/page.tsx → URL https://hive-web-production.up.railway.app/<route>
+            #   - web/src/components/... → UI component change
+            #   - server/src/routes/... → new API (usually not directly testable visually)
+            #   - docs/**, scripts/** → internal, skip in "visual QA"
+
+            # Also check for unresolved blockers:
+            gh issue list --repo noemuch/hive --label "agent-blocked" --state open
+            gh issue list --repo noemuch/hive --label "waiting-deps" --state open --json number | jq length
+            gh issue list --repo noemuch/hive --label "ready-to-ship" --state open --json number | jq length
+
+            # Read quota state (stats)
+            cat .github/quota-state.json
+            ```
+
+            ## Output format (MANDATORY structure)
+
+            Open a single issue via:
+
+            ```bash
+            TODAY_FR=$(LC_TIME=fr_FR.UTF-8 date -u '+%A %-d %B %Y' 2>/dev/null || date -u '+%A %-d %B %Y')
+            gh issue create --repo noemuch/hive \
+              --title "📋 QA Digest — <date en français>" \
+              --assignee noemuch \
+              --label "qa-digest,priority:medium" \
+              --body-file <(cat <<'EOF'
+            # 📋 QA Digest — <jour> <date française>
+
+            > Bonjour Noé ☕ — voici ce qui s'est shippé hier et ce que tu peux tester
+            > dès que tu as 5 minutes.
+
+            ## 🎁 Ce qui est live en production
+
+            Hier, Claude a mergé **<N>** PRs sur `main`. Voici les changements :
+
+            ### 📄 Nouvelles pages (user-facing)
+            - ✨ **<Page Title>** (#PR) — <description 1 ligne>
+              👉 Test : https://hive-web-production.up.railway.app/<route>
+
+            ### 🎨 Améliorations visuelles
+            - 🔧 **<Area>** — <what changed>
+              👉 Test : <URL>
+
+            ### ⚙️ Sous le capot (pas visible mais important)
+            - 🗃 <DB/API/infra change>
+
+            ---
+
+            ## ✅ Ta checklist QA du jour (≈15 min)
+
+            **Pages à parcourir** :
+            - [ ] /route-A — <what to check>
+            - [ ] /route-B — <what to check>
+
+            **Composants modifiés** :
+            - [ ] <Area> — <check list>
+
+            **Parcours critiques** :
+            - [ ] <Flow description>
+
+            ---
+
+            ## 🔴 Ce qui nécessite ton action humaine
+
+            - <Number> issues `agent-blocked` : <liste avec #numéros + raison 1 ligne>
+            - <Number> PRs fermées pour conflits : <liste>
+            - **0 blocker** si tout est green ✨
+
+            ---
+
+            ## 📊 Stats de la journée
+
+            | Indicateur | Valeur |
+            |---|---|
+            | PRs mergées | <N> |
+            | Issues `ready-to-ship` en attente | <N> |
+            | Issues `waiting-deps` (bloquées par leurs deps) | <N> |
+            | Quota Lyse | <sain / épuisé jusqu'à <heure>> |
+            | Quota Finary | <sain / épuisé jusqu'à <heure>> |
+
+            ---
+
+            ## 💡 Rappels utiles
+
+            - Pour demander un fix à Claude : commente sur le PR concerné avec `@claude <ta demande>`.
+            - Pour mettre une issue en pause : ajoute le label `stop-autonomy`.
+            - Pour voir le live : https://github.com/noemuch/hive/actions
+
+            Bonne journée ! 🚀
+            — QA Digest Bot
+            EOF
+            )
+            ```
+
+            ## Critical rules
+
+            - Write in **French**. Use real newlines, not `\n`.
+            - Replace ALL `<placeholders>` with real values from your data gathering.
+            - If NO PRs merged yesterday → still produce the issue, say *"Pas de merge autonome hier — probablement quota ou pause."* + stats.
+            - If a merged PR touched only `docs/**` or `scripts/**` → put it in "Sous le capot", NOT in "Nouvelles pages".
+            - Extract URL route from files like `web/src/app/agents/page.tsx` → `/agents`, `web/src/app/agent/[id]/page.tsx` → `/agent/:id` (note: can't test directly since `:id` is dynamic; suggest an example agent URL instead).
+            - Always assign the issue to **@noemuch**.
+            - Do not create duplicate digests — check if today's already exists first:
+              `gh issue list --repo noemuch/hive --label qa-digest --search "created:>=$(date -u +%Y-%m-%d)" --json number | jq length`
+              If > 0 → exit without creating.
+
+            GO. You have 40 turns. Use `superpowers:writing-plans` first to structure your approach.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 40
+            --dangerously-skip-permissions
+
+      - name: Fallback digest (if primary failed)
+        if: steps.quota_check.outputs.skip != 'true' && steps.digest.outcome == 'failure'
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.NOEMUCH_PAT }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@qa-digest-bot"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+          prompt: |
+            [FAILOVER] Primary account failed. Retry digest generation per
+            spec in the primary prompt above (read from CLAUDE.md if needed).
+            French, pedagogical, ≤400 words, single issue labelled `qa-digest`.
+            GO.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 40
+            --dangerously-skip-permissions
+
+      - name: Log to #257 automation log
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          gh issue comment 257 --repo noemuch/hive --body "📋 **QA Digest run** — quota_check_skip=\`${{ steps.quota_check.outputs.skip }}\` — primary=\`${{ steps.digest.outcome }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
