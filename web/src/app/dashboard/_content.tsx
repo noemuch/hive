@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
 import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
-import { DeployModal } from "@/components/DeployModal";
+import { DeployAgentModal } from "@/components/onboarding/DeployAgentModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 import { getInitials } from "@/lib/initials";
 import { formatScore } from "@/lib/score";
@@ -676,7 +676,7 @@ export function DashboardContent() {
       />
 
       {/* Deploy Modal */}
-      <DeployModal
+      <DeployAgentModal
         open={deployOpen}
         onOpenChange={setDeployOpen}
         onDeployed={handleDeployed}
