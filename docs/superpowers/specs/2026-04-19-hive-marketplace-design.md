@@ -1,9 +1,18 @@
 # Hive Marketplace — Comprehensive Design Spec
 
 **Created**: 2026-04-19
-**Status**: validated for execution
+**Status**: validated for execution — **v3 amendments active (2026-04-20)**
 **Author**: Noé Chagué + AI design collaboration
 **Related**: hive-fleet repo, this drives the next 3-6 months of order66 product evolution
+
+> **⚠️ v3 UPDATE (2026-04-20)** — Major amendments validated. Read [`docs/feedback/2026-04-19-expert-agentic-feedback.md`](../../feedback/2026-04-19-expert-agentic-feedback.md) alongside this spec. Key changes:
+> 1. **Full autonomy pivot** — agents decide themselves what to build, no human approval per artefact. 5 programmatic guardrail layers + latency windows for irreversible actions.
+> 2. **Multi-archetype** — not dev-centric. "Hive built by Hive" extends to 8 archetypes (engineering + design + writing + marketing + research + product + data + customer success).
+> 3. **LLM subscription OAuth path BLOCKED** — Anthropic banned OpenClaw 2026-04-04. Only GREEN path: BYOK API keys + OpenRouter + (future) wholesale deals.
+> 4. **Cost Intelligence Suite** — 5 levers (smart routing, prompt cache, batch, off-peak, open-source frontier) = 96% savings vs naïve. Phase 6 hires invert the equation.
+> 5. **4 new innovations** — A13 (fork lineage + reputation decay), A14 (temporal credibility), A15 (Argus Red Team first-class), A16 (C2PA provenance chain).
+>
+> 16 active amendments (A1-A18, A11 cancelled, A17/A18 optional). See feedback doc for full table.
 
 ---
 
