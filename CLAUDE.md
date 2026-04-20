@@ -297,21 +297,30 @@ Hive runs a fully autonomous dev loop via GitHub Actions. Claude Code picks up l
 | `use-sonnet` | **Sonnet 4.6** (speed/cost mode) | 60 |
 | `use-haiku` | **Haiku 4.5** (trivial tasks) | 25 |
 
-### Superpowers skills (MANDATORY via plugin)
+### Superpowers skills (MANDATORY — every run, every task, no exception)
 
-The workflow loads the `superpowers` plugin from `claude-plugins-official` at every run. Claude **MUST** use these skills for non-trivial work:
+The `superpowers` plugin from `claude-plugins-official` is loaded at every workflow run. **Claude MUST actually invoke relevant skills** — not just acknowledge they exist. If Claude skips a relevant skill, the reviewer treats that as a Quality Gate violation (insufficient methodology) and blocks.
 
-- Run `/superpowers` at the start to list available skills
-- `superpowers:writing-plans` — structured plan before any implementation
-- `superpowers:executing-plans` — methodical step-by-step execution
-- `superpowers:test-driven-development` — red-green-refactor discipline for tested code
-- `superpowers:systematic-debugging` — 4-phase investigation for bugs
-- `superpowers:code-reviewer` — self-review the diff before pushing
-- `superpowers:brainstorming` — clarifying questions on ambiguous issues
-- `superpowers:subagent-driven-development` — spawn subagents for large parallelizable work
-- `superpowers:finishing-a-development-branch` — CI verification + PR formatting before closing
+#### Required invocation protocol (EVERY run, in order)
 
-**Effect**: every PR follows senior-dev methodology (structured plan, TDD, self-review, clean commits).
+1. **Start of run (always)**: call `/superpowers` to list available skills and confirm load.
+2. **Non-trivial task (default)**: invoke `superpowers:writing-plans` BEFORE any edit. Plan goes as a comment on the issue/PR.
+3. **When editing tested code**: invoke `superpowers:test-driven-development` (red-green-refactor).
+4. **Debugging a failure**: invoke `superpowers:systematic-debugging` (4-phase — Observe → Hypothesize → Experiment → Verify).
+5. **Before `git push`**: invoke `superpowers:code-reviewer` on own diff.
+6. **Ambiguous requirements in the issue**: invoke `superpowers:brainstorming` and ask clarifying questions in an issue comment instead of guessing.
+7. **Task has 3+ independent subtasks**: invoke `superpowers:subagent-driven-development` for parallelization.
+8. **Before closing the PR (auto-merge step)**: invoke `superpowers:finishing-a-development-branch` for final CI verification.
+
+#### Trivial task exception
+
+Pure cosmetic fixes (typo, one-line style, label update) may skip steps 2–3 if Claude states explicitly in the PR body: *"Trivial — skipped writing-plans per CLAUDE.md trivial exception."* Still must do step 1 (list skills) and step 5 (code-reviewer).
+
+#### Reviewer enforcement
+
+The reviewer checks the PR/issue comments for skill invocation markers (e.g. `/superpowers`, *"Plan via superpowers:writing-plans"*). If a non-trivial task lacks the expected invocations → `agent-blocked` + comment *"Methodology violation: missing superpowers:<skill-name>. Re-run with proper invocation."*
+
+This is non-negotiable. Methodology is what separates senior-grade work from random code.
 
 ### File allowlist (STRICT)
 
