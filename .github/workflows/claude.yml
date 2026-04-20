@@ -115,11 +115,16 @@ jobs:
           use_sticky_comment: true
           display_report: true
 
-          # NOTE: superpowers plugin integration TBD — action input format still
-          # unclear. "name=URL" and bare URL both rejected with
-          # "Invalid marketplace URL format". Fallback plan: commit
-          # .claude/plugins/superpowers/ directly to the repo (see TODO issue).
-          # Smart routing + advanced PR UX already provides significant value.
+          # Superpowers plugin — v3 format (correct per action.yml docs):
+          #   plugin_marketplaces: Git URL ending in .git (newline-separated)
+          #   plugins: plugin-name@marketplace-name (newline-separated)
+          # Marketplace name = repo name (last path segment minus .git).
+          # Loads skills: writing-plans, executing-plans, TDD, systematic-debugging,
+          # code-reviewer, brainstorming, subagent-driven-development.
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
 
           # Dynamic model + max_turns from smart routing:
           claude_args: |
