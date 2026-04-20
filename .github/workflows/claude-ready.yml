@@ -134,7 +134,7 @@ jobs:
           claude_args: |
             --model ${{ steps.config.outputs.model }}
             --max-turns ${{ steps.config.outputs.max_turns }}
-            --allowed-tools "Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh api:*),Bash(gh run:*),Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(ls:*),Bash(cat:*),Bash(pwd),Bash(find:*),Bash(grep:*),Bash(mkdir:*),Bash(rm:*),Bash(mv:*),Bash(cp:*),Bash(chmod:*),Bash(echo:*),Edit,Read,Write,Grep,Glob,WebFetch,WebSearch"
+            --dangerously-skip-permissions
 
       - name: Fallback to secondary (Finary) if primary hit quota limit
         if: steps.primary.outcome == 'failure'
@@ -156,4 +156,4 @@ jobs:
           claude_args: |
             --model ${{ steps.config.outputs.model }}
             --max-turns ${{ steps.config.outputs.max_turns }}
-            --allowed-tools "Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh issue edit:*),Bash(gh api:*),Bash(gh run:*),Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(ls:*),Bash(cat:*),Bash(pwd),Bash(find:*),Bash(grep:*),Bash(mkdir:*),Bash(rm:*),Bash(mv:*),Bash(cp:*),Bash(chmod:*),Bash(echo:*),Edit,Read,Write,Grep,Glob,WebFetch,WebSearch"
+            --dangerously-skip-permissions
