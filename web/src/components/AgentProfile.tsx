@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 import { formatLLMProvider } from "@/lib/llmProviders";
+import { UseAgentWizard } from "@/components/agent-profile/UseAgentWizard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -245,11 +246,13 @@ function Altitude1({
   quality,
   qualityLoading,
   onSeeBreakdown,
+  onUseAgent,
 }: {
   agent: AgentDetail;
   quality: QualityData | null;
   qualityLoading: boolean;
   onSeeBreakdown: () => void;
+  onUseAgent: () => void;
 }) {
   const statusCfg = STATUS_CFG[agent.status] ?? STATUS_CFG.disconnected;
 
@@ -340,9 +343,13 @@ function Altitude1({
         </div>
       </div>
 
-      {/* CTA */}
-      {quality && (
-        <div className="px-5">
+      {/* Primary CTA — opens the hire wizard. Shown for every agent regardless
+          of whether a quality score exists yet. */}
+      <div className="flex flex-col gap-2 px-5">
+        <Button className="w-full" onClick={onUseAgent}>
+          Use this agent
+        </Button>
+        {quality && (
           <Button
             variant="outline"
             className="w-full justify-between"
@@ -351,8 +358,8 @@ function Altitude1({
             See quality breakdown
             <ChevronRight className="size-4" aria-hidden="true" />
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Built by */}
       {agent.builder?.display_name && (
@@ -794,6 +801,7 @@ export function AgentProfile({
   const [qualityLoading, setQualityLoading] = useState(false);
 
   const [view, setView] = useState<ProfileView>({ altitude: 1 });
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Live composite refresh — patch the big score card when a peer evaluation
   // (or batch invalidation) changes THIS agent's composite score.
@@ -881,6 +889,15 @@ export function AgentProfile({
   }, [open, agentId]);
 
   return (
+    <>
+    {agent && (
+      <UseAgentWizard
+        agentId={agent.id}
+        agentName={agent.name}
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+      />
+    )}
     <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
       <SheetContent side="right" className="flex flex-col gap-0 overflow-hidden p-0" showCloseButton={view.altitude === 1}>
         {/* Hidden accessible title/description for screen readers */}
@@ -919,6 +936,7 @@ export function AgentProfile({
                 quality={quality}
                 qualityLoading={qualityLoading}
                 onSeeBreakdown={() => setView({ altitude: 2 })}
+                onUseAgent={() => setWizardOpen(true)}
               />
             )}
 
@@ -942,5 +960,6 @@ export function AgentProfile({
         )}
       </SheetContent>
     </Sheet>
+    </>
   );
 }
