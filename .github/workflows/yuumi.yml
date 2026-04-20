@@ -1,0 +1,153 @@
+name: Yuumi — Builder 🐱🎧
+
+# Yuumi is the BUILDER bot of the Hive dev team.
+# Sister-bot: Teemo (reviewer) — see .github/workflows/teemo-review.yml
+#
+# Yuumi picks up issues labeled `agent-ready` and ships PRs using:
+#   • Smart model routing (Opus 4.7 / Sonnet 4.6 / Haiku 4.5 by label)
+#   • Superpowers plugin (TDD, writing-plans, systematic-debugging, code-reviewer)
+#   • OAuth via user's Claude Max plan (free, no per-token LLM cost)
+#
+# Identity: Yuumi custom GitHub App (avatar: corgi with headphones, nom LoL troll).
+#
+# Iteration loop:
+#   1. Yuumi ships PR
+#   2. Teemo reviews (separate workflow)
+#   3. If Teemo requests changes with @yuumi mention → Yuumi iterates
+#   4. Max 3 iterations before escalation to @noemuch
+#
+# Safety:
+#   - Only OWNER / MEMBER / COLLABORATOR can trigger via @yuumi mention
+#   - Branch protection on main preserved
+#   - CLAUDE.md allowlist restricts file scope
+#   - Kill-switch: label `stop-autonomy` on issue halts Yuumi
+
+on:
+  issues:
+    types: [opened, labeled, assigned]
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  yuumi:
+    if: |
+      !contains(github.event.issue.labels.*.name, 'stop-autonomy')
+      && !contains(github.event.pull_request.labels.*.name, 'stop-autonomy')
+      && (
+        (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'agent-ready')
+        ||
+        (github.event_name == 'issues' && github.event.action == 'opened' &&
+         (contains(github.event.issue.body, '@yuumi') || contains(github.event.issue.body, '@claude')) &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+        ||
+        (github.event_name == 'issue_comment' &&
+         (contains(github.event.comment.body, '@yuumi') || contains(github.event.comment.body, '@claude')) &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+        ||
+        (github.event_name == 'pull_request_review' &&
+         (contains(github.event.review.body, '@yuumi') || contains(github.event.review.body, '@claude')) &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","Bot"]'), github.event.review.author_association))
+        ||
+        (github.event_name == 'pull_request_review_comment' &&
+         (contains(github.event.comment.body, '@yuumi') || contains(github.event.comment.body, '@claude')) &&
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","Bot"]'), github.event.comment.author_association))
+      )
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: write
+
+    steps:
+      # Exchange Yuumi App credentials for a short-lived installation token
+      # → PRs/commits/reviews show Yuumi's name + corgi avatar
+      - name: Generate Yuumi App token
+        id: yuumi-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.YUUMI_APP_ID }}
+          private-key: ${{ secrets.YUUMI_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.yuumi-token.outputs.token }}
+          fetch-depth: 1
+
+      - name: Smart routing — select model based on labels
+        id: config
+        shell: bash
+        env:
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
+          echo "Detected labels: $LABELS"
+
+          if echo "$LABELS" | grep -iq '"use-opus"'; then
+            MODEL="claude-opus-4-7"
+            MAX_TURNS=50
+            REASON="explicit use-opus label"
+          elif echo "$LABELS" | grep -iq '"use-haiku"'; then
+            MODEL="claude-haiku-4-5"
+            MAX_TURNS=15
+            REASON="explicit use-haiku label (trivial task)"
+          elif echo "$LABELS" | grep -iq '"priority:critical"'; then
+            MODEL="claude-opus-4-7"
+            MAX_TURNS=50
+            REASON="auto-upgrade on priority:critical"
+          else
+            MODEL="claude-sonnet-4-6"
+            MAX_TURNS=35
+            REASON="default (balanced)"
+          fi
+
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+          echo "max_turns=$MAX_TURNS" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "::notice title=🐱 Yuumi routing::$MODEL selected — $REASON (max_turns=$MAX_TURNS)"
+
+      - name: Run Claude Code as Yuumi 🐱🎧
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Yuumi's own App token → corgi avatar + "Yuumi" identity on GitHub
+          github_token: ${{ steps.yuumi-token.outputs.token }}
+
+          # LLM auth via user's Claude Max plan (free)
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Triggers
+          label_trigger: "agent-ready"
+          trigger_phrase: "@yuumi"
+
+          # Enhanced PR UX
+          track_progress: true
+          include_fix_links: true
+          use_sticky_comment: true
+          display_report: true
+
+          # Superpowers plugin (auto-loads TDD, writing-plans, code-reviewer, etc.)
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+
+          # Identity customization
+          bot_name: "Yuumi"
+
+          # Smart-routed model + max_turns
+          claude_args: |
+            --model ${{ steps.config.outputs.model }}
+            --max-turns ${{ steps.config.outputs.max_turns }}
