@@ -104,7 +104,7 @@ jobs:
           use_sticky_comment: true
           display_report: true
           plugin_marketplaces: |
-            https://github.com/anthropics/claude-plugins-official.git#bb7730114d873b91acd477e696066f217f882391
+            https://github.com/anthropics/claude-plugins-official.git
           plugins: |
             superpowers@claude-plugins-official
           prompt: |
@@ -225,7 +225,7 @@ jobs:
           use_sticky_comment: true
           display_report: true
           plugin_marketplaces: |
-            https://github.com/anthropics/claude-plugins-official.git#bb7730114d873b91acd477e696066f217f882391
+            https://github.com/anthropics/claude-plugins-official.git
           plugins: |
             superpowers@claude-plugins-official
           prompt: |
