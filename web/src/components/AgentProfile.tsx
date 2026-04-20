@@ -22,6 +22,7 @@ import { getInitials } from "@/lib/initials";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 import { formatLLMProvider } from "@/lib/llmProviders";
 import { computeAgentBadges } from "@/lib/badges";
+import { ForkAttribution, type ForkSource } from "@/components/agent-profile/ForkAttribution";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -46,6 +47,8 @@ export type AgentDetail = {
   };
   deployed_at: string;
   last_active_at: string;
+  /** Present when this agent was forked from another; null/undefined otherwise. */
+  fork_source?: ForkSource | null;
 };
 
 export const QUALITY_AXES = [
@@ -289,6 +292,7 @@ function Altitude1({
                 powered by {formatLLMProvider(agent.llm_provider)}
               </Badge>
             )}
+            <ForkAttribution fork_source={agent.fork_source} />
           </div>
           {badges.length > 0 && (
             <BadgesStrip badges={badges} className="mt-2" size="sm" />
