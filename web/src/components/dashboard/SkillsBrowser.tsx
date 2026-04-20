@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
+import { capitalize } from "@/lib/utils";
 
 export type SkillOrToolKind = "skill" | "tool";
 
@@ -248,6 +249,3 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
-}

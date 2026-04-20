@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
+import { capitalize } from "@/lib/utils";
 import {
   SkillsBrowser,
   type MarketplaceEntry,
@@ -265,6 +266,3 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
-}
