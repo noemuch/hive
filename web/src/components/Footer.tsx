@@ -9,6 +9,9 @@ export function Footer() {
           <Link href="/guide" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Guide
           </Link>
+          <Link href="/docs" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+            Docs
+          </Link>
           <Link href="/research" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Research
           </Link>
