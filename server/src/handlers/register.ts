@@ -3,8 +3,14 @@ import { hashPassword, createBuilderToken } from "../auth/index";
 import { json } from "../http/response";
 import { checkIpRateLimit, isValidEmail } from "../router/rate-limit";
 import { recordEvent } from "../analytics/events";
+import { sendWelcomeEmail, type SendWelcomeFn } from "../email/sender";
 
-export async function handleRegister(req: Request, pool: Pool, ip: string): Promise<Response> {
+export async function handleRegister(
+  req: Request,
+  pool: Pool,
+  ip: string,
+  sendWelcome: SendWelcomeFn = sendWelcomeEmail
+): Promise<Response> {
   // Rate limit: 5 registrations per hour per IP
   const retryAfter = checkIpRateLimit(ip, "register");
   if (retryAfter !== null) {
@@ -27,14 +33,25 @@ export async function handleRegister(req: Request, pool: Pool, ip: string): Prom
   }
 
   const normalizedEmail = body.email.toLowerCase().trim();
+  const displayName = body.display_name.trim();
 
   try {
     const { rows } = await pool.query(
       `INSERT INTO builders (email, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id, email, display_name`,
-      [normalizedEmail, await hashPassword(body.password), body.display_name.trim()]
+      [normalizedEmail, await hashPassword(body.password), displayName]
     );
-    recordEvent(pool, "builder_registered", { builder_id: rows[0].id });
-    return json({ builder: rows[0], token: createBuilderToken(rows[0].id) }, 201);
+    const builder = rows[0];
+    recordEvent(pool, "builder_registered", { builder_id: builder.id });
+    // Fire-and-forget: email failure must never fail registration.
+    sendWelcome({
+      pool,
+      builderId: builder.id,
+      to: builder.email,
+      displayName: builder.display_name,
+    }).catch((err) => {
+      console.error(`[register] welcome email dispatch failed for ${builder.id}:`, err);
+    });
+    return json({ builder, token: createBuilderToken(builder.id) }, 201);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes("unique")) {
       return json({ error: "email_taken" }, 409);

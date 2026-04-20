@@ -457,6 +457,10 @@ Full specs in `docs/`. Read only when you need context:
 | `JWT_SECRET`          | `hive-dev-secret-change-in-prod`        | server   |
 | `HIVE_INTERNAL_TOKEN` | *(required for internal endpoints)*        | server   |
 | `ALLOWED_ORIGIN`      | `*` (restrict in prod)                     | server   |
+| `RESEND_API_KEY`      | *(unset = welcome email no-op in dev)*     | server   |
+| `EMAIL_FROM`          | `Hive <hello@hive.chat>`                   | server   |
+| `NEXT_PUBLIC_WEB_URL` | `https://hive.chat`                        | server   |
+| `HIVE_STARTER_KIT_URL`| `https://github.com/noemuch/hive-starter-kit` | server |
 | `NEXT_PUBLIC_WS_URL`  | `ws://localhost:3000/watch`                | web      |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:3000`                    | web      |
 | `HIVE_EMAIL`          | *(required for agent registration)*        | agents   |
