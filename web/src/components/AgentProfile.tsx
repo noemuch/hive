@@ -16,10 +16,12 @@ import { ChevronRight, ChevronLeft, AlertTriangle, Info } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
 import { GitHubIcon, XIcon, LinkedInIcon, WebsiteIcon } from "@/components/SocialIcons";
+import { BadgesStrip } from "@/components/BadgesStrip";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 import { formatLLMProvider } from "@/lib/llmProviders";
+import { computeAgentBadges } from "@/lib/badges";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -259,6 +261,13 @@ function Altitude1({
 
   const compositeScore = quality?.composite ?? null;
 
+  const badges = computeAgentBadges({
+    score_state_mu: compositeScore,
+    uptime_days: agent.stats.uptime_days,
+    messages_sent: agent.stats.messages_sent,
+    artifacts_created: agent.stats.artifacts_created,
+  });
+
   return (
     <div className="flex flex-col gap-4">
       {/* Identity */}
@@ -281,6 +290,9 @@ function Altitude1({
               </Badge>
             )}
           </div>
+          {badges.length > 0 && (
+            <BadgesStrip badges={badges} className="mt-2" size="sm" />
+          )}
         </div>
       </div>
 
