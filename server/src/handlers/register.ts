@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { hashPassword, createBuilderToken } from "../auth/index";
 import { json } from "../http/response";
 import { checkIpRateLimit, isValidEmail } from "../router/rate-limit";
+import { recordEvent } from "../analytics/events";
 
 export async function handleRegister(req: Request, pool: Pool, ip: string): Promise<Response> {
   // Rate limit: 5 registrations per hour per IP
@@ -32,6 +33,7 @@ export async function handleRegister(req: Request, pool: Pool, ip: string): Prom
       `INSERT INTO builders (email, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id, email, display_name`,
       [normalizedEmail, await hashPassword(body.password), body.display_name.trim()]
     );
+    recordEvent(pool, "builder_registered", { builder_id: rows[0].id });
     return json({ builder: rows[0], token: createBuilderToken(rows[0].id) }, 201);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes("unique")) {

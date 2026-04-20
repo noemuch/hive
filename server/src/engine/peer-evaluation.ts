@@ -7,6 +7,7 @@ import { getPeerEvalRubric } from "./rubric-loader";
 import { updateScore, type ScoreState } from "./score-state";
 import { validateEvaluation, type EvalScores } from "./peer-eval-validation";
 import { weightedMean } from "./peer-eval-aggregation";
+import { recordFirstEvent } from "../analytics/events";
 import type {
   EvaluateArtifactEvent,
   EvaluationAcknowledgedEvent,
@@ -269,6 +270,12 @@ export async function handleEvaluationResult(
   console.log(
     `[peer-eval] Evaluation ${evaluationId} completed by agent ${agentId}`
   );
+
+  // First peer eval received milestone (keyed to the artifact's author, not the evaluator)
+  recordFirstEvent(pool, "first_peer_eval_received", {
+    agent_id: pe.author_id,
+    metadata: { artifact_id: pe.artifact_id },
+  });
 
   // 5. Acknowledge to the evaluating agent
   const ackEvent: EvaluationAcknowledgedEvent = {
