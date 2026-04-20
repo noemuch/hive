@@ -422,6 +422,114 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       });
     }
 
+    // Builder dashboard — API hires (both directions) for the authenticated builder.
+    // Depends on the P6.2 `agent_hires` migration; until that ships, the query hits
+    // "relation does not exist" (42P01) and we return empty arrays so the UI renders.
+    if (url.pathname === "/api/dashboard/hires" && req.method === "GET") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
+
+      try {
+        // Hires where the authenticated builder is the hirer (money out).
+        // Cost is summed from agent_hire_calls (partitioned); wrapped in COALESCE so a hire
+        // with zero calls reports $0 rather than NULL.
+        const { rows: myHireRows } = await pool.query(
+          `SELECT h.id, h.calls_count, h.created_at, h.expires_at, h.revoked_at,
+                  (SELECT COALESCE(SUM(c.llm_cost_estimate), 0)
+                     FROM agent_hire_calls c WHERE c.hire_id = h.id) AS cost_estimate_usd,
+                  a.id AS agent_id, a.name AS agent_name, a.role AS agent_role, a.avatar_seed,
+                  co.id AS company_id, co.name AS company_name,
+                  b.id AS owner_id, b.display_name AS owner_name
+             FROM agent_hires h
+             JOIN agents a ON a.id = h.agent_id
+             JOIN builders b ON b.id = a.builder_id
+             LEFT JOIN companies co ON co.id = a.company_id
+            WHERE h.hiring_builder_id = $1 AND h.revoked_at IS NULL
+            ORDER BY h.created_at DESC
+            LIMIT 100`,
+          [decoded.builder_id]
+        );
+
+        // Hires where someone else is paying to call one of this builder's agents (money in).
+        const { rows: theirHireRows } = await pool.query(
+          `SELECT h.id, h.calls_count, h.created_at, h.expires_at, h.revoked_at,
+                  (SELECT COALESCE(SUM(c.llm_cost_estimate), 0)
+                     FROM agent_hire_calls c WHERE c.hire_id = h.id) AS cost_estimate_usd,
+                  a.id AS agent_id, a.name AS agent_name, a.role AS agent_role, a.avatar_seed,
+                  co.id AS company_id, co.name AS company_name,
+                  b.id AS hirer_id, b.display_name AS hirer_name
+             FROM agent_hires h
+             JOIN agents a ON a.id = h.agent_id
+             JOIN builders b ON b.id = h.hiring_builder_id
+             LEFT JOIN companies co ON co.id = a.company_id
+            WHERE a.builder_id = $1 AND h.revoked_at IS NULL
+            ORDER BY h.created_at DESC
+            LIMIT 100`,
+          [decoded.builder_id]
+        );
+
+        const mapRow = (row: Record<string, unknown>, counterpartKey: "owner" | "hirer") => ({
+          id: row.id as string,
+          agent: {
+            id: row.agent_id as string,
+            name: row.agent_name as string,
+            role: row.agent_role as string,
+            avatar_seed: row.avatar_seed as string,
+          },
+          company: row.company_id
+            ? { id: row.company_id as string, name: row.company_name as string }
+            : null,
+          counterpart: counterpartKey === "owner"
+            ? { id: row.owner_id as string, display_name: row.owner_name as string }
+            : { id: row.hirer_id as string, display_name: row.hirer_name as string },
+          calls_count: row.calls_count === null ? 0 : Number(row.calls_count),
+          cost_estimate_usd: row.cost_estimate_usd === null ? 0 : Number(row.cost_estimate_usd),
+          created_at: row.created_at as string,
+          expires_at: row.expires_at as string | null,
+        });
+
+        return json({
+          my_hires: myHireRows.map((r) => mapRow(r, "owner")),
+          their_hires: theirHireRows.map((r) => mapRow(r, "hirer")),
+        });
+      } catch (err) {
+        // 42P01 = undefined_table. Expected until the P6.2 migration ships.
+        if ((err as { code?: string }).code === "42P01") {
+          return json({ my_hires: [], their_hires: [] });
+        }
+        throw err;
+      }
+    }
+
+    if (url.pathname.startsWith("/api/dashboard/hires/") && req.method === "DELETE") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
+
+      const hireId = url.pathname.slice("/api/dashboard/hires/".length);
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(hireId)) return json({ error: "invalid_id", message: "Hire id must be a UUID" }, 400);
+
+      try {
+        const { rowCount } = await pool.query(
+          `UPDATE agent_hires
+              SET revoked_at = now()
+            WHERE id = $1 AND hiring_builder_id = $2 AND revoked_at IS NULL`,
+          [hireId, decoded.builder_id]
+        );
+        if (rowCount === 0) return json({ error: "not_found", message: "Hire not found" }, 404);
+        return json({ ok: true });
+      } catch (err) {
+        if ((err as { code?: string }).code === "42P01") {
+          return json({ error: "not_found", message: "Hire not found" }, 404);
+        }
+        throw err;
+      }
+    }
+
     // Leaderboard — top 50 agents by canonical HEAR composite score
     // (agents.score_state_mu, maintained by peer-evaluation + judge write paths).
     // The ?dimension=quality alias is kept temporarily for backward compatibility
