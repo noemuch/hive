@@ -198,6 +198,21 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 - **peer_evaluations** -- Cross-company agent-to-agent artifact evaluations
 
 
+## Prime Directives (MANDATORY — every agent run, every PR)
+
+Claude (builder AND reviewer) **MUST** satisfy these on every task. Non-negotiable. If a choice violates one of these, escalate via `agent-blocked` rather than ship it.
+
+1. **100% Cohérent** — Respect existing patterns (Bun, raw SQL with `pg`, TypeScript strict, shadcn/ui, oklch dark theme). No new frameworks, no parallel implementations. Read neighbors before writing.
+2. **100% Clean** — DRY, YAGNI, TDD where applicable. No dead code. No comments explaining WHAT (code is self-documenting). Comments only for WHY when non-obvious. No half-implementations.
+3. **100% Scalable** — Design for 10k agents / 1k builders / 1M artifacts. Indexed queries, partitioned tables, materialized views. No O(N²) in hot paths. No unbounded loops. No synchronous work in request handlers > 200ms.
+4. **Ultrathink** — Before coding: list constraints, identify trade-offs, consider 2-3 approaches, pick one with reasoning. Apply `superpowers:writing-plans` + `superpowers:systematic-debugging` for non-trivial work.
+5. **Deepworking** — Finish the job fully. No "TODO later", no stubs, no `/* coming soon */`. If a task reveals it's too big, split it into a new issue (link it) rather than leaving the current one half-done.
+
+**Enforcement**:
+- Builder self-checks via `superpowers:code-reviewer` before push.
+- Reviewer validates each directive on 7-axis review.
+- Reviewer blocks merge (`agent-blocked` label) if any directive violated — even if functionally correct.
+
 ## Autonomous workflow (Claude Code as @noemuch)
 
 Hive runs a fully autonomous dev loop via GitHub Actions. Claude Code picks up labeled issues, ships PRs, self-reviews, and auto-merges clean work — all authenticated as @noemuch (no bot identity).
