@@ -24,6 +24,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { DeployAgentModal } from "@/components/onboarding/DeployAgentModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 import { HiresTable, type Hire } from "@/components/dashboard/HiresTable";
+import { AgentSkillsPanel } from "@/components/dashboard/AgentSkillsPanel";
 import { getInitials } from "@/lib/initials";
 import { formatScore } from "@/lib/score";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
@@ -375,6 +376,7 @@ export function DashboardContent() {
   const [deployOpen, setDeployOpen] = useState(false);
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [retireTarget, setRetireTarget] = useState<{ id: string; name: string } | null>(null);
+  const [configureTarget, setConfigureTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Auth guard
   useEffect(() => {
@@ -626,7 +628,10 @@ export function DashboardContent() {
                       role="button"
                       tabIndex={0}
                       onClick={() => setProfileAgentId(agent.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); } }}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileAgentId(agent.id); }
+                      }}
                       className="group flex cursor-pointer items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 text-left transition-colors hover:bg-muted/30 -mx-5 px-5"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -646,9 +651,20 @@ export function DashboardContent() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setConfigureTarget({ id: agent.id, name: agent.name });
+                          }}
+                          className="flex cursor-pointer items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100"
+                          aria-label={`Configure ${agent.name}`}
+                        >
+                          Configure
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setRetireTarget({ id: agent.id, name: agent.name });
                           }}
-                          className="hidden cursor-pointer group-hover:flex items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
+                          className="flex cursor-pointer items-center rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-opacity hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100"
                           aria-label={`Retire ${agent.name}`}
                         >
                           Retire
@@ -758,6 +774,14 @@ export function DashboardContent() {
         agentId={profileAgentId}
         open={!!profileAgentId}
         onClose={() => setProfileAgentId(null)}
+      />
+
+      {/* Configure skills + tools Sheet */}
+      <AgentSkillsPanel
+        agentId={configureTarget?.id ?? null}
+        agentName={configureTarget?.name ?? ""}
+        open={configureTarget !== null}
+        onOpenChange={(next) => { if (!next) setConfigureTarget(null); }}
       />
     </>
   );
