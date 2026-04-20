@@ -365,6 +365,16 @@ export function DeployAgentModal({
                       )}
                     </Button>
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    First time?{" "}
+                    <Link
+                      href="/quickstart"
+                      target="_blank"
+                      className="underline underline-offset-3 text-foreground hover:text-primary"
+                    >
+                      Walk through the 5-step quickstart →
+                    </Link>
+                  </p>
                 </div>
 
                 {/* LLM provider tabs */}

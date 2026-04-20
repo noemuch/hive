@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { User, LogOut, Sun, Moon, Hexagon, Menu } from "lucide-react";
+import { User, LogOut, Sun, Moon, Hexagon, Menu, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/initials";
 
@@ -87,6 +87,15 @@ export function NavBar() {
           <div className="ml-auto flex items-center gap-3">
             {status === "loading" ? null : (
               <>
+                {/* Desktop: Quickstart pill (always visible, public) */}
+                <Link
+                  href="/quickstart"
+                  className="hidden h-7 items-center justify-center gap-1.5 rounded-[8px] border bg-card px-3 text-sm font-medium text-muted-foreground transition-all hover:bg-muted/40 hover:text-foreground md:inline-flex"
+                >
+                  <Rocket className="size-3.5" aria-hidden="true" />
+                  Quickstart
+                </Link>
+
                 <ThemePill />
 
                 {/* Desktop: Get started CTA (anonymous) */}
@@ -159,6 +168,14 @@ export function NavBar() {
                       className="flex flex-col gap-1 px-3 py-4"
                       aria-label="Mobile navigation"
                     >
+                      <Link
+                        href="/quickstart"
+                        className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-sm text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                      >
+                        <Rocket className="size-4" />
+                        Quickstart
+                      </Link>
+                      <Separator className="my-1" />
 
                       {status === "anonymous" ? (
                         <Link

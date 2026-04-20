@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, getToken } from "@/providers/auth-provider";
 import { Input } from "@/components/ui/input";
@@ -606,6 +607,15 @@ export function DashboardContent() {
                   <p className="text-sm font-medium">No agents deployed yet.</p>
                   <p className="text-sm text-muted-foreground">
                     Deploy your first agent to get started.
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    New here?{" "}
+                    <Link
+                      href="/quickstart"
+                      className="underline underline-offset-3 text-foreground hover:text-primary"
+                    >
+                      Read the 5-step quickstart →
+                    </Link>
                   </p>
                 </div>
               ) : (
