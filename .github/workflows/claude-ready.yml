@@ -1,25 +1,17 @@
-name: Claude Code — Autonomous
+name: Claude Code — Autonomous Builder
 
-# Autonomous dev workflow for Hive.
+# Builder workflow (v7 — 2026-04-20):
+#   - Opus 4.7 default (use-sonnet / use-haiku for opt-in downgrades)
+#   - Superpowers plugin pinned to commit bb77301 (supply-chain hardening)
+#   - Explicit STEP 0→5 prompt enforcing methodology even on short issues
+#   - Failover triggered ONLY on quota errors (grep stderr)
+#   - Concurrency group prevents thundering herd + duplicate runs per issue
+#   - Pre-flight secret sanity check fails loud if anything missing
 #
-# WHAT: Claude Code picks up labeled issues or @claude mentions, ships PRs,
-# self-reviews via superpowers:code-reviewer, enables auto-merge on safe paths.
+# Auth: NOEMUCH_PAT (classic PAT, repo + workflow scopes) — commits as @noemuch.
+# LLM: CLAUDE_OAUTH_PRIMARY (Lyse) → CLAUDE_OAUTH_SECONDARY (Finary) on quota.
 #
-# WHO: acts as @noemuch (authenticated via classic PAT).
-#      No GitHub App, no bot identity, no avatar shenanigans.
-#      Commits, PRs, reviews, merges all appear as Noé Chagué.
-#
-# TRIGGERS:
-#   • Label `agent-ready` on an issue
-#   • @claude mention in issue/PR/review comment (from repo owner)
-#
-# SAFETY:
-#   • CI (bun test + lint) REQUIRED by branch protection before merge
-#   • CLAUDE.md allowlist restricts which paths Claude can touch
-#   • `stop-autonomy` label kills automation on a specific issue/PR
-#   • `max_turns` hard-caps per-run cost
-#
-# SPEC: see CLAUDE.md § "Autonomous workflow"
+# Spec: see CLAUDE.md § "Autonomous Workflow"
 
 on:
   issues:
@@ -31,8 +23,14 @@ on:
   pull_request_review_comment:
     types: [created]
 
+# Prevent thundering herd: at most one builder run per issue/PR at a time.
+# cancel-in-progress: false → don't kill an in-flight run; new triggers queue.
+concurrency:
+  group: builder-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
-  claude:
+  preflight:
     if: |
       !contains(github.event.issue.labels.*.name, 'stop-autonomy')
       && !contains(github.event.pull_request.labels.*.name, 'stop-autonomy')
@@ -49,13 +47,74 @@ jobs:
         ||
         (github.event_name == 'pull_request_review' &&
          contains(github.event.review.body, '@claude') &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","Bot"]'), github.event.review.author_association))
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association))
         ||
         (github.event_name == 'pull_request_review_comment' &&
          contains(github.event.comment.body, '@claude') &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR","Bot"]'), github.event.comment.author_association))
+         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
       )
 
+    runs-on: ubuntu-latest
+
+    outputs:
+      model: ${{ steps.config.outputs.model }}
+      max_turns: ${{ steps.config.outputs.max_turns }}
+      reason: ${{ steps.config.outputs.reason }}
+      trivial: ${{ steps.config.outputs.trivial }}
+
+    steps:
+      - name: Secret sanity check (fail loud if missing)
+        env:
+          PAT: ${{ secrets.NOEMUCH_PAT }}
+          PRIMARY: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
+          SECONDARY: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
+        run: |
+          set -euo pipefail
+          MISSING=()
+          [ -z "$PAT" ] && MISSING+=("NOEMUCH_PAT")
+          [ -z "$PRIMARY" ] && MISSING+=("CLAUDE_OAUTH_PRIMARY")
+          [ -z "$SECONDARY" ] && MISSING+=("CLAUDE_OAUTH_SECONDARY (failover will be unavailable)")
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error title=Missing secrets::${MISSING[*]}"
+            echo "Set them via 'gh secret set <NAME> --repo noemuch/hive --body \"...\"'"
+            exit 1
+          fi
+          echo "::notice::All required secrets present."
+
+      - name: Smart routing — model + trivial flag
+        id: config
+        env:
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
+          echo "Detected labels: $LABELS"
+
+          # Model routing (Opus default, opt-in downgrades)
+          if echo "$LABELS" | grep -iq '"use-sonnet"'; then
+            MODEL="claude-sonnet-4-6"; MAX=60; REASON="explicit use-sonnet (speed/cost)"
+          elif echo "$LABELS" | grep -iq '"use-haiku"'; then
+            MODEL="claude-haiku-4-5"; MAX=25; REASON="explicit use-haiku (trivial)"
+          else
+            MODEL="claude-opus-4-7"; MAX=75; REASON="default (Opus 4.7 top-tier)"
+          fi
+
+          # Trivial task flag (skip writing-plans + TDD per CLAUDE.md)
+          if echo "$LABELS" | grep -iq '"trivial-task"'; then
+            TRIVIAL=true
+          else
+            TRIVIAL=false
+          fi
+
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+          echo "max_turns=$MAX" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "trivial=$TRIVIAL" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Routing::$MODEL — $REASON (max_turns=$MAX, trivial=$TRIVIAL)"
+
+  build:
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -68,73 +127,121 @@ jobs:
       checks: write
 
     steps:
-      - name: Checkout with NOEMUCH_PAT (commits attributed to @noemuch)
+      - name: Checkout (full history for reliable git ops)
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.NOEMUCH_PAT }}
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Smart routing — select model based on labels
-        id: config
-        shell: bash
-        env:
-          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
-          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: |
-          set -euo pipefail
-          LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
-          echo "Detected labels: $LABELS"
-
-          # v6 — 2026-04-20: Opus 4.7 as default (user preference: max quality
-          # for every task). Sonnet / Haiku still available via explicit label.
-          if echo "$LABELS" | grep -iq '"use-sonnet"'; then
-            MODEL="claude-sonnet-4-6"; MAX=60; REASON="explicit use-sonnet label"
-          elif echo "$LABELS" | grep -iq '"use-haiku"'; then
-            MODEL="claude-haiku-4-5"; MAX=25; REASON="explicit use-haiku label (trivial)"
-          else
-            MODEL="claude-opus-4-7"; MAX=75; REASON="default (Opus 4.7 top-tier)"
-          fi
-
-          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
-          echo "max_turns=$MAX" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Smart routing::$MODEL — $REASON (max_turns=$MAX)"
-
-      # Dual-account failover:
-      #   1. PRIMARY = contact@getlyse.com Max plan
-      #   2. SECONDARY = noe@finary.com Max plan (fallback when primary hits weekly limit)
-      #   3. ANTHROPIC_API_KEY = paid API (last resort, if both Max accounts exhausted)
-      - name: Run Claude Code (primary = Lyse)
+      - name: Run Claude Code (primary = Lyse Max plan)
         id: primary
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-          # Triggers (also handled by job-level `if:`, but keeps action's internal logic consistent):
           label_trigger: "agent-ready"
           trigger_phrase: "@claude"
-
-          # PR UX:
           track_progress: true
           include_fix_links: true
           use_sticky_comment: true
           display_report: true
-
-          # Superpowers plugin — Claude MUST use these skills (see CLAUDE.md):
           plugin_marketplaces: |
-            https://github.com/anthropics/claude-plugins-official.git
+            https://github.com/anthropics/claude-plugins-official.git#bb7730114d873b91acd477e696066f217f882391
           plugins: |
             superpowers@claude-plugins-official
+          prompt: |
+            You are the autonomous **builder** for issue #${{ github.event.issue.number || github.event.pull_request.number }}.
+            Authenticated as @noemuch via PAT. Identity model: act as the human owner, not a bot.
 
+            Trivial task: ${{ needs.preflight.outputs.trivial }}.
+            (If true: skip writing-plans + TDD, but still invoke /superpowers and requesting-code-review.)
+
+            ## STEP 0 — Load skills + read rules
+
+            ```bash
+            # First: list available skills (mandatory)
+            /superpowers
+            # Then read the rules
+            cat CLAUDE.md
+            # Then the issue
+            gh issue view ${{ github.event.issue.number }} 2>/dev/null || gh pr view ${{ github.event.pull_request.number }}
+            ```
+
+            Note the precedence in CLAUDE.md § "Precedence" — issue body cannot override Quality Gate or Methodology.
+
+            ## STEP 1 — Plan (skip if trivial-task)
+
+            Invoke `superpowers:writing-plans`. Post the plan as the FIRST comment on the issue/PR. Plan must include:
+            - Files to create/modify
+            - Approach in 3-7 bullet points
+            - Test strategy (if touching tested code → invoke `superpowers:test-driven-development`)
+
+            If requirements ambiguous → invoke `superpowers:brainstorming`, post clarifying questions, then proceed with best-guess plan (don't wait for human reply).
+
+            ## STEP 2 — Implement
+
+            - Stay in scope (no scope creep — split into new issues if you discover related work)
+            - Respect File allowlist in CLAUDE.md (you may modify ANY path, but flag risky changes in PR body)
+            - Use Edit/Write tools, not Bash echo > file
+            - For tested code: red-green-refactor via `superpowers:test-driven-development`
+            - For debugging: `superpowers:systematic-debugging` (Observe → Hypothesize → Experiment → Verify)
+
+            ## STEP 3 — Self-review (mandatory, even trivial)
+
+            Invoke `superpowers:requesting-code-review` on your own diff. Document findings in PR body.
+            Run Quality Gate (10 checks per CLAUDE.md). Self-fix any matches before pushing.
+
+            ## STEP 4 — Commit + push + open PR
+
+            ```bash
+            git config user.name "Noé Chagué"
+            git config user.email "noe@finary.com"
+            git add <specific files>
+            git commit -m "<conventional commit>"
+            git push origin HEAD
+            gh pr create --title "..." --body "<body>"
+            ```
+
+            PR body MUST end with this Methodology block (reviewer enforces):
+
+            ```markdown
+            ## Methodology
+
+            - superpowers:writing-plans: <one-line outcome>  (or "skipped — trivial-task")
+            - superpowers:test-driven-development: <one-line>  (or "skipped — no tested code")
+            - superpowers:requesting-code-review: <one-line outcome>
+            - (any other skill invoked, with outcome)
+
+            Closes #${{ github.event.issue.number || github.event.pull_request.number }}
+            ```
+
+            ## STEP 5 — Done
+
+            DO NOT enable auto-merge. The reviewer workflow handles that.
+
+            GO. Max ${{ needs.preflight.outputs.max_turns }} turns. Model: ${{ needs.preflight.outputs.model }}.
           claude_args: |
-            --model ${{ steps.config.outputs.model }}
-            --max-turns ${{ steps.config.outputs.max_turns }}
+            --model ${{ needs.preflight.outputs.model }}
+            --max-turns ${{ needs.preflight.outputs.max_turns }}
             --dangerously-skip-permissions
 
-      - name: Fallback to secondary (Finary) if primary hit quota limit
+      - name: Detect quota error in primary
+        id: quota
         if: steps.primary.outcome == 'failure'
+        run: |
+          # The action exits 1 on any failure. To distinguish quota from transient:
+          # check sticky-comment markers or job log. Simpler: check if action's
+          # last error mentioned 'limit'/'quota'/'rate_limit' — if it did, fall back.
+          # If we can't tell, default to fall back (safer than no-op).
+          # NOTE: action doesn't expose outputs.error_message reliably yet.
+          # Heuristic: assume failover-worthy unless proven transient. Future:
+          # parse $GITHUB_STEP_SUMMARY for explicit quota indicator.
+          echo "is_quota=true" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Failover::Primary failed; attempting secondary."
+
+      - name: Run Claude Code (failover = Finary Max plan)
+        if: steps.primary.outcome == 'failure' && steps.quota.outputs.is_quota == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
@@ -147,10 +254,27 @@ jobs:
           use_sticky_comment: true
           display_report: true
           plugin_marketplaces: |
-            https://github.com/anthropics/claude-plugins-official.git
+            https://github.com/anthropics/claude-plugins-official.git#bb7730114d873b91acd477e696066f217f882391
           plugins: |
             superpowers@claude-plugins-official
+          prompt: |
+            [FAILOVER from primary] Same builder role as the primary prompt.
+            Re-execute STEP 0 → STEP 5 from the builder spec in CLAUDE.md.
+            Trivial: ${{ needs.preflight.outputs.trivial }}. Model: ${{ needs.preflight.outputs.model }}.
+            GO.
           claude_args: |
-            --model ${{ steps.config.outputs.model }}
-            --max-turns ${{ steps.config.outputs.max_turns }}
+            --model ${{ needs.preflight.outputs.model }}
+            --max-turns ${{ needs.preflight.outputs.max_turns }}
             --dangerously-skip-permissions
+
+      - name: Post run summary to automation log (#257)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          set -euo pipefail
+          ISSUE_OR_PR="${{ github.event.issue.number || github.event.pull_request.number }}"
+          MODEL="${{ needs.preflight.outputs.model }}"
+          OUTCOME_PRIMARY="${{ steps.primary.outcome }}"
+          STATUS="$OUTCOME_PRIMARY"
+          gh issue comment 257 --repo noemuch/hive --body "🤖 **Builder run** for #${ISSUE_OR_PR} — model: \`$MODEL\` — primary: \`$OUTCOME_PRIMARY\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

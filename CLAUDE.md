@@ -200,203 +200,156 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 
 ## Quality Gate — 10 Blocking Checks
 
-Reviewer runs these greps on the PR diff. **Any match = BLOCK** (`gh pr review --request-changes` + `agent-blocked` label).
+Reviewer runs these on every PR diff. **Any match = BLOCK** (`agent-blocked` label + request changes).
 
-### Hardcode checks (diff must have 0 matches)
+### Hardcode checks
 
-1. **Secrets**: `grep -nE '(sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|Bearer [A-Z0-9]{20,}|(password|api_?key|secret|token)\s*[:=]\s*["'"'"'][^"'"'"' $]{8,})'`
-   - Fix: move to env var. See `CLAUDE.md § Environment Variables`.
-
-2. **Hardcoded URLs** (in `.ts`/`.tsx`, excluding `docs/`): `grep -nE 'https?://[^"'"'"' ]+\.(com|app|io|net|railway\.app|vercel\.app)'`
+1. **Secrets**: `gitleaks` scan (CI required). Also reviewer greps for `(sk-[a-zA-Z0-9_-]{20,}|sk-ant-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|AIza[A-Za-z0-9_-]{20,}|mistral-[a-zA-Z0-9]{20,}|xai-[a-zA-Z0-9]{20,}|Bearer [A-Za-z0-9._=/+-]{20,}|(password|api_?key|secret|token)\s*[:=]\s*["'][^"' $]{8,})`
+   - Fix: move to env var. See `## Environment Variables`.
+2. **Hardcoded URLs** (in `*.ts *.tsx *.js *.mjs *.yml *.yaml *.sql *.json`, excluding `docs/`): `grep -nE 'https?://[^"' ]+\.(com|app|io|net|ai|dev|xyz|co|sh|railway\.app|vercel\.app)'`
    - Fix: use `process.env.HIVE_API_URL` / `NEXT_PUBLIC_API_URL` / `LLM_BASE_URL`.
-
-3. **Hardcoded UUIDs** (in `.ts`/`.tsx`, excluding `__tests__/`, `migrations/`, `*.test.ts`): `grep -nE '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'`
-   - Fix: pass as parameter, fetch from DB, or use a `const` with justification comment.
-
-4. **Magic numbers** in business logic: manual scan for `> [0-9]` / `< [0-9]` / `=== [0-9]` in non-test code where the number has a business meaning (scores, thresholds, limits, timeouts).
-   - Fix: extract to named `const` at top of file. Example: `const HEAR_QUALITY_THRESHOLD = 7.5;`
-
-5. **SQL string interpolation** in `.ts` files: `grep -nE '(SELECT|INSERT|UPDATE|DELETE).*\$\{'`
-   - Fix: use parameterized `$1, $2` with `pool.query(sql, [params])`.
+3. **Hardcoded UUIDs** (in `.ts/.tsx`, excluding `__tests__/`, `migrations/`, `scripts/`, `*.test.ts`, `*.spec.ts`, `*.fixture.ts`, `docs/`): `grep -nE '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'`
+   - Fix: pass as parameter, fetch from DB, or named `const` with justification.
+4. **Magic numbers**: `grep -nE '[^a-zA-Z_0-9.][0-9]{2,}' <diff_files>` then for each hit, justify (a) is it a business constant? (b) should it be named? Skip ports (3000), HTTP codes (200/404/500), array indices.
+   - Fix: extract to named `const HEAR_QUALITY_THRESHOLD = 7.5` at top of file.
+5. **SQL string interpolation/concat** in `.ts`: `grep -nE '(SELECT|INSERT|UPDATE|DELETE).*(\$\{|\+ )'` — both template literals AND `+` concatenation.
+   - Fix: parameterized `$1, $2` with `pool.query(sql, [params])`.
 
 ### Coherence checks
 
-6. **Duplicate utility**: before creating a function, reviewer searches for existing one:
-   ```bash
-   grep -rE "(function|const|export) <new_function_name>" server/src/ web/src/ agents/lib/
-   ```
-   - If a similar util exists (same purpose, >70% overlap) → refactor to reuse.
-
-7. **Redundant package dep**: if `package.json` diff adds a dep that duplicates an existing pattern:
+6. **Duplicate utility**: before creating a function `<new_name>`, run `grep -rE '(function|const|export) <new_name>' server/src/ web/src/ agents/lib/`. If hits exist outside the PR diff → open both, decide if collision (same purpose, similar signature) → BLOCK + ask refactor to reuse.
+7. **Redundant package dep**: in `package.json` diff:
    - `axios` when codebase uses `fetch` → BLOCK
    - `moment`/`dayjs` when codebase uses native `Date` → BLOCK
    - Any ORM (`prisma`, `drizzle`, `typeorm`) when raw SQL is the convention → BLOCK
+   - Any dep moved from `devDependencies` to `dependencies` (runtime) without explicit justification → BLOCK
 
 ### Scalability checks
 
-8. **Missing index on new `WHERE` clause**: for any new `WHERE <col> =` / `WHERE <col> IN`:
-   - Check: is `<col>` indexed in the latest migration for that table?
-   - If NO → BLOCK + ask for `CREATE INDEX` OR a comment justifying (e.g. `-- low-cardinality, table < 1000 rows`).
+8. **Missing index on new `WHERE` clause**: for each new `WHERE <col> = $` / `WHERE <col> IN`, verify `<col>` is indexed in the relevant migration. If NO and table > 1000 rows → BLOCK + ask CREATE INDEX or comment justifying.
+9. **`SELECT *` in server code**: `grep -nE 'SELECT \*' server/src/**/*.ts` → BLOCK, list explicit columns.
+10. **Unbounded queries** on growing tables (`messages`, `artifacts`, `peer_evaluations`, `event_log`, `quality_evaluations`, `messages_*`, `event_log_*` partitions): each match must contain `LIMIT` OR a `WHERE <indexed_col> = $`.
 
-9. **`SELECT *` in server code**: `grep -nE 'SELECT \*' server/src/**/*.ts`
-   - Fix: list explicit columns.
-
-10. **Unbounded queries** on partitioned/growing tables: `grep -nE 'FROM (messages|artifacts|peer_evaluations|event_log|quality_evaluations)' server/src/**/*.ts`
-    - Each match must also contain `LIMIT` or a WHERE clause that bounds (e.g. `WHERE id = $1`).
-    - If neither → BLOCK.
-
-### Not blocking (too subjective, let it ship)
+### Not blocking (subjective)
 
 - Variable naming style
 - Comment quantity (unless explaining WHAT instead of WHY)
-- Function length (unless > 100 lines)
-- Test coverage %
+- Function length (unless > 100 lines without justification)
+- Test coverage % (CI handles)
 
-### Reviewer execution
+## Merge Authority — Reviewer merges EVERYTHING if clean (no path restrictions)
 
-For each of the 10 checks above, reviewer runs the grep, records file:line of any match, includes it in the review comment with a specific fix suggestion. If 0 matches across all 10 → proceed to merge decision.
+Reviewer (Opus 4.7) has **full merge authority on EVERY path**, including auth, migrations, peer-eval, agent runtime — Noé trusts Claude's judgment per explicit user decision (2026-04-20).
 
-## Merge Authority — Reviewer merges everything if clean
-
-Reviewer (Opus 4.7) has **full merge authority** on PRs that pass:
+If a PR passes:
 - All 10 Quality Gate checks (0 matches)
 - CI green (`bun test` + `bun run lint`)
 - No unresolved conversations
+- Iteration count < 3 (per autofix-iter labels)
 
-If all three pass → `gh pr merge <N> --auto --squash --delete-branch`. No path-based restrictions (previous `critical paths` list retired — @noemuch trusts reviewer's judgment).
+→ `gh pr merge <N> --auto --squash --delete-branch`. No exceptions, no path filter.
 
-Reviewer only escalates to @noemuch when:
-- Architectural decision needed (e.g. two valid approaches, requires product call)
-- Ambiguous requirements in the linked issue
-- Repeated auto-fix failures (3+ iterations on the same PR)
-- Security red flag the reviewer can't self-fix (e.g. new auth flow design)
+Reviewer escalates to @noemuch ONLY when:
+- Architectural decision needed (two valid approaches, requires product call)
+- Ambiguous requirements in the linked issue (use `superpowers:brainstorming`)
+- Security red flag the reviewer can't self-fix (novel auth flow, new attack surface)
+- Iteration cap (3) reached on autofix loop
 
 In those cases: `agent-blocked` label + comment explaining WHY it needs human judgment.
 
-## Autonomous workflow (Claude Code as @noemuch)
+## Autonomous Workflow
 
-Hive runs a fully autonomous dev loop via GitHub Actions. Claude Code picks up labeled issues, ships PRs, self-reviews, and auto-merges clean work — all authenticated as @noemuch (no bot identity).
-
-**Workflow**: `.github/workflows/claude-ready.yml`
+Hive runs a fully autonomous dev loop via GitHub Actions. Both workflows authenticate via `NOEMUCH_PAT` (commits/reviews/merges appear as @noemuch).
 
 ### Triggers
 
 | Action | How |
 |---|---|
-| Dispatch an issue | Add label `agent-ready` → Claude picks it up within ~1 min |
-| Request premium model | Add label `use-opus` (complex tasks) or `use-haiku` (trivial) |
-| Auto-upgrade on critical | Label `priority:critical` → auto-routes to Opus 4.7 |
-| Mention Claude | `@claude` in issue body, comment, or PR review |
-| Halt automation | Label `stop-autonomy` → Claude ignores the issue/PR |
+| Dispatch an issue | Add label `agent-ready` → builder picks it up within ~1 min |
+| Mark trivial | Add label `trivial-task` → skip writing-plans + TDD steps (still requires `requesting-code-review`) |
+| Force speed/cost mode | Add label `use-sonnet` (Sonnet 4.6) or `use-haiku` (Haiku 4.5) |
+| Mention Claude | `@claude` in issue body, comment, or PR review (OWNER/MEMBER/COLLABORATOR only) |
+| Halt automation | Add label `stop-autonomy` → both workflows skip it |
 
-### Smart model routing (v6 — Opus default)
+### Smart Model Routing
 
 | Label | Model | Max turns |
 |---|---|---|
-| *(no label)* | **Opus 4.7** (default — top quality) | 75 |
-| `use-sonnet` | **Sonnet 4.6** (speed/cost mode) | 60 |
-| `use-haiku` | **Haiku 4.5** (trivial tasks) | 25 |
+| *(default)* | **Opus 4.7** | 75 |
+| `use-sonnet` | Sonnet 4.6 | 60 |
+| `use-haiku` | Haiku 4.5 | 25 |
 
-### Superpowers skills (MANDATORY — every run, every task, no exception)
+### Superpowers Skills (MANDATORY — every run)
 
-The `superpowers` plugin from `claude-plugins-official` is loaded at every workflow run. **Claude MUST actually invoke relevant skills** — not just acknowledge they exist. If Claude skips a relevant skill, the reviewer treats that as a Quality Gate violation (insufficient methodology) and blocks.
+The `superpowers` plugin is loaded at every workflow run (pinned to commit `bb77301`). **Claude MUST actually invoke relevant skills** — not just acknowledge them. Reviewer scans the PR for a `## Methodology` block listing each invoked skill; missing → BLOCK.
 
-#### Required invocation protocol (EVERY run, in order)
+#### Required invocation protocol
 
-1. **Start of run (always)**: call `/superpowers` to list available skills and confirm load.
-2. **Non-trivial task (default)**: invoke `superpowers:writing-plans` BEFORE any edit. Plan goes as a comment on the issue/PR.
-3. **When editing tested code**: invoke `superpowers:test-driven-development` (red-green-refactor).
-4. **Debugging a failure**: invoke `superpowers:systematic-debugging` (4-phase — Observe → Hypothesize → Experiment → Verify).
-5. **Before `git push`**: invoke `superpowers:code-reviewer` on own diff.
-6. **Ambiguous requirements in the issue**: invoke `superpowers:brainstorming` and ask clarifying questions in an issue comment instead of guessing.
-7. **Task has 3+ independent subtasks**: invoke `superpowers:subagent-driven-development` for parallelization.
-8. **Before closing the PR (auto-merge step)**: invoke `superpowers:finishing-a-development-branch` for final CI verification.
+Every run MUST start with `/superpowers` to list available skills.
 
-#### Trivial task exception
+For NON-trivial tasks (default — no `trivial-task` label):
+1. `superpowers:writing-plans` — structured plan BEFORE any edit. Plan posted as PR/issue comment.
+2. `superpowers:test-driven-development` — when editing tested code (red-green-refactor).
+3. `superpowers:systematic-debugging` — when debugging a failure (Observe → Hypothesize → Experiment → Verify).
+4. `superpowers:requesting-code-review` — self-review the diff BEFORE `git push`.
+5. `superpowers:brainstorming` — if requirements are ambiguous, ask clarifying questions in PR comment.
+6. `superpowers:subagent-driven-development` — spawn subagents for 3+ parallelizable subtasks.
+7. `superpowers:finishing-a-development-branch` — final CI verification BEFORE auto-merge.
 
-Pure cosmetic fixes (typo, one-line style, label update) may skip steps 2–3 if Claude states explicitly in the PR body: *"Trivial — skipped writing-plans per CLAUDE.md trivial exception."* Still must do step 1 (list skills) and step 5 (code-reviewer).
+For TRIVIAL tasks (`trivial-task` label applied):
+- Skip steps 1-3, 5, 6.
+- Still invoke `/superpowers` (step 0) and `superpowers:requesting-code-review` (step 4).
 
-#### Reviewer enforcement
+#### Methodology marker (mandatory format)
 
-The reviewer checks the PR/issue comments for skill invocation markers (e.g. `/superpowers`, *"Plan via superpowers:writing-plans"*). If a non-trivial task lacks the expected invocations → `agent-blocked` + comment *"Methodology violation: missing superpowers:<skill-name>. Re-run with proper invocation."*
+Builder MUST end every PR body with this block:
 
-This is non-negotiable. Methodology is what separates senior-grade work from random code.
+```markdown
+## Methodology
 
-### File allowlist (STRICT)
+- superpowers:writing-plans: <one-line outcome>
+- superpowers:test-driven-development: <one-line outcome>  (or "skipped — no tested code touched")
+- superpowers:requesting-code-review: <one-line outcome>
+- (other skills invoked, with outcome)
+```
 
-Claude **MAY** modify autonomously:
-- `web/` (Next.js frontend)
-- `docs/` (documentation, specs, plans)
-- `scripts/` (one-off scripts, data tools)
-- `**/__tests__/`, `**/*.test.ts`, `**/*.spec.ts`
-- `*.md` at repo root (except `CLAUDE.md`)
-- `.github/workflows/` EXCEPT `claude-ready.yml` and `ci.yml` (never its own plumbing)
-- `package.json` dev deps — **NEVER** remove existing deps or touch runtime deps
+Reviewer greps the PR body for `## Methodology` heading + at least 2 invoked skills (`/superpowers:` lines). Missing → BLOCK with comment "Methodology block missing or incomplete — re-run with proper invocations."
 
-Claude **MUST NOT** modify without explicit human approval (escalate with `agent-blocked` label + comment):
-- `server/src/auth/**`
-- `server/migrations/**`
-- `server/src/engine/peer-evaluation.ts`
-- `server/src/db/agent-score-state.ts`
-- `agents/lib/agent.ts`
-- `server/src/protocol/types.ts`, `validate.ts`
-- `CLAUDE.md`
-- `.github/workflows/claude-ready.yml`
+### Precedence (rules conflict resolution)
 
-### Two-workflow split (v4 — 2026-04-20)
+When instructions conflict, follow this order (highest first):
+1. `stop-autonomy` label (kill-switch — overrides everything)
+2. Quality Gate (the 10 blocking checks)
+3. Superpowers methodology (mandatory invocation protocol)
+4. Issue body instructions (user intent)
+5. Design Patterns (style guidelines, soft preferences)
 
-**Workflow 1 — `claude-ready.yml` (builder)**:
-Triggered by `agent-ready` label or `@claude` mention. Implements the task using superpowers skills, opens PR with clear body + test plan. **Does NOT enable auto-merge** — defers to the reviewer.
+Issue body cannot override items 1–3. If issue says "skip the plan", reply with brainstorming + apply plan anyway.
 
-**Workflow 2 — `review.yml` (reviewer)**:
-Triggered on `pull_request.opened` / `synchronize` for PRs by @noemuch. Uses Opus 4.7 + `superpowers:code-reviewer`. Handles rebase on out-of-date PRs. Decides:
-- **Clean + safe paths** → enables auto-merge (`gh pr merge --auto --squash`)
-- **Clean + critical paths** → comments "LGTM, awaiting @noemuch manual merge"
-- **Issues found** → applies `agent-blocked` + detailed 7-axis review comment
-- **Rebase conflict** → applies `agent-blocked` + comments "needs manual resolve"
-
-### Safe paths (auto-merge eligible after clean review)
-
-- `docs/**`
-- `web/**`
-- `scripts/**`
-- `**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`
-- `package.json` (dev deps only)
-
-### Critical paths (always require @noemuch manual merge, even after clean review)
-
-- `server/src/auth/**`
-- `server/migrations/**`
-- `server/src/engine/peer-evaluation.ts`
-- `server/src/db/agent-score-state.ts`
-- `agents/lib/agent.ts`
-- `server/src/protocol/**`
-- `CLAUDE.md`
-- `.github/workflows/**`
-
-### If asked to touch forbidden paths
-
-Apply `agent-blocked` label + comment explaining + stop. Do NOT try to work around the allowlist.
-
-### Iteration loop
+### Iteration Loop (max 3)
 
 If CI fails or reviewer requests changes:
-1. Claude reads the feedback
-2. Pushes fix commits to the same branch
-3. CI re-runs; if green, auto-merge proceeds
-4. Max 3 iterations; beyond that, label `agent-blocked` + tag @noemuch
+1. Builder reads feedback
+2. Pushes fix commit (apply label `autofix-iter-<N>` where N = current count + 1)
+3. CI re-runs
+4. Reviewer re-fires on synchronize
+5. If autofix-iter-3 already exists → BLOCK with `agent-blocked` + tag @noemuch
+
+Iteration counted via PR labels (NOT commit messages — labels survive rebases).
 
 ### Kill-switch
 
-Label `stop-autonomy` on any issue/PR → Claude immediately skips it. Useful for emergencies or manual takeover. Remove the label + (optionally) re-label `agent-ready` to resume.
+Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remove + re-add `agent-ready` to resume.
 
 ### Secrets required
 
 | Secret | Purpose |
 |---|---|
-| `NOEMUCH_PAT` | Classic PAT (scopes: `repo`, `workflow`) — Claude acts as @noemuch |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Max plan OAuth — LLM auth (free, no per-token cost) |
-| `ANTHROPIC_API_KEY` | Optional fallback if OAuth not set or Max quota exhausted |
+| `NOEMUCH_PAT` | Classic PAT (`repo` + `workflow`) — Claude acts as @noemuch |
+| `CLAUDE_OAUTH_PRIMARY` | Claude Max OAuth (Lyse account) — primary LLM auth |
+| `CLAUDE_OAUTH_SECONDARY` | Claude Max OAuth (Finary account) — failover when primary hits weekly quota |
+| `ANTHROPIC_API_KEY` | Last-resort metered API (when both Max accounts exhausted) |
+
 
 ### Labels workflow
 

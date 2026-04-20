@@ -1,40 +1,83 @@
 name: Claude Code — Autonomous Reviewer
 
-# Autonomous review workflow for PRs opened by Claude Code (as @noemuch).
+# Reviewer workflow (v7 — 2026-04-20):
+#   - Opus 4.7 + superpowers (plugin pinned to commit bb77301)
+#   - Iteration count via PR labels (autofix-iter-1/2/3) — survives rebase
+#   - Concurrency group prevents parallel reviewers on same PR
+#   - Pre-flight secret check
+#   - FULL MERGE AUTHORITY: Claude merges every clean PR (no path restrictions)
+#   - Auto-fix mode for lint/type/simple test errors
 #
-# ROLE: a second Claude run (Opus 4.7) reviews every auto-opened PR,
-# decides auto-merge vs block, handles rebase on out-of-date PRs.
-#
-# Decision tree:
-#   A. Clean review + safe path     → enables auto-merge (PR lands when CI green)
-#   B. Clean review + critical path → comments "LGTM, awaiting @noemuch manual merge"
-#   C. Issues found on any axis     → posts detailed review + applies `agent-blocked` label
-#   D. PR behind main (rebase)       → tries `git rebase origin/main`, force-pushes or blocks
-#
-# Safety:
-#   - Only reviews PRs opened by @noemuch (no infinite loops on its own reviews)
-#   - Skips if `agent-blocked` already present (human took over)
-#   - Skips if `stop-autonomy` label present (kill-switch)
-#
-# Spec: see CLAUDE.md § "Autonomous workflow" — auto-merge decision tree
+# Auth: NOEMUCH_PAT — appears as @noemuch.
+# LLM: Opus 4.7 via Lyse primary, Finary secondary failover on quota.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: reviewer-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
-  review:
-    # Only review bot-authored PRs, skip if already blocked or killed
+  preflight:
+    # Skip if killed, already blocked, or PR is from a non-Claude source.
+    # Filter on branch prefix `claude/` so manual @noemuch PRs don't trigger autonomous review.
     if: |
-      github.event.pull_request.user.login == 'noemuch'
+      !contains(github.event.pull_request.labels.*.name, 'stop-autonomy')
       && !contains(github.event.pull_request.labels.*.name, 'agent-blocked')
-      && !contains(github.event.pull_request.labels.*.name, 'stop-autonomy')
+      && github.event.pull_request.user.login == 'noemuch'
+      && startsWith(github.event.pull_request.head.ref, 'claude/')
 
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    outputs:
+      iter: ${{ steps.iter.outputs.n }}
+      capped: ${{ steps.iter.outputs.capped }}
+
+    steps:
+      - name: Secret sanity
+        env:
+          PAT: ${{ secrets.NOEMUCH_PAT }}
+          PRIMARY: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
+          SECONDARY: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
+        run: |
+          set -euo pipefail
+          MISSING=()
+          [ -z "$PAT" ] && MISSING+=("NOEMUCH_PAT")
+          [ -z "$PRIMARY" ] && MISSING+=("CLAUDE_OAUTH_PRIMARY")
+          [ -z "$SECONDARY" ] && MISSING+=("CLAUDE_OAUTH_SECONDARY")
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error title=Missing secrets::${MISSING[*]}"
+            exit 1
+          fi
+          echo "::notice::All secrets present."
+
+      - name: Iteration count via labels
+        id: iter
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          set -euo pipefail
+          PR=${{ github.event.pull_request.number }}
+          N=$(gh pr view $PR --repo noemuch/hive --json labels --jq '[.labels[].name | select(startswith("autofix-iter-"))] | length')
+          echo "n=$N" >> "$GITHUB_OUTPUT"
+          if [ "$N" -ge 3 ]; then
+            echo "capped=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Iteration cap (3) reached on PR #$PR"
+            gh pr edit $PR --repo noemuch/hive --add-label agent-blocked
+            gh pr comment $PR --repo noemuch/hive --body "🔴 **Autofix cap reached** (3 iterations). @noemuch please look. \`agent-blocked\` applied."
+          else
+            echo "capped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  review:
+    needs: preflight
+    if: needs.preflight.outputs.capped != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     permissions:
-      contents: write            # needed for rebase + force-push
+      contents: write
       pull-requests: write
       issues: write
       id-token: write
@@ -42,61 +85,49 @@ jobs:
       checks: write
 
     steps:
-      - name: Checkout PR head with full history (for rebase)
+      - name: Checkout PR head with full history (for rebase + log analysis)
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.NOEMUCH_PAT }}
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Run Claude Code reviewer (primary = Lyse)
+      - name: Run reviewer (primary = Lyse)
         id: primary
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-          # We drive via prompt — not via trigger_phrase or label_trigger
           trigger_phrase: "@claude-reviewer"
-
           track_progress: true
           use_sticky_comment: true
           display_report: true
-
           plugin_marketplaces: |
-            https://github.com/anthropics/claude-plugins-official.git
+            https://github.com/anthropics/claude-plugins-official.git#bb7730114d873b91acd477e696066f217f882391
           plugins: |
             superpowers@claude-plugins-official
-
           prompt: |
-            You are the **autonomous senior reviewer + fixer** for PR #${{ github.event.pull_request.number }}.
-            Opus 4.7 + superpowers:code-reviewer. God mode.
+            You are the autonomous **reviewer + fixer** for PR #${{ github.event.pull_request.number }}.
+            Opus 4.7 + `superpowers:requesting-code-review`. Authenticated as @noemuch via PAT.
 
-            Your job: review, AND if minor issues are fixable, **fix them yourself** on the branch
-            then merge. The human does NOT see the fix cycle — only the final merged PR.
+            Iteration count for this PR: ${{ needs.preflight.outputs.iter }}/3.
+            (If you push fixes, also apply label `autofix-iter-<next>` to count properly.)
 
-            ## STEP 0 — Iteration guard
+            Your job: review rigorously, AUTO-FIX mechanical issues yourself, MERGE if clean.
+            Noé trusts your judgment — full merge authority on EVERY path.
 
-            Count your previous auto-fix commits on this branch:
-            ```bash
-            FIX_COUNT=$(git log origin/main..HEAD --oneline | grep -c "🔧 Autonomous fix" || echo 0)
-            ```
-
-            If `FIX_COUNT >= 3`: you've already tried to fix 3 times on this PR.
-            → Apply `agent-blocked` + comment "After 3 autonomous fix attempts, still issues — @noemuch please look" + exit.
-
-            ## STEP 1 — Read context
+            ## STEP 0 — Load skills + context
 
             ```bash
-            gh pr view ${{ github.event.pull_request.number }} --json title,body,headRefName,baseRefName,additions,deletions,files,mergeStateStatus,statusCheckRollup
-            gh pr diff ${{ github.event.pull_request.number }}
-            # Linked issue (extract N from "Closes #N" in PR body, then `gh issue view N`)
+            /superpowers
             cat CLAUDE.md
+            gh pr view ${{ github.event.pull_request.number }} --json title,body,additions,deletions,files,mergeStateStatus,statusCheckRollup
+            gh pr diff ${{ github.event.pull_request.number }}
+            gh pr checks ${{ github.event.pull_request.number }}
             ```
 
-            ## STEP 2 — Rebase if out-of-date
+            ## STEP 1 — Rebase if BEHIND main
 
             If `mergeStateStatus = BEHIND`:
             ```bash
@@ -105,109 +136,85 @@ jobs:
             git fetch origin main
             git rebase origin/main
             ```
-            - Clean rebase → `git push --force-with-lease origin HEAD` + comment "🔀 Rebased on main" → continue.
-            - Rebase conflict → `git rebase --abort` + apply `agent-blocked` + comment "Conflict with main — @noemuch needs manual resolve" + exit.
+            - Clean rebase → `git push --force-with-lease origin HEAD` + comment "🔀 Rebased on main"
+            - Conflict → `git rebase --abort` + apply `agent-blocked` + comment "Conflict — @noemuch needs manual resolve" + EXIT.
 
-            ## STEP 3 — Check CI status first
+            ## STEP 2 — CI status check first
 
+            If `gh pr checks` shows any FAILURE → go directly to STEP 4 (auto-fix mode).
+            If CI is in progress → wait via `gh pr checks --watch` (max 2 min) then re-evaluate.
+
+            ## STEP 3 — Quality Gate (10 checks per CLAUDE.md § "Quality Gate")
+
+            Run each grep against the diff. Record file:line of any match. List the 10 checks in your sticky comment with ✅/❌.
+
+            Also verify the PR body contains a `## Methodology` block listing at least 2 invoked superpowers skills (or `trivial-task` label is applied). If missing → ❌ Methodology violation.
+
+            ## STEP 4 — Decide + execute
+
+            ### A. Quality Gate 0/10 + Methodology block present + CI green → AUTO-MERGE
             ```bash
-            gh pr checks ${{ github.event.pull_request.number }} 2>&1
-            ```
+            gh pr comment ${{ github.event.pull_request.number }} --body "✅ **Review passed** — Quality Gate 0/10, Methodology present, CI green. Auto-merging.
 
-            If CI has failures (lint, tests, typecheck): this is the PRIMARY thing to fix. Go to STEP 5 auto-fix mode.
-
-            ## STEP 4 — Apply superpowers:code-reviewer (7 axes)
-
-            Review:
-            1. **Correctness** — meets acceptance criteria from linked issue?
-            2. **CLAUDE.md compliance** — Bun, raw SQL, TS strict, allowlist respected?
-            3. **Scope discipline** — stayed within the issue (no creep)?
-            4. **Code quality** — naming, idiomatic, no dead code?
-            5. **Security** — no SQLi/XSS/secrets/auth bypass?
-            6. **Tests** — coverage for new code, existing tests pass?
-            7. **Self-review quality** — builder documented reasoning?
-
-            ## STEP 5 — Decide + execute (GOD MODE)
-
-            No path-based restrictions. @noemuch trusts your judgment.
-            Merge everything that passes Quality Gate + CI.
-
-            ### A. Quality Gate CLEAN + CI green → AUTO-MERGE:
-            ```bash
-            gh pr review ${{ github.event.pull_request.number }} --comment --body "✅ **Review passed** — Quality Gate 0/10 matches, CI green. Auto-merging.
-
-            **What this PR does**: <2-3 line summary>
-            **Methodology**: Opus 4.7 + superpowers:code-reviewer"
+            **Summary**: <2-3 lines>
+            **Methodology**: Opus 4.7 + superpowers:requesting-code-review"
             gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
             ```
 
-            ### B. AUTO-FIX MODE (lint error, type error, missing import, failed tests with obvious fix, typo, formatting):
-
-            **These issues ARE autonomously fixable by you.** Don't block — fix them.
-
-            Examples of auto-fixable:
-            - ESLint errors (e.g. "Calling setState synchronously within an effect" → wrap in setTimeout/useEffect)
-            - TypeScript type errors (e.g. wrong type annotation → fix the type)
+            ### B. AUTO-FIX MODE — for mechanical issues only:
+            - ESLint/TypeScript errors with obvious fix
             - Missing imports
-            - Simple test failures (e.g. outdated snapshot, missing mock)
-            - Typos in strings/comments
-            - Formatting / lint rule violations
-            - Missing error handling in an obvious try/catch
-            - Accessibility warnings (missing aria-label, alt text, role)
+            - Outdated test snapshots
+            - Typos/formatting
+            - Missing Methodology block in PR body (just edit the body, don't re-run builder)
 
             Process:
             1. Apply `superpowers:systematic-debugging` to identify root cause
-            2. Apply fix via Edit/Write tools (preserve scope — fix ONLY what's broken)
-            3. Run tests locally if feasible: `bun test` / `bun run lint`
-            4. Commit with "🔧 Autonomous fix: <short description of what was fixed>"
-            5. `git push origin HEAD`
-            6. Post sticky comment: "🔧 **Autonomous fix applied** (iteration N/3): <what was fixed>. CI re-running."
-            7. DO NOT call `gh pr review --request-changes` — the fix is being applied, not requested.
-            8. The `synchronize` event will re-trigger this workflow → you'll re-review the fixed PR.
+            2. Edit/Write the fix
+            3. Run `bun test` and `bun run lint` locally if feasible
+            4. Stage + commit with message starting "🔧 Autofix: <what>"
+            5. Apply label `autofix-iter-<N>` where N = ${{ needs.preflight.outputs.iter }} + 1
+            6. `git push origin HEAD`
+            7. Post sticky comment: "🔧 **Autofix iter N/3**: <what was fixed>. CI re-running."
 
-            ### C. ESCALATE TO @NOEMUCH ONLY IF: architectural / ambiguous / 3+ iterations / security design:
+            DO NOT use `gh pr review --request-changes` here — you're fixing, not requesting.
 
-            Examples of NON-auto-fixable (block with agent-blocked):
-            - Missing features per acceptance criteria (need to expand scope)
-            - Security issues requiring design decisions
-            - Architectural concerns (choice between patterns)
-            - Ambiguous requirements needing clarification
-            - Regressions requiring deep investigation
-            - Scope creep that needs scope negotiation with @noemuch
+            ### C. ESCALATE TO @NOEMUCH (only if):
+            - Architectural decision needed (two valid approaches)
+            - Ambiguous requirements (use `superpowers:brainstorming` to ask)
+            - Security design red flag you can't self-fix
+            - 3+ iterations failed (already capped at preflight)
 
             ```bash
-            gh issue edit ${{ github.event.pull_request.number }} --add-label agent-blocked
+            gh pr edit ${{ github.event.pull_request.number }} --add-label agent-blocked
             gh pr merge ${{ github.event.pull_request.number }} --disable-auto 2>/dev/null || true
-            gh pr review ${{ github.event.pull_request.number }} --request-changes --body "🔴 **Review — escalation to @noemuch**
-
-            ## Why NOT auto-fixed
-
-            <explain why this requires human judgment, not a mechanical fix>
-
-            ## Issues
-
-            <numbered list with file:line references>
-
-            @noemuch: \`agent-blocked\` applied. Review + either unlabel + push fix, or take over manually."
+            gh pr comment ${{ github.event.pull_request.number }} --body "🔴 **Escalation to @noemuch**: <why human judgment needed>. \`agent-blocked\` applied."
             ```
 
             ## STYLE
 
-            - Concise. Senior voice. No fluff.
-            - Fix comments < 100 words. Review comments < 300 words.
-            - Inline refs: `path/to/file.ts:42`
-            - LEAN TOWARD AUTO-FIX. Only escalate if genuinely architectural / ambiguous.
+            - Concise. Senior voice.
+            - Inline refs `path/to/file.ts:42`
+            - Comments < 300 words
+            - Lean toward AUTO-MERGE or AUTO-FIX. Escalate only if genuinely ambiguous/architectural.
+            - You have full merge authority. No path restrictions. Trust your judgment.
 
-            GO. You have 75 turns.
-
+            GO. Max 75 turns.
           claude_args: |
             --model claude-opus-4-7
             --max-turns 75
             --dangerously-skip-permissions
 
-      # Failover to secondary (Finary) Max plan if primary hit weekly limit
-      - name: Run Claude Code reviewer (fallback = Finary)
+      - name: Detect quota error
+        id: quota
         if: steps.primary.outcome == 'failure'
+        run: |
+          # Same heuristic as builder workflow.
+          echo "is_quota=true" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Reviewer failover::Primary failed; attempting secondary."
+
+      - name: Run reviewer (failover = Finary)
+        if: steps.primary.outcome == 'failure' && steps.quota.outputs.is_quota == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
@@ -218,20 +225,26 @@ jobs:
           use_sticky_comment: true
           display_report: true
           plugin_marketplaces: |
-            https://github.com/anthropics/claude-plugins-official.git
+            https://github.com/anthropics/claude-plugins-official.git#bb7730114d873b91acd477e696066f217f882391
           plugins: |
             superpowers@claude-plugins-official
           prompt: |
-            [FAILOVER] Primary account hit quota. Same reviewer role as above, now on secondary account.
-
-            You are the autonomous senior reviewer + fixer for PR #${{ github.event.pull_request.number }}.
-            Apply the same 7-axis review, auto-fix mode on lint/type/simple test errors, and decision tree
-            (clean safe → auto-merge; clean critical → comment @noemuch; architectural issues → agent-blocked).
-
-            Read CLAUDE.md, `gh pr view/diff/checks`, and the linked issue. Then decide and execute.
-
+            [FAILOVER] Same reviewer role as primary prompt above.
+            Iteration: ${{ needs.preflight.outputs.iter }}/3 for PR #${{ github.event.pull_request.number }}.
+            Re-execute STEP 0 → STEP 4 from the reviewer spec in CLAUDE.md.
             GO. Max 75 turns.
           claude_args: |
             --model claude-opus-4-7
             --max-turns 75
             --dangerously-skip-permissions
+
+      - name: Post review summary to automation log (#257)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          set -euo pipefail
+          PR="${{ github.event.pull_request.number }}"
+          ITER="${{ needs.preflight.outputs.iter }}"
+          OUTCOME="${{ steps.primary.outcome }}"
+          gh issue comment 257 --repo noemuch/hive --body "🔍 **Reviewer run** for PR #${PR} — iter \`${ITER}/3\` — primary: \`${OUTCOME}\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
