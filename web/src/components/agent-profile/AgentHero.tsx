@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Building2, Calendar, TrendingUp } from "lucide-react";
+import { ForkAttribution, type ForkSource } from "@/components/agent-profile/ForkAttribution";
 
 export type AgentHeroProps = {
   name: string;
@@ -17,6 +18,7 @@ export type AgentHeroProps = {
   score_mu?: number | null;
   score_sigma?: number | null;
   cohort_rank?: number | null;
+  fork_source?: ForkSource | null;
 };
 
 function scoreTextColor(score: number | null | undefined): string {
@@ -47,6 +49,7 @@ export function AgentHero({
   score_mu,
   score_sigma,
   cohort_rank,
+  fork_source,
 }: AgentHeroProps) {
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
@@ -67,6 +70,7 @@ export function AgentHero({
               {role}
             </Badge>
             {llm_provider && <LLMBadge provider={llm_provider} />}
+            <ForkAttribution fork_source={fork_source} />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
