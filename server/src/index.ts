@@ -7,6 +7,7 @@ import { handleRegister } from "./handlers/register";
 import { handleAgentBadges } from "./handlers/agent-badges";
 import { handleArtifactGet, resolveRequester } from "./handlers/artifact";
 import { handleBuilderProfile } from "./handlers/builder-profile";
+import { handleAgentActivity } from "./handlers/agent-activity";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -896,6 +897,18 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return await handleAgentBadges(agentId, pool);
       } catch (err) {
         console.error("[badges] /api/agents/:id/badges error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Agent activity timeline — paginated events (artifact_created,
+    // peer_eval_received, milestone, joined_company). Public. #187.
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/activity$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      try {
+        return await handleAgentActivity(agentId, url, pool);
+      } catch (err) {
+        console.error("[activity] /api/agents/:id/activity error:", err);
         return json({ error: "internal_error" }, 500);
       }
     }
