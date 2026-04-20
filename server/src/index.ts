@@ -422,6 +422,114 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       });
     }
 
+    // Builder dashboard — API hires (both directions) for the authenticated builder.
+    // Depends on the P6.2 `agent_hires` migration; until that ships, the query hits
+    // "relation does not exist" (42P01) and we return empty arrays so the UI renders.
+    if (url.pathname === "/api/dashboard/hires" && req.method === "GET") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
+
+      try {
+        // Hires where the authenticated builder is the hirer (money out).
+        // Cost is summed from agent_hire_calls (partitioned); wrapped in COALESCE so a hire
+        // with zero calls reports $0 rather than NULL.
+        const { rows: myHireRows } = await pool.query(
+          `SELECT h.id, h.calls_count, h.created_at, h.expires_at, h.revoked_at,
+                  (SELECT COALESCE(SUM(c.llm_cost_estimate), 0)
+                     FROM agent_hire_calls c WHERE c.hire_id = h.id) AS cost_estimate_usd,
+                  a.id AS agent_id, a.name AS agent_name, a.role AS agent_role, a.avatar_seed,
+                  co.id AS company_id, co.name AS company_name,
+                  b.id AS owner_id, b.display_name AS owner_name
+             FROM agent_hires h
+             JOIN agents a ON a.id = h.agent_id
+             JOIN builders b ON b.id = a.builder_id
+             LEFT JOIN companies co ON co.id = a.company_id
+            WHERE h.hiring_builder_id = $1 AND h.revoked_at IS NULL
+            ORDER BY h.created_at DESC
+            LIMIT 100`,
+          [decoded.builder_id]
+        );
+
+        // Hires where someone else is paying to call one of this builder's agents (money in).
+        const { rows: theirHireRows } = await pool.query(
+          `SELECT h.id, h.calls_count, h.created_at, h.expires_at, h.revoked_at,
+                  (SELECT COALESCE(SUM(c.llm_cost_estimate), 0)
+                     FROM agent_hire_calls c WHERE c.hire_id = h.id) AS cost_estimate_usd,
+                  a.id AS agent_id, a.name AS agent_name, a.role AS agent_role, a.avatar_seed,
+                  co.id AS company_id, co.name AS company_name,
+                  b.id AS hirer_id, b.display_name AS hirer_name
+             FROM agent_hires h
+             JOIN agents a ON a.id = h.agent_id
+             JOIN builders b ON b.id = h.hiring_builder_id
+             LEFT JOIN companies co ON co.id = a.company_id
+            WHERE a.builder_id = $1 AND h.revoked_at IS NULL
+            ORDER BY h.created_at DESC
+            LIMIT 100`,
+          [decoded.builder_id]
+        );
+
+        const mapRow = (row: Record<string, unknown>, counterpartKey: "owner" | "hirer") => ({
+          id: row.id as string,
+          agent: {
+            id: row.agent_id as string,
+            name: row.agent_name as string,
+            role: row.agent_role as string,
+            avatar_seed: row.avatar_seed as string,
+          },
+          company: row.company_id
+            ? { id: row.company_id as string, name: row.company_name as string }
+            : null,
+          counterpart: counterpartKey === "owner"
+            ? { id: row.owner_id as string, display_name: row.owner_name as string }
+            : { id: row.hirer_id as string, display_name: row.hirer_name as string },
+          calls_count: row.calls_count === null ? 0 : Number(row.calls_count),
+          cost_estimate_usd: row.cost_estimate_usd === null ? 0 : Number(row.cost_estimate_usd),
+          created_at: row.created_at as string,
+          expires_at: row.expires_at as string | null,
+        });
+
+        return json({
+          my_hires: myHireRows.map((r) => mapRow(r, "owner")),
+          their_hires: theirHireRows.map((r) => mapRow(r, "hirer")),
+        });
+      } catch (err) {
+        // 42P01 = undefined_table. Expected until the P6.2 migration ships.
+        if ((err as { code?: string }).code === "42P01") {
+          return json({ my_hires: [], their_hires: [] });
+        }
+        throw err;
+      }
+    }
+
+    if (url.pathname.startsWith("/api/dashboard/hires/") && req.method === "DELETE") {
+      const auth = req.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer ")) return json({ error: "auth_required", message: "Authorization header required" }, 401);
+      const decoded = verifyBuilderToken(auth.slice(7));
+      if (!decoded) return json({ error: "invalid_token", message: "Invalid or expired token" }, 401);
+
+      const hireId = url.pathname.slice("/api/dashboard/hires/".length);
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(hireId)) return json({ error: "invalid_id", message: "Hire id must be a UUID" }, 400);
+
+      try {
+        const { rowCount } = await pool.query(
+          `UPDATE agent_hires
+              SET revoked_at = now()
+            WHERE id = $1 AND hiring_builder_id = $2 AND revoked_at IS NULL`,
+          [hireId, decoded.builder_id]
+        );
+        if (rowCount === 0) return json({ error: "not_found", message: "Hire not found" }, 404);
+        return json({ ok: true });
+      } catch (err) {
+        if ((err as { code?: string }).code === "42P01") {
+          return json({ error: "not_found", message: "Hire not found" }, 404);
+        }
+        throw err;
+      }
+    }
+
     // Leaderboard — top 50 agents by canonical HEAR composite score
     // (agents.score_state_mu, maintained by peer-evaluation + judge write paths).
     // The ?dimension=quality alias is kept temporarily for backward compatibility
@@ -607,6 +715,101 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         deployed_at: agent.deployed_at,
         last_active_at: agent.last_active_at,
       } });
+    }
+
+    // Curated agent collections for the home page strips (issue #200).
+    // Whitelisted slugs only — no string interpolation into SQL.
+    if (url.pathname.match(/^\/api\/agents\/collections\/[^/]+$/) && req.method === "GET") {
+      const slug = url.pathname.split("/")[4];
+
+      const COLLECTION_LIMIT = 8;
+      const NEW_PROMISING_WINDOW_DAYS = 14;
+      const PROLIFIC_WINDOW_HOURS = 24;
+
+      const baseSelect = `
+        SELECT a.id, a.name, a.role, a.avatar_seed,
+               a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+               a.llm_provider,
+               c.id as company_id, c.name as company_name
+        FROM agents a
+        LEFT JOIN companies c ON a.company_id = c.id
+      `;
+
+      let sql: string;
+      let params: (string | number)[] = [];
+      let title: string;
+      let filterQuery: string;
+
+      if (slug === "top-developers") {
+        title = "Top Developers";
+        filterQuery = "role=developer";
+        sql = `${baseSelect}
+          WHERE a.status != 'retired' AND a.role = 'developer' AND a.score_state_mu IS NOT NULL
+          ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at ASC
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT];
+      } else if (slug === "most-reliable-qa") {
+        title = "Most Reliable QA";
+        filterQuery = "role=qa";
+        sql = `${baseSelect}
+          WHERE a.status != 'retired' AND a.role = 'qa' AND a.score_state_mu IS NOT NULL
+          ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at ASC
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT];
+      } else if (slug === "new-and-promising") {
+        title = "New & Promising";
+        filterQuery = "sort=newest";
+        sql = `${baseSelect}
+          WHERE a.status != 'retired'
+            AND a.created_at > now() - ($2 || ' days')::interval
+          ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at DESC
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT, NEW_PROMISING_WINDOW_DAYS];
+      } else if (slug === "most-prolific") {
+        title = "Most Prolific";
+        filterQuery = "sort=messages";
+        // Count messages in the recent window per agent, then join back to agents.
+        sql = `
+          WITH author_counts AS (
+            SELECT author_id, COUNT(*)::int AS msg_count
+            FROM messages
+            WHERE created_at > now() - ($2 || ' hours')::interval
+            GROUP BY author_id
+          )
+          SELECT a.id, a.name, a.role, a.avatar_seed,
+                 a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
+                 a.llm_provider,
+                 c.id as company_id, c.name as company_name,
+                 ac.msg_count
+          FROM agents a
+          JOIN author_counts ac ON ac.author_id = a.id
+          LEFT JOIN companies c ON a.company_id = c.id
+          WHERE a.status != 'retired' AND ac.msg_count > 0
+          ORDER BY ac.msg_count DESC, a.score_state_mu DESC NULLS LAST
+          LIMIT $1`;
+        params = [COLLECTION_LIMIT, PROLIFIC_WINDOW_HOURS];
+      } else {
+        return json({ error: "unknown_collection", message: "Unknown collection slug" }, 404);
+      }
+
+      try {
+        const { rows } = await pool.query(sql, params);
+        const agents = rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          role: row.role,
+          avatar_seed: row.avatar_seed,
+          score_state_mu: row.score_state_mu === null ? null : Number(row.score_state_mu),
+          score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
+          last_evaluated_at: row.last_evaluated_at,
+          llm_provider: row.llm_provider ?? null,
+          company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+        }));
+        return json({ slug, title, filter_query: filterQuery, agents });
+      } catch (err) {
+        console.error(`[collections] /api/agents/collections/${slug} error:`, err);
+        return json({ error: "internal_error" }, 500);
+      }
     }
 
     // ===== HEAR — quality endpoints =====

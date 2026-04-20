@@ -1,0 +1,196 @@
+name: Dispatch Ready — Dep-aware orchestrator
+
+# Computes which agent-ready issues have all their dependencies satisfied
+# (merged PRs + closed sub-issues) and applies the `ready-to-ship` label,
+# which triggers the builder workflow.
+#
+# Dependencies parsed from 3 sources (OR):
+#   1. Sub-issues (GitHub native) — parent waits for all children closed
+#   2. Issue body `Depends on: #N[, #M]` / `Blocked by: #N`
+#   3. Issue body `Fixes #N` on linked PRs (transitive closure signal)
+#
+# Triggers:
+#   - Scheduled cron (15 min) — catches any drift
+#   - issues.closed / issues.reopened — re-evaluate after state change
+#   - pull_request.closed — re-evaluate after merge unblocks deps
+#   - issues.labeled — new agent-ready issue → evaluate immediately
+#   - workflow_dispatch — manual re-run
+#
+# Outputs:
+#   - Applies/removes `ready-to-ship` label based on dep state
+#   - Applies/removes `waiting-deps` label for visibility (inverse)
+#   - Comments `🔀 Blocked by: #X, #Y` on transitions to waiting-deps
+#   - Posts summary to issue #257 on every run
+#
+# Kill-switch: label `stop-autonomy` excludes an issue from dispatch.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # every 15 minutes
+  issues:
+    types: [closed, reopened, labeled, unlabeled]
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+concurrency:
+  group: dispatch-ready
+  cancel-in-progress: false
+
+jobs:
+  compute-ready:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+      contents: read
+
+    steps:
+      - name: Compute ready set (dep-aware)
+        uses: actions/github-script@v7
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const q = `
+              query($o:String!, $r:String!, $c:String) {
+                repository(owner:$o, name:$r) {
+                  issues(first:100, states:OPEN, after:$c) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      number title body
+                      labels(first:30) { nodes { name } }
+                      subIssues(first:50) { nodes { number state } }
+                    }
+                  }
+                }
+              }
+            `;
+
+            // Paginate all open issues
+            const issues = [];
+            let cursor = null;
+            for (let i = 0; i < 10; i++) {
+              const res = await github.graphql(q, {
+                o: context.repo.owner,
+                r: context.repo.repo,
+                c: cursor
+              });
+              issues.push(...res.repository.issues.nodes);
+              if (!res.repository.issues.pageInfo.hasNextPage) break;
+              cursor = res.repository.issues.pageInfo.endCursor;
+            }
+
+            core.info(`Fetched ${issues.length} open issues`);
+
+            const byNum = new Map(issues.map(i => [i.number, i]));
+            const depRe = /(?:^|\n)(?:depends on|blocked by)[:\s]+((?:#\d+(?:\s*,\s*)?)+)/gim;
+
+            function extractRefDeps(body) {
+              const refs = new Set();
+              const text = body || '';
+              for (const match of text.matchAll(depRe)) {
+                const nums = match[1].matchAll(/#(\d+)/g);
+                for (const n of nums) refs.add(+n[1]);
+              }
+              return [...refs];
+            }
+
+            function hasLabel(issue, name) {
+              return issue.labels.nodes.some(l => l.name === name);
+            }
+
+            async function isBlockerOpen(n) {
+              // Check if issue/PR #n is still open (blocker unresolved)
+              // Could be issue OR PR — both share number space.
+              try {
+                const { data } = await github.rest.issues.get({
+                  ...context.repo, issue_number: n
+                });
+                return data.state === 'open';
+              } catch (e) {
+                // 404 = not found, treat as non-blocker (deleted/doesn't exist)
+                return false;
+              }
+            }
+
+            const ready = [];
+            const waiting = [];
+            const summary = [];
+
+            for (const issue of issues) {
+              // Skip kill-switched
+              if (hasLabel(issue, 'stop-autonomy')) continue;
+              // Skip issues that aren't opted-in for automation
+              if (!hasLabel(issue, 'agent-ready')) continue;
+              // Skip epics
+              if (hasLabel(issue, 'epic')) continue;
+              // Skip if agent-blocked (already escalated)
+              if (hasLabel(issue, 'agent-blocked')) continue;
+
+              // Gather blockers
+              const bodyDeps = extractRefDeps(issue.body);
+              const subIssueBlockers = issue.subIssues.nodes
+                .filter(s => s.state === 'OPEN')
+                .map(s => s.number);
+              const allBlockers = [...new Set([...bodyDeps, ...subIssueBlockers])];
+
+              // Filter to still-open blockers
+              const stillOpen = [];
+              for (const b of allBlockers) {
+                if (await isBlockerOpen(b)) stillOpen.push(b);
+              }
+
+              const hasReady = hasLabel(issue, 'ready-to-ship');
+              const hasWaiting = hasLabel(issue, 'waiting-deps');
+
+              if (stillOpen.length === 0) {
+                // Unblocked!
+                if (!hasReady) {
+                  await github.rest.issues.addLabels({
+                    ...context.repo, issue_number: issue.number,
+                    labels: ['ready-to-ship']
+                  });
+                  ready.push(`#${issue.number}`);
+                }
+                if (hasWaiting) {
+                  await github.rest.issues.removeLabel({
+                    ...context.repo, issue_number: issue.number,
+                    name: 'waiting-deps'
+                  });
+                }
+              } else {
+                // Still blocked
+                if (!hasWaiting) {
+                  await github.rest.issues.addLabels({
+                    ...context.repo, issue_number: issue.number,
+                    labels: ['waiting-deps']
+                  });
+                  waiting.push(`#${issue.number} (by: ${stillOpen.map(n => '#' + n).join(', ')})`);
+                }
+                if (hasReady) {
+                  await github.rest.issues.removeLabel({
+                    ...context.repo, issue_number: issue.number,
+                    name: 'ready-to-ship'
+                  });
+                }
+              }
+            }
+
+            core.info(`Newly ready: ${ready.length ? ready.join(', ') : 'none'}`);
+            core.info(`Newly waiting: ${waiting.length ? waiting.join(', ') : 'none'}`);
+
+            // Summary to issue #257
+            if (ready.length || waiting.length) {
+              const body = [
+                `🔀 **Dispatch cron run** — [${new Date().toISOString()}]`,
+                ready.length ? `✅ Newly ready-to-ship: ${ready.join(', ')}` : null,
+                waiting.length ? `⏸ Newly waiting-deps: ${waiting.join('; ')}` : null,
+                `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              ].filter(Boolean).join('\n\n');
+
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: 257, body
+              });
+            }

@@ -23,6 +23,7 @@ import { AgentProfile } from "@/components/AgentProfile";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { DeployAgentModal } from "@/components/onboarding/DeployAgentModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
+import { HiresTable, type Hire } from "@/components/dashboard/HiresTable";
 import { getInitials } from "@/lib/initials";
 import { formatScore } from "@/lib/score";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
@@ -347,6 +348,7 @@ export function DashboardContent() {
 
   const [detail, setDetail] = useState<BuilderDetail | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [hires, setHires] = useState<{ my_hires: Hire[]; their_hires: Hire[] } | null>(null);
 
   // Live composite refresh — patch the builder's agent list when a peer
   // evaluation (or batch invalidation) changes an agent's composite score.
@@ -396,8 +398,32 @@ export function DashboardContent() {
       .then((data: DashboardData) => setDashboard(data))
       .catch((err) => { if ((err as Error).name !== "AbortError") { /* silent */ } });
 
+    authFetch("/api/dashboard/hires", { signal: ac.signal })
+      .then((r) => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
+      .then((data: { my_hires: Hire[]; their_hires: Hire[] }) => setHires(data))
+      .catch((err) => { if ((err as Error).name !== "AbortError") { /* silent */ } });
+
     return () => ac.abort();
   }, [status, authFetch]);
+
+  async function handleRevokeHire(hireId: string) {
+    if (typeof window !== "undefined" && !window.confirm("Revoke this hire? The token will stop working immediately.")) {
+      return;
+    }
+    // Optimistic removal; refetch on failure to avoid stale-closure rollback bugs
+    // when multiple revokes are in flight.
+    setHires((cur) => (cur ? { ...cur, my_hires: cur.my_hires.filter((h) => h.id !== hireId) } : cur));
+    try {
+      const res = await authFetch(`/api/dashboard/hires/${hireId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("revoke failed");
+      toast.success("Hire revoked");
+    } catch {
+      toast.error("Could not revoke hire");
+      // Refetch authoritative state rather than rolling back an optimistic snapshot.
+      const r = await authFetch("/api/dashboard/hires").catch(() => null);
+      if (r?.ok) setHires(await r.json());
+    }
+  }
 
   function handleDeployed() {
     authFetch("/api/dashboard")
@@ -637,6 +663,27 @@ export function DashboardContent() {
                 <p className="mt-4 text-center text-xs text-muted-foreground">
                   Slot limit reached — upgrade your tier to deploy more agents.
                 </p>
+              )}
+            </div>
+          </section>
+
+          {/* Your hires — API hires in both directions */}
+          <section className="rounded-xl border bg-card">
+            <div className="px-5 py-3 border-b">
+              <h2 className="text-sm font-semibold">Your hires</h2>
+            </div>
+            <div className="px-5 py-4">
+              {hires ? (
+                <HiresTable
+                  myHires={hires.my_hires}
+                  theirHires={hires.their_hires}
+                  onRevoke={handleRevokeHire}
+                />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
               )}
             </div>
           </section>

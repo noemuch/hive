@@ -10,8 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PulseDot } from "@/components/PulseDot";
 import { OfficePreview } from "@/components/OfficePreview";
+import { CollectionStrip } from "@/components/marketplace/CollectionStrip";
 import { useAuth } from "@/providers/auth-provider";
 import { formatScore } from "@/lib/score";
+import { avatarBgClass, ringColor } from "@/lib/avatar";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -59,19 +61,6 @@ type FeedEvent = {
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function ringColor(score: number | null): string {
-  if (score === null || score === 0) return "ring-muted-foreground/30";
-  if (score >= 7) return "ring-green-500";
-  if (score >= 4) return "ring-amber-500";
-  return "ring-red-500/50";
-}
-
-function hashToIndex(str: string, len: number): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  return Math.abs(hash) % len;
-}
 
 function statusColor(status: string): string {
   if (status === "active") return "bg-green-500";
@@ -131,18 +120,6 @@ function Hero({ companies }: { companies: Company[] }) {
     </section>
   );
 }
-
-// ─── StatsBar ───────────────────────────────────────────────────────────────
-
-const AVATAR_BG_CLASSES = [
-  "bg-amber-400", "bg-violet-500", "bg-pink-500",
-  "bg-blue-500",  "bg-emerald-500", "bg-orange-500",
-] as const;
-
-function avatarBgClass(id: string): string {
-  return AVATAR_BG_CLASSES[hashToIndex(id, AVATAR_BG_CLASSES.length)];
-}
-
 
 // ─── TrendingAgents ─────────────────────────────────────────────────────────
 
@@ -511,6 +488,13 @@ export function HomePage() {
         {status === "anonymous" && <Hero companies={companies} />}
 
         <TrendingAgents agents={leaderboardAgents} loading={leaderboardLoading} onAgentClick={openProfile} />
+
+        <section className="flex flex-col gap-6">
+          <CollectionStrip slug="top-developers" />
+          <CollectionStrip slug="most-reliable-qa" />
+          <CollectionStrip slug="new-and-promising" />
+          <CollectionStrip slug="most-prolific" />
+        </section>
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div ref={companiesRef} className="flex-1 min-w-0">

@@ -21,6 +21,13 @@ import { Badge } from "@/components/ui/badge";
 import { formatScore as fmtScore } from "@/lib/score";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
 import { formatLLMProvider } from "@/lib/llmProviders";
+import { BadgesStrip } from "@/components/BadgesStrip";
+import {
+  BADGE_DEFINITIONS,
+  LEADERBOARD_FILTERABLE_BADGES,
+  computeLeaderboardBadges,
+  type BadgeKey,
+} from "@/lib/badges";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -200,6 +207,7 @@ export function LeaderboardContent() {
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
   const [dimension,     setDimension]     = useState<Dimension>(initialDimension);
   const [axis,          setAxis]          = useState<string>(initialAxis);
+  const [badgeFilter,   setBadgeFilter]   = useState<BadgeKey | null>(null);
   const [selectedId,    setSelectedId]    = useState<string | null>(() => params.get("agent"));
   const filterAbortRef = useRef<AbortController | null>(null);
 
@@ -300,10 +308,22 @@ export function LeaderboardContent() {
   }, [dimension, axis, syncUrl]);
 
   // Derived state
-  const top3 = agents.slice(0, 3);
+  const totalAgents = agents.length;
+  const badgesByAgentId = new Map(
+    agents.map((a) => [a.id, computeLeaderboardBadges(a, totalAgents)] as const),
+  );
+  const visibleAgents = badgeFilter
+    ? agents.filter((a) =>
+        badgesByAgentId.get(a.id)?.some((b) => b.key === badgeFilter),
+      )
+    : agents;
+  const top3 = visibleAgents.slice(0, 3);
   const companyLabel = companyFilter
     ? (allCompanies.find(c => c.id === companyFilter)?.name ?? "All companies")
     : "All companies";
+  const badgeFilterLabel = badgeFilter
+    ? BADGE_DEFINITIONS[badgeFilter].label
+    : "All badges";
   const axisLabel = QUALITY_AXES.find(a => a.value === axis)?.label ?? "All axes (composite)";
   const scoreColumnLabel = "Score";
   const subheading = "Top agents by quality score";
@@ -324,31 +344,62 @@ export function LeaderboardContent() {
             <p className="mt-1 text-sm text-muted-foreground">{subheading}</p>
           </div>
 
-          {/* Company filter — same DropdownMenu pattern as GridControls */}
-          {allCompanies.length > 1 && (
+          <div className="flex items-center gap-2">
+            {/* Badge filter */}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="outline" size="sm" className="cursor-pointer" />}
               >
-                <ArrowUpDown className="size-3.5" />
-                {companyLabel}
+                <ChevronDown className="size-3.5" />
+                {badgeFilterLabel}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleCompanyFilter(null)} className="cursor-pointer">
-                  All companies
+                <DropdownMenuItem onClick={() => setBadgeFilter(null)} className="cursor-pointer">
+                  All badges
                 </DropdownMenuItem>
-                {allCompanies.map(c => (
-                  <DropdownMenuItem
-                    key={c.id}
-                    onClick={() => handleCompanyFilter(c.id)}
-                    className="cursor-pointer"
-                  >
-                    {c.name}
-                  </DropdownMenuItem>
-                ))}
+                {LEADERBOARD_FILTERABLE_BADGES.map((key) => {
+                  const def = BADGE_DEFINITIONS[key];
+                  const Icon = def.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={key}
+                      onClick={() => setBadgeFilter(key)}
+                      className="cursor-pointer gap-2"
+                    >
+                      <Icon className="size-3.5" aria-hidden="true" />
+                      {def.label}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
+
+            {/* Company filter — same DropdownMenu pattern as GridControls */}
+            {allCompanies.length > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button variant="outline" size="sm" className="cursor-pointer" />}
+                >
+                  <ArrowUpDown className="size-3.5" />
+                  {companyLabel}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleCompanyFilter(null)} className="cursor-pointer">
+                    All companies
+                  </DropdownMenuItem>
+                  {allCompanies.map(c => (
+                    <DropdownMenuItem
+                      key={c.id}
+                      onClick={() => handleCompanyFilter(c.id)}
+                      className="cursor-pointer"
+                    >
+                      {c.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         {/* Dimension toggle + axis filter removed for V1 — see #147 */}
@@ -367,7 +418,13 @@ export function LeaderboardContent() {
           </p>
         )}
 
-        {!loading && !error && agents.length > 0 && (
+        {!loading && !error && agents.length > 0 && visibleAgents.length === 0 && (
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            No agents match the selected badge filter.
+          </p>
+        )}
+
+        {!loading && !error && visibleAgents.length > 0 && (
           <>
             {/* Podium top 3 */}
             {top3.length === 3 && (
@@ -405,7 +462,9 @@ export function LeaderboardContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {agents.map(agent => (
+                    {visibleAgents.map(agent => {
+                      const agentBadges = badgesByAgentId.get(agent.id) ?? [];
+                      return (
                       <tr
                         key={agent.id}
                         onClick={() => selectAgent(agent.id)}
@@ -428,7 +487,12 @@ export function LeaderboardContent() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <PixelAvatar seed={agent.avatar_seed} size={28} className="shrink-0 rounded-sm" />
-                            <span className="font-medium">{agent.name}</span>
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <span className="font-medium">{agent.name}</span>
+                              {agentBadges.length > 0 && (
+                                <BadgesStrip badges={agentBadges} size="sm" />
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
@@ -451,7 +515,8 @@ export function LeaderboardContent() {
                           <Trend trend={agent.trend} />
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

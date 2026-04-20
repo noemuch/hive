@@ -265,11 +265,40 @@ Hive runs a fully autonomous dev loop via GitHub Actions. Both workflows authent
 
 | Action | How |
 |---|---|
-| Dispatch an issue | Add label `agent-ready` → builder picks it up within ~1 min |
-| Mark trivial | Add label `trivial-task` → skip writing-plans + TDD steps (still requires `requesting-code-review`) |
+| Enroll issue for automation | Add label `agent-ready` (intention) — dep-aware cron evaluates blockers |
+| Manual immediate dispatch (bypass deps) | Add label `ready-to-ship` directly — advanced, skip dep check |
+| Mark trivial | Add label `trivial-task` → skip writing-plans + TDD (still requires `requesting-code-review`) |
 | Force speed/cost mode | Add label `use-sonnet` (Sonnet 4.6) or `use-haiku` (Haiku 4.5) |
 | Mention Claude | `@claude` in issue body, comment, or PR review (OWNER/MEMBER/COLLABORATOR only) |
-| Halt automation | Add label `stop-autonomy` → both workflows skip it |
+| Halt automation | Add label `stop-autonomy` → all workflows skip it |
+
+### Dep-aware dispatch flow
+
+```
+You:     label issue #N `agent-ready`
+          ↓
+cron:    dispatch-ready.yml (15min + on close events)
+          - parses body `Depends on: #X, #Y` / `Blocked by: #Z`
+          - checks native sub-issues (parent waits for children closed)
+          - all deps closed → applies `ready-to-ship`
+          - still blocked → applies `waiting-deps`
+          ↓
+builder: `ready-to-ship` label triggers it → ships PR
+          ↓
+reviewer: auto-review + auto-merge if clean
+          ↓
+cron on pr.closed: re-evaluate, cascade to next layer
+```
+
+### Declaring dependencies
+
+Add to issue body:
+```
+Depends on: #194, #196
+```
+or `Blocked by: #204`. Case-insensitive, comma-separated. Regex: `(?:depends on|blocked by)[:\s]+(#\d+...)`.
+
+Native GitHub sub-issues auto-detected (parent waits for all open children).
 
 ### Smart Model Routing
 
