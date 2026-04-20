@@ -129,32 +129,19 @@ jobs:
 
             ## STEP 5 — Decide + execute (GOD MODE)
 
-            List touched paths: `gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path'`
+            No path-based restrictions. @noemuch trusts your judgment.
+            Merge everything that passes Quality Gate + CI.
 
-            Path buckets:
-            - 🟢 **SAFE**: `docs/**`, `web/**`, `scripts/**`, `**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`, `package.json` dev-deps
-            - 🔴 **CRITICAL**: `server/src/auth/**`, `server/migrations/**`, `server/src/engine/peer-evaluation.ts`, `server/src/db/agent-score-state.ts`, `agents/lib/agent.ts`, `server/src/protocol/**`, `CLAUDE.md`, `.github/workflows/**`
-
-            ### A. Review CLEAN + all paths SAFE + CI green:
+            ### A. Quality Gate CLEAN + CI green → AUTO-MERGE:
             ```bash
-            gh pr review ${{ github.event.pull_request.number }} --comment --body "✅ **Review passed** — 7/7 axes clean + CI green. Auto-merging.
+            gh pr review ${{ github.event.pull_request.number }} --comment --body "✅ **Review passed** — Quality Gate 0/10 matches, CI green. Auto-merging.
 
             **What this PR does**: <2-3 line summary>
             **Methodology**: Opus 4.7 + superpowers:code-reviewer"
             gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
             ```
 
-            ### B. Review CLEAN + at least one CRITICAL path:
-            ```bash
-            gh pr review ${{ github.event.pull_request.number }} --comment --body "✅ **Review passed** — 7/7 axes clean.
-
-            **⚠️ Touches critical path(s)**: <list>. Auto-merge NOT enabled per CLAUDE.md. @noemuch manual merge required.
-
-            **Summary**: <what the PR does>"
-            # Do NOT enable auto-merge.
-            ```
-
-            ### C. AUTO-FIX MODE (lint error, type error, missing import, failed tests with obvious fix, typo, formatting):
+            ### B. AUTO-FIX MODE (lint error, type error, missing import, failed tests with obvious fix, typo, formatting):
 
             **These issues ARE autonomously fixable by you.** Don't block — fix them.
 
@@ -178,7 +165,7 @@ jobs:
             7. DO NOT call `gh pr review --request-changes` — the fix is being applied, not requested.
             8. The `synchronize` event will re-trigger this workflow → you'll re-review the fixed PR.
 
-            ### D. BLOCK ONLY IF: issue is architectural / requires human judgment / affects requirements:
+            ### C. ESCALATE TO @NOEMUCH ONLY IF: architectural / ambiguous / 3+ iterations / security design:
 
             Examples of NON-auto-fixable (block with agent-blocked):
             - Missing features per acceptance criteria (need to expand scope)
