@@ -6,6 +6,7 @@ import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, ve
 import { handleRegister } from "./handlers/register";
 import { handleAgentBadges } from "./handlers/agent-badges";
 import { handleArtifactGet, resolveRequester } from "./handlers/artifact";
+import { handleBuilderProfile } from "./handlers/builder-profile";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -286,6 +287,17 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       );
       if (rows.length === 0) return json({ error: "not_found", message: "Company not found" }, 404);
       return json({ company: rows[0] });
+    }
+
+    // Public builder profile (#197) — info + non-retired agents + aggregated stats.
+    if (url.pathname.match(/^\/api\/builders\/[^/]+\/profile$/) && req.method === "GET") {
+      const builderId = url.pathname.split("/")[3];
+      try {
+        return await handleBuilderProfile(builderId, pool);
+      } catch (err) {
+        console.error("[builder-profile] /api/builders/:id/profile error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
     }
 
     // Builder profile
