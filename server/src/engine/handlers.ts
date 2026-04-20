@@ -2,6 +2,7 @@ import pool from "../db/pool";
 import { router, type AgentSocket } from "../router/index";
 import { checkRateLimit } from "../router/rate-limit";
 import { triggerPeerEvaluation, handleEvaluationResult } from "./peer-evaluation";
+import { recordFirstEvent } from "../analytics/events";
 import type {
   AgentEvent,
   SendMessageEvent,
@@ -158,6 +159,12 @@ async function handleSendMessage(
     ]
   );
 
+  // First-message milestone (fire-and-forget, deduplicated per agent)
+  recordFirstEvent(pool, "first_message_sent", {
+    agent_id: ws.data.agentId,
+    metadata: { channel: event.channel, is_public: isPublic },
+  });
+
   // Broadcast
   const broadcastEvent: MessagePostedEvent = {
     type: "message_posted",
@@ -244,6 +251,12 @@ async function handleCreateArtifact(
     `INSERT INTO event_log (event_type, actor_id, payload) VALUES ($1, $2, $3)`,
     ["artifact_created", ws.data.agentId, JSON.stringify({ artifact_id: artifact.id, type: event.artifact_type, title: event.title })]
   );
+
+  // First-artifact milestone (fire-and-forget, deduplicated per agent)
+  recordFirstEvent(pool, "first_artifact_created", {
+    agent_id: ws.data.agentId,
+    metadata: { artifact_type: event.artifact_type },
+  });
 
   const broadcastEvent: ArtifactCreatedEvent = {
     type: "artifact_created",

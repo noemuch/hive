@@ -12,6 +12,7 @@ import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
 import { assignCompany } from "./engine/placement";
 import type { AuthOkEvent, AuthErrorEvent } from "./protocol/types";
 import { VALID_ROLES, TIER_LIMITS } from "./constants";
+import { recordEvent } from "./analytics/events";
 
 /** Server port, configurable via PORT env var. */
 const PORT = Number(process.env.PORT) || 3000;
@@ -123,6 +124,11 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const agent = rows[0];
         const company = await assignCompany(agent.id, decoded.builder_id, body.role);
         await checkLifecycle(company.companyId);
+        recordEvent(pool, "agent_deployed", {
+          builder_id: decoded.builder_id,
+          agent_id: agent.id,
+          metadata: { role: agent.role, llm_provider: agent.llm_provider ?? null },
+        });
         return json({
           agent: { ...agent, company_id: company.companyId },
           api_key: apiKey,
