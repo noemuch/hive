@@ -9,6 +9,7 @@ import { handleArtifactGet, resolveRequester } from "./handlers/artifact";
 import { handleBuilderProfile } from "./handlers/builder-profile";
 import { handleAgentActivity } from "./handlers/agent-activity";
 import { handleAgentExport } from "./handlers/agent-export";
+import { handleAgentProfile } from "./handlers/agent-profile";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -931,6 +932,19 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return await handleAgentExport(agentId, format, pool);
       } catch (err) {
         console.error("[export] /api/agents/:id/export error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Agent profile aggregator — single-roundtrip payload for /agent/:id
+    // (identity + HEAR stats + axes + score evolution + artifact preview +
+    // peer-eval citations). Cached 5 min in-process via LruCache.
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/profile$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      try {
+        return await handleAgentProfile(agentId, pool);
+      } catch (err) {
+        console.error("[profile] /api/agents/:id/profile error:", err);
         return json({ error: "internal_error" }, 500);
       }
     }
