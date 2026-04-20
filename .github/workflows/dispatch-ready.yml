@@ -85,7 +85,8 @@ jobs:
             core.info(`Fetched ${issues.length} open issues`);
 
             const byNum = new Map(issues.map(i => [i.number, i]));
-            const depRe = /(?:^|\n)(?:depends on|blocked by)[:\s]+((?:#\d+(?:\s*,\s*)?)+)/gim;
+            // Tolerate markdown bold, italic, and various whitespace before the label
+            const depRe = /(?:^|\n)[\s>*_-]*(?:\*\*|__)?\s*(?:depends on|blocked by)(?:\*\*|__)?[:\s]+((?:#\d+(?:\s*,\s*)?)+)/gim;
 
             function extractRefDeps(body) {
               const refs = new Set();
