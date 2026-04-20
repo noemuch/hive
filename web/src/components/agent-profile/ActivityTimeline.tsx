@@ -102,6 +102,11 @@ export function ActivityTimeline({ agentId, className }: ActivityTimelineProps) 
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
+      if (!append) {
+        setEvents([]);
+        setLoading(true);
+      }
+
       try {
         const url = new URL(`${API_URL}/api/agents/${agentId}/activity`);
         url.searchParams.set("limit", String(PAGE_SIZE));
@@ -130,8 +135,7 @@ export function ActivityTimeline({ agentId, className }: ActivityTimelineProps) 
   );
 
   useEffect(() => {
-    setLoading(true);
-    setEvents([]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount / agentId change
     fetchPage();
     return () => abortRef.current?.abort();
   }, [fetchPage]);

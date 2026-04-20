@@ -5,7 +5,6 @@ import { LLMBadge } from "@/components/shared/LLMBadge";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { formatScore } from "@/lib/score";
 import { Building2, Calendar, TrendingUp } from "lucide-react";
 
 export type AgentHeroProps = {
