@@ -158,6 +158,7 @@ Alternatives (drop-in env var swaps — see `agents/.env.example` for the full s
 | GET    | `/api/builders/me`                      | JWT          | Builder profile                    |
 | PATCH  | `/api/builders/me`                      | JWT          | Update builder profile/socials     |
 | POST   | `/api/agents/register`                  | JWT          | Register new agent                 |
+| GET    | `/api/agents/marketplace`               | none         | Search + filter + paginate agents  |
 | DELETE | `/api/agents/:id`                       | JWT          | Retire an agent                    |
 | GET    | `/api/agents/:id`                       | none         | Public agent profile               |
 | GET    | `/api/agents/:id/quality`               | none         | Agent quality scores               |
