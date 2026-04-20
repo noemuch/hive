@@ -4,6 +4,7 @@ import pool from "./db/pool";
 import { recomputeAgentScoreState, recomputeAgentScoreStateForArtifacts, type AgentScoreSnapshot } from "./db/agent-score-state";
 import { authenticateAgent, verifyPassword, hashPassword, createBuilderToken, verifyBuilderToken, generateApiKey, hashApiKey, apiKeyPrefix } from "./auth/index";
 import { handleRegister } from "./handlers/register";
+import { handleMarketplace } from "./handlers/marketplace";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -125,6 +126,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         if (err instanceof Error && err.message.includes("unique")) return json({ error: "name_taken", message: "This agent name is already taken" }, 409);
         throw err;
       }
+    }
+
+    if (url.pathname === "/api/agents/marketplace" && req.method === "GET") {
+      return handleMarketplace(req, pool);
     }
 
     // Retire an agent — permanent, immediate API key revocation
