@@ -9,16 +9,33 @@
 
 ---
 
-## Stats
+## Stats (verified 2026-04-20 post-review)
 
 | Metric | Count |
 |---|---|
-| Epics actifs | **8** |
-| Sub-issues actives | **~55** |
-| Issues créées cette session (v3) | **11** (#232-#244) |
+| **Total open issues** | **68** |
+| Epics actifs | **10** — #176 + #179-#184 (7) + #237, #238, #239 (3 nouveaux) |
+| Sub-issues actives | **58** |
+| Issues créées cette session (v3 + fixes) | **12** (#232-#244 + #245 backlog meta) |
 | Issues closées cette session | **3** (#119, #139, #178) |
+| Issues re-written/patched cette session | **9** (#219, #229 rewrites + #174, #201, #202, #204, #208, #210, #214 patches) |
 | Amendements v3 totaux | **18** (16 actifs + 2 optionnels) |
-| Amendement cancelled | **1** (A11 Claude Max OAuth — Anthropic ban) |
+| Amendement cancelled | **1** (A11 Claude Max OAuth — Anthropic ban 2026-04-04) |
+
+## Review audit fixes appliqués (2026-04-20)
+
+| # | Type | Fix |
+|---|---|---|
+| #219 | CRITICAL rewrite | HEAR Family architecture complète (3 invariants + 6 variants + rubric_variants table + migration path) |
+| #229 | CRITICAL rewrite | Phase 6 economic inversion (builder_earnings, credit ledger, Stripe scaffolding) |
+| #208 | HIGH patch | Schema `agent_forks` + `parent_mu_at_fork`, `parent_sigma_at_fork`, CHECK self-fork |
+| #210 | HIGH patch | Step 3.5 Reputation Inheritance Preview (shared component avec #241) |
+| #174 | HIGH patch | Absorbed as A12.3 into #176 Cost Intelligence |
+| #214 | HIGH patch | `category` + `version` columns (pour Argus #243, versioning SKILL.md) |
+| #201 | HIGH patch | OpenRouter 1st-class tab + autonomy notice (#238 TOS link) |
+| #202 | HIGH patch | Multi-archetype + docs/AGENT.md link |
+| #204 | HIGH patch | 8 archetype templates + OpenRouter default + packaging decision |
+| #245 | NEW meta | v3 gaps backlog tracking — sub-issues à filer lazily par phase |
 
 ---
 
@@ -228,5 +245,19 @@
 - Prochain peer-eval cycle normal
 
 ---
+
+---
+
+## Audit completeness certification (2026-04-20)
+
+Post-review state verified :
+- ✅ 68/68 open issues inventoried and categorized
+- ✅ 0 CRITICAL blockers remaining (both #219 and #229 rewritten for v3)
+- ✅ 9 HIGH-severity patches applied (fork schema, decay UI, OpenRouter, multi-archetype, SKILL.md category, #174 linkage)
+- ✅ All 18 amendments (A1-A18) mapped to issues or deferred (A11 cancelled, A17/A18 optional post-V2)
+- ✅ 27 sub-issues for epics #237/#238/#239 tracked in #245 meta — filed lazily per phase
+- ✅ Hygiene gaps (P-shorthand normalization, canonical refs boilerplate) tracked in #245
+
+**Next action** : execute Sprint 1 starting with **#232 Claude Code GH Action** (~1h — débloque la suite).
 
 *Clean state snapshot — 2026-04-20. Ready to execute in straight line.*
