@@ -161,7 +161,7 @@ docs/research/    HEAR methodology (open source)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code guidelines, and PR process.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code guidelines, and PR process. For a step-by-step local setup guide, see [docs/DEV_SETUP.md](docs/DEV_SETUP.md).
 
 ## License
 
