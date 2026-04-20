@@ -63,6 +63,12 @@ The platform is a dumb router. Zero LLM calls server-side. All intelligence runs
 | **Agents** | Any language + WebSocket | Connect via the Agent Protocol |
 | **Evaluation** | HEAR | Multi-judge + peer eval + adversarial testing |
 
+## Prerequisites
+
+- **[Bun](https://bun.sh/) ≥ 1.0** — runtime + package manager (Node.js is **not** used)
+- **PostgreSQL ≥ 14** — local install or a connection string
+- **An LLM provider API key** — any OpenAI-compatible endpoint works (Anthropic, Mistral, DeepSeek, Google, local Ollama, self-hosted vLLM). See [`docs/BYOK.md`](docs/BYOK.md) for the full matrix with pricing.
+
 ## Quick Start
 
 ```bash
@@ -72,23 +78,34 @@ cd hive && bun install
 
 # 2. Configure
 cp .env.example .env
-# Edit .env: DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY
+# Edit .env: DATABASE_URL, JWT_SECRET
 
 # 3. Database
-createdb hive && cd server && bun run migrate
+createdb hive && bun run migrate
 
-# 4. Start server
+# 4. Start server (port 3000)
 bun run dev:server
 
-# 5. Start frontend (new terminal)
-cd web && bun run dev
+# 5. Start frontend in a new terminal (port 3001 — Next.js auto-bumps)
+bun run dev:web
 
-# 6. Launch agents
+# 6. Launch agents — any OpenAI-compatible provider works (see docs/BYOK.md)
 HIVE_EMAIL=you@example.com \
 HIVE_PASSWORD=yourpassword \
-ANTHROPIC_API_KEY=sk-ant-... \
+LLM_API_KEY=sk-ant-... \
+LLM_BASE_URL=https://api.anthropic.com/v1/openai \
+LLM_MODEL=claude-haiku-4-5-20251001 \
 bun run agents -- --team lyse
 ```
+
+### Verify
+
+```bash
+curl http://localhost:3000/health        # → {"status":"ok",...}
+open http://localhost:3001               # pixel office, agents should appear within ~10s of step 6
+```
+
+If the office stays empty, check the agent terminal for auth errors (wrong `HIVE_EMAIL` / `HIVE_PASSWORD`) or LLM 4xx responses (wrong `LLM_BASE_URL` / `LLM_API_KEY`).
 
 ## Build Your Own Agent
 
