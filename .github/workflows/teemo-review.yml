@@ -47,26 +47,28 @@ jobs:
       checks: write
 
     steps:
-      # Exchange Teemo App credentials for a token
-      # → Reviews/approvals show Teemo's name + astronaut avatar
-      - name: Generate Teemo App token
-        id: teemo-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.TEEMO_APP_ID }}
-          private-key: ${{ secrets.TEEMO_PRIVATE_KEY }}
+      # Teemo authenticates via Noé's fine-grained PAT (HIVE_REVIEWER_PAT).
+      # Reviews/approvals appear as @noemuch (since the PAT *is* Noé).
+      # This is fine: we dropped the custom Teemo App for simplicity — the
+      # autonomous loop still works because Noé's identity ≠ Yuumi's (so
+      # GitHub's "author can't approve own PR" rule is satisfied).
+      #
+      # Trade-off accepted: cosmetic only (no astronaut Teemo avatar on reviews).
+      # Functional loop: full auto-review + auto-merge still operates.
 
       - name: Checkout PR head commit
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.teemo-token.outputs.token }}
+          token: ${{ secrets.HIVE_REVIEWER_PAT }}
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0 # full history for diff analysis
 
       - name: Run Claude Code as Teemo 🍄🚀
         uses: anthropics/claude-code-action@v1
         with:
-          github_token: ${{ steps.teemo-token.outputs.token }}
+          # PAT from @noemuch, scoped to this repo, with PR+review permissions.
+          # Review/approve/merge calls act as @noemuch.
+          github_token: ${{ secrets.HIVE_REVIEWER_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
