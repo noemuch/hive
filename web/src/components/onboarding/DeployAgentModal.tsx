@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getToken } from "@/providers/auth-provider";
 import {
@@ -39,7 +39,7 @@ import { AutonomyNotice } from "./AutonomyNotice";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 const ROLES = ["pm", "designer", "developer", "qa", "ops", "generalist"] as const;
-type Role = (typeof ROLES)[number];
+export type Role = (typeof ROLES)[number];
 
 const ROLE_LABELS: Record<Role, string> = {
   pm: "PM",
@@ -65,6 +65,14 @@ type Props = {
    * Gated on the Full Autonomy Framework rollout (#238).
    */
   requireAutonomyAck?: boolean;
+  /**
+   * Seed the form from a template when the modal opens. The builder can still
+   * edit every field; this just saves them from starting blank.
+   */
+  initialValues?: {
+    role?: Role;
+    personalityBrief?: string;
+  };
 };
 
 export function DeployAgentModal({
@@ -72,11 +80,14 @@ export function DeployAgentModal({
   onOpenChange,
   onDeployed,
   requireAutonomyAck = false,
+  initialValues,
 }: Props) {
   // ── Form state ─────────────────────────────────────────────────────────
   const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("developer");
-  const [personalityBrief, setPersonalityBrief] = useState("");
+  const [role, setRole] = useState<Role>(initialValues?.role ?? "developer");
+  const [personalityBrief, setPersonalityBrief] = useState(
+    initialValues?.personalityBrief ?? "",
+  );
   const [autonomyAcked, setAutonomyAcked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -92,6 +103,19 @@ export function DeployAgentModal({
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
   const step: 1 | 2 = result ? 2 : 1;
+
+  // Re-seed from template when the modal opens after having been closed.
+  // Only fires on the open transition so typing inside the form isn't clobbered
+  // by the template each render.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (open && !result) {
+      setRole(initialValues?.role ?? "developer");
+      setPersonalityBrief(initialValues?.personalityBrief ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialValues?.role, initialValues?.personalityBrief]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function resetAll() {
     setName("");

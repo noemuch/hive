@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, getToken } from "@/providers/auth-provider";
 import { Input } from "@/components/ui/input";
@@ -25,6 +24,7 @@ import { DeployAgentModal } from "@/components/onboarding/DeployAgentModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 import { HiresTable, type Hire } from "@/components/dashboard/HiresTable";
 import { AgentSkillsPanel } from "@/components/dashboard/AgentSkillsPanel";
+import { EmptyState, type AgentTemplate } from "@/components/dashboard/EmptyState";
 import { getInitials } from "@/lib/initials";
 import { formatScore } from "@/lib/score";
 import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/useAgentScoreRefresh";
@@ -374,6 +374,7 @@ export function DashboardContent() {
   useAgentScoreRefresh(applyScoreRefresh);
   const [editOpen, setEditOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
+  const [deployTemplate, setDeployTemplate] = useState<AgentTemplate | null>(null);
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
   const [retireTarget, setRetireTarget] = useState<{ id: string; name: string } | null>(null);
   const [configureTarget, setConfigureTarget] = useState<{ id: string; name: string } | null>(null);
@@ -589,6 +590,19 @@ export function DashboardContent() {
         {/* ─── Right content ────────────────────────────────────────── */}
         <main className="flex-1 min-w-0 flex flex-col gap-8">
           {/* Deployed Agents */}
+          {agents.length === 0 ? (
+            <EmptyState
+              displayName={displayData.display_name}
+              onTemplateSelect={(template) => {
+                setDeployTemplate(template);
+                setDeployOpen(true);
+              }}
+              onDeployClick={() => {
+                setDeployTemplate(null);
+                setDeployOpen(true);
+              }}
+            />
+          ) : (
           <section className="rounded-xl border bg-card">
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <h2 className="text-sm font-semibold">Your agents</h2>
@@ -596,7 +610,10 @@ export function DashboardContent() {
                 size="sm"
                 disabled={slotsFull}
                 title={slotsFull ? "Slot limit reached for your tier" : undefined}
-                onClick={() => setDeployOpen(true)}
+                onClick={() => {
+                  setDeployTemplate(null);
+                  setDeployOpen(true);
+                }}
               >
                 <PlusIcon className="size-3.5" />
                 Deploy agent
@@ -604,25 +621,8 @@ export function DashboardContent() {
             </div>
 
             <div className="px-5 py-4">
-              {agents.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
-                  <p className="text-sm font-medium">No agents deployed yet.</p>
-                  <p className="text-sm text-muted-foreground">
-                    Deploy your first agent to get started.
-                  </p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    New here?{" "}
-                    <Link
-                      href="/quickstart"
-                      className="underline underline-offset-3 text-foreground hover:text-primary"
-                    >
-                      Read the 5-step quickstart →
-                    </Link>
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {agents.map((agent) => (
+              <div className="divide-y">
+                {agents.map((agent) => (
                     <div
                       key={agent.id}
                       role="button"
@@ -672,8 +672,7 @@ export function DashboardContent() {
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
+              </div>
 
               {slotsFull && (
                 <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -682,6 +681,7 @@ export function DashboardContent() {
               )}
             </div>
           </section>
+          )}
 
           {/* Your hires — API hires in both directions */}
           <section className="rounded-xl border bg-card">
@@ -751,8 +751,15 @@ export function DashboardContent() {
       {/* Deploy Modal */}
       <DeployAgentModal
         open={deployOpen}
-        onOpenChange={setDeployOpen}
+        onOpenChange={(next) => {
+          setDeployOpen(next);
+          if (!next) setDeployTemplate(null);
+        }}
         onDeployed={handleDeployed}
+        initialValues={deployTemplate ? {
+          role: deployTemplate.role,
+          personalityBrief: deployTemplate.personalityBrief,
+        } : undefined}
       />
 
       {/* Retire dialog */}
