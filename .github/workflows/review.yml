@@ -518,7 +518,9 @@ jobs:
             const outTok = u.output_tokens || 0;
             const cacheRead = u.cache_read_input_tokens || 0;
             const cacheWrite = u.cache_creation_input_tokens || 0;
-            const cacheBase = cacheRead + inTok;
+            // Cache hit ratio: denominator includes cache_creation so the metric
+            // reflects real cost efficiency (not biased toward cache-read alone).
+            const cacheBase = cacheRead + inTok + cacheWrite;
             const cacheHitPct = cacheBase > 0 ? Math.round(100 * cacheRead / cacheBase) : 0;
             const fmt = (n) => n >= 1e6 ? `${(n/1e6).toFixed(1)}M`
                              : n >= 1e3 ? `${(n/1e3).toFixed(1)}k` : String(n);
@@ -540,6 +542,83 @@ jobs:
             } catch (e) {
               core.warning(`Cost comment post failed: ${e.message}`);
             }
+
+      - name: CI-bypass incident guard (post-merge)
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PR_NUM: ${{ needs.preflight.outputs.pr_number }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            // Belt-and-suspenders check: if the reviewer merged a PR while
+            // any required check was failed/pending, open a priority:critical
+            // incident issue. The prompt-level `gh pr checks --watch --fail-fast`
+            // guard should prevent this, but with an admin-scoped PAT the LLM
+            // COULD in theory skip it; this post-step catches any such lapse
+            // within seconds and makes it visible + actionable.
+            const pr = parseInt(process.env.PR_NUM, 10);
+            if (!pr) return;
+
+            const { data: prData } = await github.rest.pulls.get({
+              ...context.repo, pull_number: pr
+            });
+            if (!prData.merged) return;
+
+            const mergeSha = prData.merge_commit_sha;
+            if (!mergeSha) return;
+
+            const { data: checks } = await github.rest.checks.listForRef({
+              ...context.repo, ref: mergeSha, per_page: 100
+            });
+
+            // Required check set lives on branch protection; hardcoded here to
+            // avoid a second API call. Update this list if you add required
+            // checks in repo settings.
+            const REQUIRED = ['Tests'];
+
+            const failed = checks.check_runs.filter(c =>
+              REQUIRED.includes(c.name) &&
+              c.status === 'completed' &&
+              c.conclusion !== 'success' && c.conclusion !== 'skipped' && c.conclusion !== 'neutral'
+            );
+            const missing = REQUIRED.filter(name =>
+              !checks.check_runs.some(c => c.name === name && c.status === 'completed')
+            );
+
+            if (failed.length === 0 && missing.length === 0) {
+              core.info(`Post-merge check: PR #${pr} merged at ${mergeSha.slice(0,7)} with all required checks green. ✅`);
+              return;
+            }
+
+            const body = [
+              `🚨 **CI-bypass incident**: PR #${pr} was merged to main at \`${mergeSha.slice(0,7)}\` while required check(s) were not green.`,
+              ``,
+              failed.length ? `**Failed required checks**: ${failed.map(c => `\`${c.name}\` (${c.conclusion})`).join(', ')}` : null,
+              missing.length ? `**Missing required checks** (never completed): ${missing.map(n => `\`${n}\``).join(', ')}` : null,
+              ``,
+              `**Merge commit**: ${mergeSha}`,
+              `**PR**: #${pr}`,
+              `**Reviewer run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              ``,
+              `## Action required`,
+              `- Verify main is not actually broken (\`bun test\` on latest main).`,
+              `- If broken: \`main-healer\` will auto-open a fix issue — confirm it fired.`,
+              `- Root-cause: why did the reviewer's \`gh pr checks --watch --fail-fast\` guard not fire? Check reviewer's sticky comment on PR #${pr}.`,
+              `- If the PAT has admin bypass (likely), consider \`enforce_admins: true\` on branch protection to harden at the GitHub level.`,
+              ``,
+              `This incident was auto-opened by review.yml's post-merge guard.`,
+            ].filter(Boolean).join('\n');
+
+            await github.rest.issues.create({
+              ...context.repo,
+              title: `[CI-bypass incident] PR #${pr} merged with non-green required checks`,
+              body,
+              labels: ['priority:critical', 'type:bug', 'area:infra', 'source:main-healer', 'agent-blocked'],
+              assignees: ['noemuch']
+            });
+
+            core.error(`CI-bypass incident opened for PR #${pr}`);
 
       - name: Post review summary to automation log (#257)
         if: always()

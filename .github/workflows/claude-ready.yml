@@ -475,7 +475,10 @@ jobs:
             const outTok = u.output_tokens || 0;
             const cacheRead = u.cache_read_input_tokens || 0;
             const cacheWrite = u.cache_creation_input_tokens || 0;
-            const cacheBase = cacheRead + inTok;
+            // Cache hit ratio: fraction of prompt tokens served from cache vs re-processed.
+            // Denominator includes cache_creation (first-time prompts getting cached) so
+            // the ratio reflects real cost efficiency, not just cache-read bias.
+            const cacheBase = cacheRead + inTok + cacheWrite;
             const cacheHitPct = cacheBase > 0 ? Math.round(100 * cacheRead / cacheBase) : 0;
             const fmt = (n) => n >= 1e6 ? `${(n/1e6).toFixed(1)}M`
                              : n >= 1e3 ? `${(n/1e3).toFixed(1)}k` : String(n);

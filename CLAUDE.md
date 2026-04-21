@@ -499,12 +499,19 @@ Cron `5 0 1 * *` (00:05 UTC on the 1st of each month). Opens `[YYYY-MM] Automati
 `claude-ready.yml` builder prompt has the stable prefix (CLAUDE.md + superpowers + STEP 0→5 template) at the top and the volatile runtime context (issue number, trivial flag, model, max_turns) in a dedicated block just before `GO.` — maximizes Anthropic prompt cache hits on builder re-runs within the 5-min TTL window (`cache_read` = 0.1× base input price).
 
 ### Hardening guarantees (2026-04-21 audit pass)
+
+**Workflow-level hard guarantees** (enforced by the YAML runner, not by Claude):
 - **Action SHA pin**: every `anthropics/claude-code-action@v1` usage is pinned to commit `5d29e76984c4bd1246cd84381ae25b1452e9047b` (v1 @ 2026-04-21). Supply-chain-safe.
-- **Reviewer CI wait**: the reviewer runs `gh pr checks --required --watch --fail-fast` before `gh pr merge` — an admin-scoped PAT cannot bypass required checks.
 - **Quota-state CAS**: all three writers (claude-ready, review, quota-monitor) use optimistic-concurrency retry (5 attempts, exponential backoff). No history entry is lost on concurrent exhaustion events.
 - **Fail-closed quota detection**: if `gh run view --log` fails while detecting quota exhaustion, the last-attempted account is marked paused for 2h. No infinite retry loop against an exhausted API.
-- **PR label inheritance**: the builder copies `type:*`/`area:*`/`size:*`/`priority:*`/`source:*` labels from the parent issue to the PR — taxonomy is preserved across the issue→PR boundary.
-- **dispatch-ready fail-closed**: on `isBlockerOpen` transient error (5xx / rate-limit), the blocker is treated as still-open. Only a true 404 means resolved. Prevents premature unblocking from a GitHub glitch.
+- **dispatch-ready fail-closed**: on `isBlockerOpen` transient error (5xx / rate-limit), the blocker is treated as still-open. Only a true 404 means resolved.
+- **YAML-anchor prompt reuse**: failover prompts are identical to primary (`&builder_prompt` / `*builder_prompt`, `&reviewer_prompt` / `*reviewer_prompt`). Zero behavior drift across OAuth accounts.
+- **CI-bypass incident guard (post-merge)**: if the reviewer ever merges a PR while required checks failed (e.g. prompt-level guard bypassed, admin PAT race), a post-step detects it and opens a `priority:critical` incident issue. Reactive — doesn't prevent, but surfaces immediately.
+- **Builder/reviewer max-turns**: both primary and failover run at `--max-turns 75` for builder and `--max-turns 95` for reviewer (raised for STEP 1.5 conflict resolution work). Same budget on either account.
+
+**Prompt-level guarantees** (executed by Claude, enforced by clear instructions — ~99% reliable in practice, but not hard-gated):
+- **Reviewer CI wait**: the reviewer runs `gh pr checks --required --watch --fail-fast` before `gh pr merge`. With an admin-scoped PAT `gh pr merge --auto` alone would race; the `--watch --fail-fast` prefix blocks the merge command until checks pass. If the LLM ever skipped this line, the post-merge incident guard above would flag it.
+- **PR label inheritance**: the builder copies `type:*`/`area:*`/`size:*`/`priority:*`/`source:*` labels from the parent issue to the PR as part of STEP 4. If the builder drifts, downstream dashboards lose the taxonomy but nothing breaks.
 
 ### Future setup
 - **Sentry activation**: create Sentry project → Integrations → GitHub link → Alert rule → Webhook `https://api.github.com/repos/noemuch/hive/dispatches` with `Bearer <PAT>`, body `{"event_type":"sentry.issue","client_payload":{fingerprint,title,culprit,count,url,stack_trace}}`. Optional: enable Sentry Seer for root-cause hints (populates `seer_hint` in payload).
