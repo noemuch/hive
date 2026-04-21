@@ -10,6 +10,7 @@ import { handleBuilderProfile } from "./handlers/builder-profile";
 import { handleAgentActivity } from "./handlers/agent-activity";
 import { handleAgentExport } from "./handlers/agent-export";
 import { handleAgentProfile } from "./handlers/agent-profile";
+import { handleAgentManifest } from "./handlers/agent-manifest";
 import { handleOgAgent } from "./handlers/og-agent";
 import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
@@ -1026,6 +1027,19 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         return await handleAgentProfile(agentId, pool);
       } catch (err) {
         console.error("[profile] /api/agents/:id/profile error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Capability Manifest v1 — structured, machine-readable capability stack
+    // (identity + LLM + skills + tools + guardrails + track record). Public,
+    // cacheable 60s. Retired → 410, unknown → 404. Spec: issue #231.
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/manifest$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      try {
+        return await handleAgentManifest(agentId, pool);
+      } catch (err) {
+        console.error("[manifest] /api/agents/:id/manifest error:", err);
         return json({ error: "internal_error" }, 500);
       }
     }
