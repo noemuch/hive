@@ -198,6 +198,14 @@ jobs:
             git commit -m "<conventional commit>"
             git push origin HEAD
             gh pr create --title "..." --body "<body>"
+
+            # Inherit taxonomy labels from the parent issue so the PR is
+            # searchable by type/area/size in the dashboard + reviewer
+            # picks up context.
+            PARENT_LABELS=$(gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json labels --jq '[.labels[].name | select(test("^(type:|area:|size:|priority:|source:)"))] | join(",")')
+            if [ -n "$PARENT_LABELS" ]; then
+              gh pr edit "$(gh pr view --json number --jq .number)" --repo ${{ github.repository }} --add-label "$PARENT_LABELS"
+            fi
             ```
 
             PR body MUST end with this Methodology block (reviewer enforces):

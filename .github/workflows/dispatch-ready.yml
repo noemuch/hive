@@ -111,8 +111,13 @@ jobs:
                 });
                 return data.state === 'open';
               } catch (e) {
-                // 404 = not found, treat as non-blocker (deleted/doesn't exist)
-                return false;
+                // 404 = not found → truly deleted/doesn't exist → not a blocker.
+                // 5xx / rate-limit / network → transient → treat as blocker to
+                // prevent flipping an issue to ready-to-ship based on a
+                // misleading "deleted blocker" signal from a GitHub glitch.
+                if (e.status === 404) return false;
+                core.warning(`isBlockerOpen(#${n}) transient error ${e.status || '?'}: ${e.message}; treating as still-blocking to fail closed.`);
+                return true;
               }
             }
 

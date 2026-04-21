@@ -105,33 +105,37 @@ jobs:
             6. **Do NOT create more than 6 children**. If scope truly needs more, create 5 + 1 "[overflow] <rest>" parent-ish child that can itself be split later.
             7. **Do NOT split if scope is already atomic** — remove `needs-split`, comment "Scope not decomposable — proceed as single PR.", exit.
 
-            ## Create sub-issues (GitHub native)
+            ## Create sub-issues (GitHub native sub-issues API, GA since Jan 2025)
+
+            **IMPORTANT**: `gh issue create` does NOT support `--json` output directly.
+            Parse the URL stdout for the number, then resolve the node ID separately.
 
             ```bash
+            # One-time: resolve the parent node ID
+            PARENT_ID=$(gh api graphql -F num=${{ steps.gate.outputs.issue_number }} -f query='
+              query($num: Int!) { repository(owner:"${{ github.repository_owner }}", name:"${{ github.event.repository.name }}") { issue(number:$num){ id } } }
+            ' --jq '.data.repository.issue.id')
+
             # For each child, after computing TITLE and BODY:
-            CHILD_NUM=$(gh issue create --repo noemuch/hive --title "$TITLE" \
-              --body "$BODY" \
-              --label "agent-ready,<type>,<area>,<size>" \
-              --json number --jq '.number')
+            CHILD_URL=$(gh issue create --repo ${{ github.repository }} \
+              --title "$TITLE" --body "$BODY" \
+              --label "agent-ready,<type>,<area>,<size>")
+            CHILD_NUM=$(echo "$CHILD_URL" | grep -oE '[0-9]+$')
+            CHILD_ID=$(gh api graphql -F num="$CHILD_NUM" -f query='
+              query($num: Int!) { repository(owner:"${{ github.repository_owner }}", name:"${{ github.event.repository.name }}") { issue(number:$num){ id } } }
+            ' --jq '.data.repository.issue.id')
 
-            # Link as sub-issue of parent (GraphQL, native sub-issues API):
-            gh api graphql -f query='
-              mutation($parent: ID!, $child: ID!) {
-                addSubIssue(input: {issueId: $parent, subIssueId: $child}) {
-                  issue { number }
+            # Link as sub-issue of parent (native API, no preview header needed)
+            gh api graphql -F parentId="$PARENT_ID" -F childId="$CHILD_ID" -f query='
+              mutation($parentId: ID!, $childId: ID!) {
+                addSubIssue(input: { issueId: $parentId, subIssueId: $childId }) {
+                  subIssue { number title }
                 }
-              }
-            ' -F parent="<parent_global_id>" -F child="<child_global_id>"
+              }'
             ```
 
-            Get `parent_global_id` / `child_global_id` via:
-            ```bash
-            gh api graphql -f query='{
-              repository(owner:"noemuch", name:"hive") {
-                issue(number: N) { id }
-              }
-            }' --jq '.data.repository.issue.id'
-            ```
+            Limits (hardcoded by GitHub): max 8 levels deep, max 100 children per parent,
+            same-repo only. We create 2-6 children so we are far under all caps.
 
             ## Finalize parent
 
