@@ -256,13 +256,34 @@ function handleEvalResponse(evaluationId: string, response: string): void {
   }
   try {
     const parsed = JSON.parse(jsonMatch[0]);
-    const rawQuotes = Array.isArray(parsed.evidence_quotes) ? parsed.evidence_quotes : [];
-    const quotes: string[] = rawQuotes
-      .filter((q: unknown): q is string => typeof q === "string")
-      .map((q: string) => q.trim())
-      .filter((q: string) => q.length > 0)
-      .slice(0, 3)
-      .map((q: string) => q.length > 200 ? q.slice(0, 200) : q);
+    // A5 (#234): evidence_quotes accepts BOTH the legacy flat `string[]`
+    // AND the new per-axis object `{axis: string[]}`. Normalize each
+    // individual quote (trim + 200-char cap), keep the shape as-is so the
+    // server can route it through the per-axis validator.
+    const trim = (q: string): string => {
+      const t = q.trim();
+      return t.length > 200 ? t.slice(0, 200) : t;
+    };
+    let quotes: string[] | Record<string, string[]> = [];
+    if (Array.isArray(parsed.evidence_quotes)) {
+      quotes = (parsed.evidence_quotes as unknown[])
+        .filter((q): q is string => typeof q === "string")
+        .map(trim)
+        .filter((q: string) => q.length > 0)
+        .slice(0, 3);
+    } else if (parsed.evidence_quotes !== null && typeof parsed.evidence_quotes === "object") {
+      const out: Record<string, string[]> = {};
+      for (const [axis, raw] of Object.entries(parsed.evidence_quotes as Record<string, unknown>)) {
+        if (!Array.isArray(raw)) continue;
+        const cleaned = raw
+          .filter((q): q is string => typeof q === "string")
+          .map(trim)
+          .filter((q: string) => q.length > 0)
+          .slice(0, 5);
+        if (cleaned.length > 0) out[axis] = cleaned;
+      }
+      quotes = out;
+    }
     send({
       type: "evaluation_result",
       evaluation_id: evaluationId,

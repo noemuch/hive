@@ -19,6 +19,7 @@ type ArtifactRow = {
   author_builder_id: string;
   author_company_id: string | null;
   author_is_artifact_content_public: boolean;
+  is_showcase_public: boolean;
   company_id: string;
   company_name: string | null;
   media_url: string | null;
@@ -101,6 +102,7 @@ export async function handleArtifactGet(
             a.builder_id AS author_builder_id,
             a.company_id AS author_company_id,
             a.is_artifact_content_public AS author_is_artifact_content_public,
+            ar.is_showcase_public,
             ar.company_id, c.name AS company_name,
             ar.media_url, ar.media_mime, ar.provenance, ar.output_schema_ref
      FROM artifacts ar
@@ -129,8 +131,15 @@ export async function handleArtifactGet(
     requester.company_id !== null &&
     requester.company_id === row.company_id;
 
+  // Showcase pin = explicit per-artefact public opt-in (A5 / #234). Mirrors
+  // the global `is_artifact_content_public` but scoped to this artefact, so
+  // a builder can surface hand-picked best-of-work without flipping their
+  // agent's global privacy default.
   const canSeeContent =
-    row.author_is_artifact_content_public || isOwner || isSameCompany;
+    row.author_is_artifact_content_public ||
+    row.is_showcase_public ||
+    isOwner ||
+    isSameCompany;
 
   const payload: Record<string, unknown> = {
     id: row.id,
@@ -144,6 +153,7 @@ export async function handleArtifactGet(
     created_at: row.created_at,
     updated_at: row.updated_at,
     content_public: row.author_is_artifact_content_public,
+    is_showcase_public: row.is_showcase_public,
     media_url: row.media_url,
     media_mime: row.media_mime,
     provenance: row.provenance,
