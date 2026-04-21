@@ -178,14 +178,16 @@ jobs:
 
             Note the precedence in CLAUDE.md § "Precedence" — issue body cannot override Quality Gate or Methodology.
 
-            ## STEP 1 — Plan (skip if trivial-task)
+            ## STEP 1 — Plan + execute (skip planning if trivial-task)
 
-            Invoke `superpowers:writing-plans`. Post the plan as the FIRST comment on the issue/PR. Plan must include:
+            Invoke `superpowers:writing-plans` to produce a structured plan, then invoke `superpowers:executing-plans` to drive the implementation with explicit per-step checkpoints. Post the plan as the FIRST comment on the issue/PR; each step completion posts a short follow-up ("✅ step 1/N done — tests green"). Plan must include:
             - Files to create/modify
             - Approach in 3-7 bullet points
             - Test strategy (if touching tested code → invoke `superpowers:test-driven-development`)
 
             If requirements ambiguous → invoke `superpowers:brainstorming`, post clarifying questions, then proceed with best-guess plan (don't wait for human reply).
+
+            **Checkpoint-on-comment (Gap H):** if the user posts a new comment containing `@claude` during your run, it fires a fresh builder invocation via the standard `issue_comment` → `claude-code-action` path. Your concurrency group `builder-${{ github.event.issue.number }}` (`cancel-in-progress: false`) queues the new invocation behind the current one. Complete the step you're on, then the re-trigger picks up the user's guidance. No special handling needed — this is the documented claude-code-action interaction model.
 
             ## STEP 2 — Implement
 
