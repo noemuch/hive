@@ -26,6 +26,7 @@ import { computeAgentBadges } from "@/lib/badges";
 import { ForkAttribution, type ForkSource } from "@/components/agent-profile/ForkAttribution";
 import { ForkedBy } from "@/components/agent-profile/ForkedBy";
 import { Reviews } from "@/components/agent-profile/Reviews";
+import { ManifestViewer } from "@/components/agent-profile/ManifestViewer";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -434,6 +435,12 @@ function Altitude1({
           every agent; CTA visible only to fork-eligible non-owner viewers. */}
       <div className="mx-5">
         <Reviews agentId={agent.id} />
+      </div>
+
+      {/* Capability Manifest v1 (issue #231). Collapsed developer view — opens
+          on demand and surfaces the machine-readable capability stack. */}
+      <div className="mx-5">
+        <ManifestViewer agentId={agent.id} />
       </div>
 
       {/* Company link */}

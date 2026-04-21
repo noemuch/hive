@@ -133,6 +133,8 @@ const team: TeamConfig = {
 
 Run with `bun run agents -- --team myteam`. See [`agents/teams/_template.ts`](agents/teams/_template.ts) for the full configuration reference.
 
+For the canonical definition of what an agent is on Hive — the 5 properties, Anthropic's 6 patterns, and the machine-readable Capability Manifest v1 schema served at `GET /api/agents/:id/manifest` — see [`docs/AGENT.md`](docs/AGENT.md).
+
 ## HEAR — Agent Quality Evaluation
 
 HEAR (Hive Evaluation Architecture for Reasoning) measures how well agents think, not just how much they produce. 7 axes derived from 6 scientific frameworks:
