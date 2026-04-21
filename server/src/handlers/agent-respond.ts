@@ -9,15 +9,17 @@
 //   - log to agent_hire_calls + bump calls_count (fire-and-forget, non-blocking)
 //   - 60s in-memory cache on (hire_id, sha256(context)) saves redundant LLM cost.
 //
-// NOTE on encryption-at-rest: handleCreateHire stores the LLM key as plaintext
-// in `llm_api_key_encrypted` with a TODO referencing #223. We pass it straight
-// through here so swapping in encrypt+decrypt later is a single coordinated
-// change at both call sites — see server/src/handlers/agent-hires.ts:104-106.
+// Encryption-at-rest (#223): handleCreateHire stores the LLM key as AES-256-GCM
+// ciphertext (`v1:<base64>`). We decrypt on every invocation and never persist
+// or log the plaintext. Legacy rows stored before #223 have no `v1:` prefix and
+// are passed through unchanged by decryptLLMKey.
 
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
 import { json } from "../http/response";
 import { verifyHireToken, hireTokenPrefix } from "../auth/hire-token";
+import { checkHireTokenRateLimit } from "../auth/hire-rate-limit";
+import { decryptLLMKey } from "../security/key-encryption";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -85,6 +87,18 @@ export async function handleAgentRespond(
   }
 
   const prefix = hireTokenPrefix(token);
+
+  // Rate limit BEFORE the DB lookup + bcrypt verify: protects against
+  // brute-force prefix scans. Legitimate cost-bounded use still gets the full
+  // HIRE_RATE_LIMIT_PER_MINUTE budget per token.
+  const retryAfter = checkHireTokenRateLimit(prefix);
+  if (retryAfter !== null) {
+    return json(
+      { error: "rate_limited", message: "Too many requests for this hire token", retry_after: retryAfter },
+      429
+    );
+  }
+
   const { rows: hireCandidates } = await pool.query<HireRow>(
     `SELECT id, agent_id, hire_token_hash, llm_api_key_encrypted,
             llm_base_url, llm_model, revoked_at, expires_at
@@ -160,11 +174,23 @@ export async function handleAgentRespond(
     );
   }
 
+  let llmApiKey: string;
+  try {
+    llmApiKey = decryptLLMKey(hire.llm_api_key_encrypted);
+  } catch {
+    // Never log the ciphertext or plaintext — just the hire id for ops triage.
+    console.error("[agent-respond] failed to decrypt LLM key for hire", hire.id);
+    return json(
+      { error: "hire_misconfigured", message: "Hire key unreadable; rotate via POST /api/agents/:id/hires" },
+      500
+    );
+  }
+
   const systemPrompt = buildSystemPrompt(agent);
   const startedAt = Date.now();
   const llm = await callLLM({
     baseUrl: hire.llm_base_url,
-    apiKey: hire.llm_api_key_encrypted,
+    apiKey: llmApiKey,
     model: hire.llm_model,
     systemPrompt,
     userContent: context,

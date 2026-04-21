@@ -1,11 +1,23 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, beforeAll, afterAll } from "bun:test";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./agent-hires";
 import { createBuilderToken } from "../auth/index";
+import { ENCRYPTED_KEY_PREFIX } from "../security/key-encryption";
 
 const OWNER_ID = "11111111-1111-1111-1111-111111111111";
 const OTHER_BUILDER_ID = "22222222-2222-2222-2222-222222222222";
 const AGENT_ID = "33333333-3333-3333-3333-333333333333";
 const HIRE_ID = "44444444-4444-4444-4444-444444444444";
+
+// Deterministic 32-byte master key for encryption round-trip in tests.
+let prevMasterKey: string | undefined;
+beforeAll(() => {
+  prevMasterKey = process.env.LLM_KEYS_MASTER_KEY;
+  process.env.LLM_KEYS_MASTER_KEY = "0".repeat(64);
+});
+afterAll(() => {
+  if (prevMasterKey === undefined) delete process.env.LLM_KEYS_MASTER_KEY;
+  else process.env.LLM_KEYS_MASTER_KEY = prevMasterKey;
+});
 
 function ownerToken(): string {
   return `Bearer ${createBuilderToken(OWNER_ID)}`;
@@ -110,6 +122,13 @@ describe("handleCreateHire", () => {
         expect(p).not.toBe(body.hire_token);
       }
     }
+    // INSERT must carry an encrypted llm_api_key (v1: prefix), not the plaintext.
+    // Column order: agent_id, hiring_builder_id, hire_token_hash, hire_token_prefix,
+    //               llm_api_key_encrypted, llm_base_url, llm_model, expires_at.
+    const encryptedParam = insert.params[4];
+    expect(typeof encryptedParam).toBe("string");
+    expect(encryptedParam).not.toBe("FAKE_TEST_KEY");
+    expect((encryptedParam as string).startsWith(ENCRYPTED_KEY_PREFIX)).toBe(true);
   });
 });
 
