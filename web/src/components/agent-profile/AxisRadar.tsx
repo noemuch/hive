@@ -7,8 +7,12 @@ import { cn } from "@/lib/utils";
 export type AxisRadarPoint = {
   axis: string;
   label: string;
-  mu: number;
+  mu: number | null;
   sigma?: number;
+  // When set, the row is rendered in the legend as "pending" (no numeric score).
+  // Used for axes that exist in the HEAR rubric but haven't been evaluated
+  // for this agent yet (e.g. adversarial_robustness before Argus runs).
+  pendingLabel?: string;
 };
 
 export type AxisRadarProps = {
@@ -33,8 +37,12 @@ function buildPolygon(points: { x: number; y: number }[]): string {
   return points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
 }
 
+type ScoredPoint = AxisRadarPoint & { mu: number };
+
 export function AxisRadar({ data, className }: AxisRadarProps) {
-  const validData = data.filter((d) => d.mu != null && !isNaN(d.mu));
+  const validData: ScoredPoint[] = data.filter(
+    (d): d is ScoredPoint => d.mu != null && !isNaN(d.mu)
+  );
   const n = validData.length;
 
   const { webPoints, gridPolygons, labelPositions, valuePoints } =
@@ -69,7 +77,11 @@ export function AxisRadar({ data, className }: AxisRadarProps) {
       };
     }, [validData, n]);
 
-  if (n === 0) {
+  // Fallback only when there is *nothing* to show — including pending axes.
+  // If the agent has zero scored axes but has a pending row (e.g. AR before
+  // Argus runs), we still render the component so the rubric dimension is
+  // visible in the legend.
+  if (data.length === 0) {
     return (
       <div
         className={cn(
@@ -92,12 +104,21 @@ export function AxisRadar({ data, className }: AxisRadarProps) {
         <h2 className="text-sm font-semibold">HEAR Axes</h2>
       </div>
       <div className="flex justify-center px-2 py-4">
+        {n === 0 ? (
+          <div
+            className="flex items-center justify-center text-xs text-muted-foreground"
+            style={{ width: SIZE, height: SIZE }}
+            aria-label="No scored axes yet"
+          >
+            No scored axes yet
+          </div>
+        ) : (
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}
           width={SIZE}
           height={SIZE}
           role="img"
-          aria-label="Radar chart showing scores across 7 HEAR axes"
+          aria-label={`Radar chart showing scores across ${n} HEAR ${n === 1 ? "axis" : "axes"}`}
           className="max-w-full"
         >
           {/* Grid polygons */}
@@ -188,19 +209,33 @@ export function AxisRadar({ data, className }: AxisRadarProps) {
             ) : null
           )}
         </svg>
+        )}
       </div>
 
-      {/* Legend table */}
+      {/* Legend table — includes pending axes (null score) so the rubric
+          dimension is visible even before an evaluator has graded it. */}
       <div className="divide-y border-t">
-        {validData.map((d) => (
-          <div
-            key={d.axis}
-            className="flex items-center justify-between px-4 py-1.5 text-xs"
-          >
-            <span className="text-muted-foreground">{d.label}</span>
-            <span className="tabular-nums font-medium">{d.mu.toFixed(1)}</span>
-          </div>
-        ))}
+        {data.map((d) => {
+          const scored = d.mu != null && !isNaN(d.mu);
+          return (
+            <div
+              key={d.axis}
+              className="flex items-center justify-between px-4 py-1.5 text-xs"
+              title={!scored && d.pendingLabel ? d.pendingLabel : undefined}
+            >
+              <span className="text-muted-foreground">{d.label}</span>
+              {scored ? (
+                <span className="tabular-nums font-medium">
+                  {(d.mu as number).toFixed(1)}
+                </span>
+              ) : (
+                <span className="italic text-muted-foreground/70">
+                  {d.pendingLabel ?? "Pending"}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

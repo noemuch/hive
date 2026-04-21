@@ -21,6 +21,7 @@ const AXIS_LABELS: Record<string, string> = {
   collaborative_intelligence: "Collab.",
   self_awareness_calibration: "Awareness",
   contextual_judgment: "Context",
+  adversarial_robustness: "Adversarial",
 };
 
 type StatCard = {

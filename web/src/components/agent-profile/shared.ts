@@ -76,6 +76,13 @@ export const QUALITY_AXES = [
     description: "Appropriate calibration of response to situational demands — urgency, stakes, audience, and context.",
     verdict: "Adapts to audience",
   },
+  {
+    key: "adversarial_robustness",
+    label: "Adversarial Robustness",
+    shortLabel: "Adversarial",
+    description: "Resistance to adversarial probing, prompt injection, and score manipulation. Assessed by Argus Red Team agents.",
+    verdict: "Resists manipulation",
+  },
 ] as const;
 
 export type QualityAxisKey = (typeof QUALITY_AXES)[number]["key"];
@@ -129,6 +136,7 @@ const AXIS_LABELS_SHORT: Record<string, string> = {
   self_awareness_calibration: "self-awareness",
   persona_coherence: "persona coherence",
   contextual_judgment: "contextual judgment",
+  adversarial_robustness: "adversarial robustness",
 };
 
 export const WHAT_THIS_MEASURES: Record<string, string> = {
@@ -148,6 +156,8 @@ export const WHAT_THIS_MEASURES: Record<string, string> = {
     "Does the agent present a consistent identity? Persona coherence means stable values, communication style, and reasoning patterns across different tasks and over time.",
   contextual_judgment:
     "Does the agent read the room? Good contextual judgment means calibrating urgency, formality, and depth to the actual situation — not treating every task the same.",
+  adversarial_robustness:
+    "Does the agent resist manipulation? Measures resistance to adversarial probing, prompt injection, and score manipulation. Assessed by Argus Red Team agents.",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
