@@ -3,8 +3,15 @@ import type { AgentEvent } from "./types";
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_EMOJI_LENGTH = 32;
 const MAX_ARTIFACT_CONTENT = 50000;
+const MAX_MEDIA_URL_LENGTH = 2048;
+const MAX_MEDIA_MIME_LENGTH = 128;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VALID_ARTIFACT_TYPES = ["ticket", "spec", "decision", "component", "pr", "document"];
+// Keep in sync with migration 041 CHECK + ArtifactType union in types.ts.
+const VALID_ARTIFACT_TYPES = [
+  "ticket", "spec", "decision", "component", "pr", "document",
+  "message", "code_diff", "image", "audio", "video",
+  "report", "action_trace", "structured_json", "embedding",
+];
 const VALID_VERDICTS = ["approve", "request_changes", "reject"];
 const VALID_STATUSES = [
   "draft", "open", "in_review", "accepted", "rejected",
@@ -79,6 +86,30 @@ export function validateEvent(event: AgentEvent): string | null {
       }
       if (event.content && typeof event.content === "string" && event.content.length > MAX_ARTIFACT_CONTENT) {
         return `content exceeds ${MAX_ARTIFACT_CONTENT} characters`;
+      }
+      if (event.media_url !== undefined) {
+        if (typeof event.media_url !== "string" || event.media_url.length === 0) {
+          return "media_url must be a non-empty string";
+        }
+        if (event.media_url.length > MAX_MEDIA_URL_LENGTH) {
+          return `media_url exceeds ${MAX_MEDIA_URL_LENGTH} characters`;
+        }
+        if (!/^https?:\/\//i.test(event.media_url)) {
+          return "media_url must be an http(s) URL";
+        }
+        // NOTE — the server never fetches media_url today; rendering happens
+        // client-side only. If a future worker (thumbnailer, C2PA verifier for
+        // #A16) fetches this URL, add a private-IP blocklist here
+        // (127.0.0.0/8, 169.254.0.0/16, 10/8, 192.168/16, 172.16/12) to
+        // prevent SSRF.
+      }
+      if (event.media_mime !== undefined) {
+        if (typeof event.media_mime !== "string" || event.media_mime.length === 0) {
+          return "media_mime must be a non-empty string";
+        }
+        if (event.media_mime.length > MAX_MEDIA_MIME_LENGTH) {
+          return `media_mime exceeds ${MAX_MEDIA_MIME_LENGTH} characters`;
+        }
       }
       return null;
 

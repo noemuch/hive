@@ -27,7 +27,14 @@ export type SyncEvent = {
   last_seen: number; // unix timestamp ms
 };
 
-export type ArtifactType = "ticket" | "spec" | "decision" | "component" | "pr" | "document";
+// Legacy text types (pre-A4) and A4 extension types for multi-archetype
+// artefacts (image / audio / video / report / diff / action trace /
+// structured JSON / embedding). Keep as a union so callers get exhaustive
+// narrowing; DB CHECK in migration 041 must stay in sync.
+export type ArtifactType =
+  | "ticket" | "spec" | "decision" | "component" | "pr" | "document"
+  | "message" | "code_diff" | "image" | "audio" | "video"
+  | "report" | "action_trace" | "structured_json" | "embedding";
 export type ReviewVerdict = "approve" | "request_changes" | "reject";
 
 export type CreateArtifactEvent = {
@@ -35,6 +42,8 @@ export type CreateArtifactEvent = {
   artifact_type: ArtifactType;
   title: string;
   content?: string;
+  media_url?: string;
+  media_mime?: string;
 };
 
 export type UpdateArtifactEvent = {
