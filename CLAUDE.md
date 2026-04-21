@@ -486,14 +486,29 @@ Trigger: `pull_request.closed` with `merged == true` and head `claude/*`. Waits 
 Trigger: `repository_dispatch` with `event_type: sentry.issue`. Dedups by fingerprint (searches open `source:sentry` issues — same fingerprint → append `+1 occurrence` comment; new fingerprint → create `type:bug` + `agent-ready` + priority scaled by occurrence count). **Inert until Sentry webhook is configured** (one-time setup: Sentry alert → GitHub dispatches URL with `Bearer <PAT>`). Issue then flows through `issue-triage` → dispatch-ready normally.
 
 ### 7. Per-run cost comment (embedded in claude-ready + review)
-Each claude-code-action step ends with a cost-computation step: reads `input_tokens` / `output_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens` from the run log, applies Anthropic public pricing 2026 (Opus 4.7: \$15/\$75/\$1.50/\$18.75 per M; Sonnet 4.6: \$3/\$15/\$0.30/\$3.75; Haiku 4.5: \$1/\$5/\$0.10/\$1.25), posts a one-line comment on the issue/PR (`💰 Run cost: $X.XXX — in/out/cache_read/cache_write + hit %`). Enables per-feature ROI tracking without a dashboard. Silent no-op if log has no token lines.
+Each claude-code-action step exposes its full execution metadata via `steps.<id>.outputs.execution_file` — a JSON array of messages. A follow-up `github-script` step loads that file, finds the element with `type === "result"`, and extracts `total_cost_usd` + `duration_ms` + `num_turns` + `usage.{input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens}`. Posts a two-line comment: `💰 Cost: $X.XXX — N turns / M min — model (account)` plus `in/out/cache_read (hit %) /cache_write`. Silent no-op when the execution file is absent (primary never fired) — no spurious posts.
+
+### 8. `rotate-automation-log.yml` — monthly log rotation
+Cron `5 0 1 * *` (00:05 UTC on the 1st of each month). Opens `[YYYY-MM] Automation log`, PATCHes the repo variable `AUTOMATION_LOG_ISSUE` to the new number (all 10+ workflows using `${{ vars.AUTOMATION_LOG_ISSUE }}` follow instantly), closes the previous month's log with a pointer. Prevents a single issue from accumulating thousands of comments. Search across months via the `automation-log` label.
+
+### Repo variables (single source of truth)
+- `vars.AUTOMATION_LOG_ISSUE` — current month's log issue number (rotated by workflow above). All logging workflows reference this.
+- `vars.PREVIEW_URL` — Railway production base URL. Used by `preview-verify.yml` and `daily-qa-digest.yml`. Change infra once, not 10 workflows.
 
 ### Prompt-cache-friendly builder prompt
 `claude-ready.yml` builder prompt has the stable prefix (CLAUDE.md + superpowers + STEP 0→5 template) at the top and the volatile runtime context (issue number, trivial flag, model, max_turns) in a dedicated block just before `GO.` — maximizes Anthropic prompt cache hits on builder re-runs within the 5-min TTL window (`cache_read` = 0.1× base input price).
 
+### Hardening guarantees (2026-04-21 audit pass)
+- **Action SHA pin**: every `anthropics/claude-code-action@v1` usage is pinned to commit `5d29e76984c4bd1246cd84381ae25b1452e9047b` (v1 @ 2026-04-21). Supply-chain-safe.
+- **Reviewer CI wait**: the reviewer runs `gh pr checks --required --watch --fail-fast` before `gh pr merge` — an admin-scoped PAT cannot bypass required checks.
+- **Quota-state CAS**: all three writers (claude-ready, review, quota-monitor) use optimistic-concurrency retry (5 attempts, exponential backoff). No history entry is lost on concurrent exhaustion events.
+- **Fail-closed quota detection**: if `gh run view --log` fails while detecting quota exhaustion, the last-attempted account is marked paused for 2h. No infinite retry loop against an exhausted API.
+- **PR label inheritance**: the builder copies `type:*`/`area:*`/`size:*`/`priority:*`/`source:*` labels from the parent issue to the PR — taxonomy is preserved across the issue→PR boundary.
+- **dispatch-ready fail-closed**: on `isBlockerOpen` transient error (5xx / rate-limit), the blocker is treated as still-open. Only a true 404 means resolved. Prevents premature unblocking from a GitHub glitch.
+
 ### Future setup
 - **Sentry activation**: create Sentry project → Integrations → GitHub link → Alert rule → Webhook `https://api.github.com/repos/noemuch/hive/dispatches` with `Bearer <PAT>`, body `{"event_type":"sentry.issue","client_payload":{fingerprint,title,culprit,count,url,stack_trace}}`. Optional: enable Sentry Seer for root-cause hints (populates `seer_hint` in payload).
-- **Railway health endpoint**: already at `/health`. `preview-verify` uses `/api/health` with fallback to root.
+- **Railway health endpoint**: already at `/health`. `preview-verify` uses `/api/health` with fallback to root, both via `${{ vars.PREVIEW_URL }}`.
 
 ## Quota Resilience
 
