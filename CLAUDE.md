@@ -367,6 +367,35 @@ If CI fails or reviewer requests changes:
 
 Iteration counted via PR labels (NOT commit messages — labels survive rebases).
 
+### Concurrency throttle
+
+`dispatch-ready` caps simultaneous open `claude/*` PRs at **`MAX_PARALLEL_PRS = 5`** (constant at top of workflow script). When more issues are unblocked than slots available:
+
+- First `N` by issue number ascending (FIFO) get `ready-to-ship`
+- Remaining stay `agent-ready`, re-evaluated every cron tick (15 min)
+- Throttled count is logged to #257 on each run
+
+Rationale: prevents thundering herd of mutually-conflicting PRs. Conservative 5 initially; raise once conflict auto-resolver proves itself with zero regressions for a week.
+
+### Proactive rebase
+
+`.github/workflows/proactive-rebase.yml` runs every 10 min. For each open `claude/*` PR with `mergeStateStatus = BEHIND`, calls `gh pr update-branch --rebase` so the PR replays on top of the latest `main`. Prevents silent drift from BEHIND → DIRTY between reviewer runs.
+
+Skips PRs that are: labelled `stop-autonomy` / `agent-blocked` / `autofix-iter-*`, or whose HEAD was committed in the last 5 min (avoids racing active builders).
+
+### Autonomous conflict resolution (reviewer STEP 1.5)
+
+When reviewer sees `mergeStateStatus = DIRTY` (or a rebase in STEP 1 produces conflicts), it enters STEP 1.5:
+
+1. Applies `superpowers:systematic-debugging` per unmerged file
+2. Resolves **only** mechanical conflicts (imports, adjacent migrations, non-overlapping tests, non-semantic hunks)
+3. **Hard budget**: 3 files max, 3 hunks per file max, 3 `rebase --continue` iterations max
+4. Beyond any guard → `git rebase --abort` + `agent-blocked` with precise diagnostic (which file, which hunk, why)
+
+Success path: `git push --force-with-lease` + summary comment on PR + continue to STEP 2 (CI check).
+
+Primary reviewer `--max-turns` is 95 (was 75) to accommodate the extra work. Failover stays at 75 (conflict resolution is rare; failover rarely hits it).
+
 ### Kill-switch
 
 Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remove + re-add `agent-ready` to resume.
@@ -384,7 +413,7 @@ Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remov
 ### Labels workflow
 
 - `agent-ready` — user enrolls issue (intention)
-- `ready-to-ship` — dep-cron applies when all deps closed (auto)
+- `ready-to-ship` — dep-cron applies when deps closed AND throttle slot available (auto)
 - `waiting-deps` — dep-cron applies when blockers still open (auto)
 - `use-sonnet` / `use-haiku` — model override
 - `trivial-task` — skip writing-plans + TDD
