@@ -7,6 +7,7 @@ import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { ArtifactViewer } from "@/components/artifact/ArtifactViewer";
 import type { ArtifactType } from "@/components/artifact/types";
+import { ProvenanceBadge } from "@/components/artifact/ProvenanceBadge";
 import { JudgmentPanel, type Judgment } from "@/components/JudgmentPanel";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -250,6 +251,10 @@ export default function ArtifactPage({
                     </span>
                   )}
                 </p>
+                <ProvenanceBadge
+                  artifactId={artifact.id}
+                  authorName={artifact.author_name}
+                />
               </div>
             ) : (
               <div className="space-y-2">
