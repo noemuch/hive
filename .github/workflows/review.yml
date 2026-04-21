@@ -440,68 +440,41 @@ jobs:
               } catch (e) { core.warning(e.message); }
             }
 
-      - name: Compute + post run cost comment
+      - name: Post reviewer cost comment
         if: always()
         uses: actions/github-script@v7
         env:
-          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
           MODEL: claude-opus-4-7
           PR_NUM: ${{ needs.preflight.outputs.pr_number }}
         with:
           github-token: ${{ secrets.NOEMUCH_PAT }}
           script: |
-            const { execSync } = require('child_process');
+            const fs = require('fs');
+            const path = '/home/runner/work/_temp/claude-execution-output.json';
 
-            const PRICES = {
-              'claude-opus-4-7':    { input: 15.00, output: 75.00, cache_read: 1.50,  cache_write: 18.75 },
-              'claude-sonnet-4-6':  { input:  3.00, output: 15.00, cache_read: 0.30,  cache_write:  3.75 },
-              'claude-haiku-4-5':   { input:  1.00, output:  5.00, cache_read: 0.10,  cache_write:  1.25 },
-            };
-            const model = process.env.MODEL || 'claude-opus-4-7';
-            const price = PRICES[model] || PRICES['claude-opus-4-7'];
+            if (!fs.existsSync(path)) {
+              core.info(`No execution JSON at ${path}; skipping cost comment.`);
+              return;
+            }
 
-            let log;
+            let data;
             try {
-              log = execSync(`gh run view ${context.runId} --repo ${context.repo.owner}/${context.repo.repo} --log 2>&1`, {
-                encoding: 'utf8',
-                env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
-                maxBuffer: 50 * 1024 * 1024
-              });
+              data = JSON.parse(fs.readFileSync(path, 'utf8'));
             } catch (e) {
-              core.info(`Could not fetch run log: ${e.message}`);
+              core.warning(`Could not parse execution JSON: ${e.message}`);
               return;
             }
 
-            const sumAll = (re) => {
-              let total = 0;
-              for (const m of log.matchAll(re)) total += parseInt(m[1], 10) || 0;
-              return total;
-            };
-
-            const inputTokens = sumAll(/(?:^|\s)input_tokens["':\s=]+(\d+)/g);
-            const outputTokens = sumAll(/(?:^|\s)output_tokens["':\s=]+(\d+)/g);
-            const cacheReadTokens = sumAll(/(?:cache_read_input_tokens|cache_read_tokens)["':\s=]+(\d+)/g);
-            const cacheCreateTokens = sumAll(/(?:cache_creation_input_tokens|cache_write_tokens)["':\s=]+(\d+)/g);
-
-            if (inputTokens + outputTokens + cacheReadTokens + cacheCreateTokens === 0) {
-              core.info('No token usage found in logs; skipping cost comment.');
+            const cost = data.total_cost_usd;
+            if (typeof cost !== 'number') {
+              core.info('No total_cost_usd in execution JSON; skipping.');
               return;
             }
 
-            const cost = (inputTokens * price.input
-                        + outputTokens * price.output
-                        + cacheReadTokens * price.cache_read
-                        + cacheCreateTokens * price.cache_write) / 1e6;
-
-            const cacheHitPct = (cacheReadTokens + inputTokens) > 0
-              ? Math.round(100 * cacheReadTokens / (cacheReadTokens + inputTokens))
-              : 0;
-
-            const fmt = (n) => n >= 1e6 ? `${(n/1e6).toFixed(1)}M`
-                             : n >= 1e3 ? `${(n/1e3).toFixed(1)}k` : String(n);
-
-            const shortModel = model.replace(/^claude-/, '');
-            const body = `💰 **Reviewer cost**: $${cost.toFixed(3)} — in: ${fmt(inputTokens)} / out: ${fmt(outputTokens)} / cache_read: ${fmt(cacheReadTokens)} (${cacheHitPct}%) / cache_write: ${fmt(cacheCreateTokens)} — model: \`${shortModel}\``;
+            const shortModel = (process.env.MODEL || 'claude-opus-4-7').replace(/^claude-/, '');
+            const durationMin = data.duration_ms ? (data.duration_ms / 60000).toFixed(1) : '?';
+            const numTurns = data.num_turns ?? '?';
+            const body = `💰 **Reviewer cost**: $${cost.toFixed(3)} — ${numTurns} turns / ${durationMin} min — model: \`${shortModel}\``;
 
             const pr = parseInt(process.env.PR_NUM, 10);
             if (!pr) return;
