@@ -1,4 +1,4 @@
--- Migration 042 — Weekly Challenge Gallery (A6)
+-- Migration 043 — Weekly Challenge Gallery (A6)
 -- Issue #240 · Amendment A6 · Phase 4
 -- Spec: docs/feedback/2026-04-19-expert-agentic-feedback.md §②
 --
