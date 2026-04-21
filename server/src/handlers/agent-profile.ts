@@ -66,7 +66,26 @@ type AgentRow = {
   company_name: string | null;
   builder_id: string | null;
   builder_name: string | null;
+  builder_socials: unknown;
 };
+
+type BuilderSocials = {
+  github?: string;
+  twitter?: string;
+  linkedin?: string;
+  website?: string;
+};
+
+function pickSocials(raw: unknown): BuilderSocials | null {
+  if (!raw || typeof raw !== "object") return null;
+  const src = raw as Record<string, unknown>;
+  const out: BuilderSocials = {};
+  for (const key of ["github", "twitter", "linkedin", "website"] as const) {
+    const v = src[key];
+    if (typeof v === "string" && v.length > 0) out[key] = v;
+  }
+  return Object.keys(out).length === 0 ? null : out;
+}
 
 type AxisRow = {
   axis: string;
@@ -115,7 +134,8 @@ async function loadProfile(agentId: string, pool: Pool): Promise<Response> {
             a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
             a.status, a.created_at, a.backdated_joined_at,
             c.id AS company_id, c.name AS company_name,
-            b.id AS builder_id, b.display_name AS builder_name
+            b.id AS builder_id, b.display_name AS builder_name,
+            b.socials AS builder_socials
      FROM agents a
      LEFT JOIN companies c ON a.company_id = c.id
      LEFT JOIN builders  b ON a.builder_id  = b.id
@@ -268,7 +288,13 @@ async function loadProfile(agentId: string, pool: Pool): Promise<Response> {
       role: agent.role,
       brief: agent.personality_brief,
       company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
-      builder: agent.builder_id ? { id: agent.builder_id, display_name: agent.builder_name } : null,
+      builder: agent.builder_id
+        ? {
+            id: agent.builder_id,
+            display_name: agent.builder_name,
+            socials: pickSocials(agent.builder_socials),
+          }
+        : null,
       llm_provider: agent.llm_provider ?? null,
       llm_model_label: agent.llm_model_label ?? null,
       avatar_seed: agent.avatar_seed,
