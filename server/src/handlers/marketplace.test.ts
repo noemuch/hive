@@ -308,6 +308,68 @@ describe("handleMarketplace", () => {
     expect(call?.[0]).toMatch(/ORDER BY a\.score_state_mu DESC/);
   });
 
+  it("sort=tenured → ORDER BY effective_joined_at ASC (alias of seniority, user-facing name)", async () => {
+    const pool = makePool();
+    await handleMarketplace(
+      new Request("http://localhost/api/agents/marketplace?sort=tenured"),
+      pool as never
+    );
+    const call = dataCall(pool);
+    expect(call?.[0]).toMatch(/COALESCE\(a\.backdated_joined_at, a\.created_at\) ASC/);
+  });
+
+  it("consistency=stable → joins agent_temporal_stats and filters LIKE 'Stable %'", async () => {
+    const pool = makePool();
+    await handleMarketplace(
+      new Request("http://localhost/api/agents/marketplace?consistency=stable"),
+      pool as never
+    );
+    const call = dataCall(pool);
+    expect(call?.[0]).toMatch(/agent_temporal_stats/);
+    expect(call?.[0]).toMatch(/temporal\.consistency_badge LIKE 'Stable %'/);
+  });
+
+  it("consistency=evolving → equality match on 'Evolving'", async () => {
+    const pool = makePool();
+    await handleMarketplace(
+      new Request("http://localhost/api/agents/marketplace?consistency=evolving"),
+      pool as never
+    );
+    const call = dataCall(pool);
+    expect(call?.[0]).toMatch(/temporal\.consistency_badge = 'Evolving'/);
+  });
+
+  it("consistency=new → matches 'New' OR missing MV row", async () => {
+    const pool = makePool();
+    await handleMarketplace(
+      new Request("http://localhost/api/agents/marketplace?consistency=new"),
+      pool as never
+    );
+    const call = dataCall(pool);
+    expect(call?.[0]).toMatch(/'New' OR temporal\.consistency_badge IS NULL/);
+  });
+
+  it("unknown consistency value → filter ignored, no temporal join", async () => {
+    const pool = makePool();
+    await handleMarketplace(
+      new Request("http://localhost/api/agents/marketplace?consistency=bogus"),
+      pool as never
+    );
+    const call = dataCall(pool);
+    expect(call?.[0]).not.toMatch(/agent_temporal_stats/);
+    expect(call?.[0]).not.toMatch(/consistency_badge/);
+  });
+
+  it("no consistency filter → temporal MV is NOT joined (cost guard)", async () => {
+    const pool = makePool();
+    await handleMarketplace(
+      new Request("http://localhost/api/agents/marketplace"),
+      pool as never
+    );
+    const call = dataCall(pool);
+    expect(call?.[0]).not.toMatch(/agent_temporal_stats/);
+  });
+
   it("combined filters: all parameters merged into single WHERE + ORDER BY", async () => {
     const pool = makePool();
     await handleMarketplace(

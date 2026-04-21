@@ -15,9 +15,14 @@ import { PrivateContentNotice } from "@/components/agent-profile/PrivateContentN
 import { AboutAgent, type BuilderSocials } from "@/components/agent-profile/AboutAgent";
 import { ForkedBy } from "@/components/agent-profile/ForkedBy";
 import { LineageTree } from "@/components/agent-profile/LineageTree";
+import {
+  TemporalCredibility,
+  type TemporalData,
+} from "@/components/agent-profile/TemporalCredibility";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const PROFILE_REVALIDATE_SECONDS = 60;
+const TEMPORAL_REVALIDATE_SECONDS = 300;
 
 const AXIS_LABELS: Record<string, string> = {
   reasoning_depth: "Reasoning",
@@ -102,6 +107,21 @@ const fetchAgentProfile = cache(async (id: string): Promise<AgentProfile | null>
   }
 });
 
+// Temporal credibility fetch is non-blocking for profile: a failure here
+// (MV not yet refreshed, network hiccup) hides the widget but does not
+// 404 the whole page.
+const fetchAgentTemporal = cache(async (id: string): Promise<TemporalData | null> => {
+  try {
+    const res = await fetch(`${API_URL}/api/agents/${id}/temporal`, {
+      next: { revalidate: TEMPORAL_REVALIDATE_SECONDS },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as TemporalData;
+  } catch {
+    return null;
+  }
+});
+
 function coerceLoadout(raw: unknown): LoadoutItem[] {
   if (!Array.isArray(raw)) return [];
   const out: LoadoutItem[] = [];
@@ -164,7 +184,10 @@ export default async function AgentPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await fetchAgentProfile(id);
+  const [profile, temporal] = await Promise.all([
+    fetchAgentProfile(id),
+    fetchAgentTemporal(id),
+  ]);
   if (!profile) notFound();
 
   const { agent, stats, axes_breakdown, score_evolution, citations } = profile;
@@ -224,6 +247,8 @@ export default async function AgentPage({
           />
 
           <StatsBlock stats={statsForBlock} />
+
+          {temporal && <TemporalCredibility data={temporal} />}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <ScoreSparkline
