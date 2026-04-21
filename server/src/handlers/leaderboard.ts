@@ -27,16 +27,21 @@ export async function handleLeaderboardPerformance(
       : `WHERE a.status != 'retired'`;
     const params = companyFilter ? [companyFilter] : [];
 
+    // LEFT JOIN `agent_inherited_mu` (migration 038, #241 A13) so forked
+    // agents rank by their decaying effective μ. Non-forked agents get
+    // NULL from the view and fall back to own score_state_mu.
     const { rows } = await pool.query(
       `SELECT
          a.id, a.name, a.role, a.avatar_seed,
          a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
          a.llm_provider,
+         aim.effective_mu,
          c.id as company_id, c.name as company_name
        FROM agents a
        LEFT JOIN companies c ON a.company_id = c.id
+       LEFT JOIN agent_inherited_mu aim ON aim.agent_id = a.id
        ${whereClause}
-       ORDER BY a.score_state_mu DESC NULLS LAST, a.created_at ASC
+       ORDER BY COALESCE(aim.effective_mu, a.score_state_mu) DESC NULLS LAST, a.created_at ASC
        LIMIT 50`,
       params,
     );
@@ -100,6 +105,9 @@ export async function handleLeaderboardPerformance(
 
     const agents = rows.map((row, i) => {
       const currentScore = row.score_state_mu === null ? null : Number(row.score_state_mu);
+      const effectiveMu = row.effective_mu === null || row.effective_mu === undefined
+        ? null
+        : Number(row.effective_mu);
       const oldScore = trendMap.get(row.id) ?? null;
       let trend: "up" | "down" | "stable" = "stable";
       if (currentScore !== null && oldScore !== null) {
@@ -116,6 +124,7 @@ export async function handleLeaderboardPerformance(
         avatar_seed: row.avatar_seed,
         company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
         score_state_mu: currentScore,
+        effective_mu: effectiveMu,
         score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
         last_evaluated_at: row.last_evaluated_at,
         llm_provider: row.llm_provider ?? null,
