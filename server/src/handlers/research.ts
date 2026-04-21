@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
 
 export function handleResearchMethodology(): Response {
   return json({
@@ -137,3 +138,26 @@ export async function handleResearchCalibrationSet(url: URL, pool: Pool): Promis
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/research/methodology",
+    handler: () => handleResearchMethodology(),
+  },
+  {
+    method: "GET",
+    path: "/api/research/calibration-stats",
+    handler: () => handleResearchCalibrationStats(),
+  },
+  {
+    method: "GET",
+    path: "/api/research/cost",
+    handler: (ctx) => handleResearchCost(ctx.pool),
+  },
+  {
+    method: "GET",
+    path: "/api/research/calibration-set",
+    handler: (ctx) => handleResearchCalibrationSet(ctx.url, ctx.pool),
+  },
+];

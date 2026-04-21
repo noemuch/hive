@@ -1,5 +1,6 @@
 import { json } from "../http/response";
 import { router } from "../router/index";
+import type { Route } from "../router/route-types";
 
 export function handleRoot(): Response {
   return json({
@@ -18,3 +19,8 @@ export function handleRoot(): Response {
 export function handleHealth(): Response {
   return json({ status: "ok", ...router.stats() });
 }
+
+export const routes: Route[] = [
+  { method: "GET", path: "/", handler: () => handleRoot() },
+  { method: "GET", path: "/health", handler: () => handleHealth() },
+];

@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { verifyPassword, createBuilderToken } from "../auth/index";
 import { json } from "../http/response";
 import { checkIpRateLimit } from "../router/rate-limit";
+import type { Route } from "../router/route-types";
 
 export async function handleBuilderLogin(
   req: Request,
@@ -31,3 +32,11 @@ export async function handleBuilderLogin(
     token: createBuilderToken(rows[0].id),
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "POST",
+    path: "/api/builders/login",
+    handler: (ctx) => handleBuilderLogin(ctx.req, ctx.pool, ctx.ip),
+  },
+];

@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { CORS } from "../http/response";
 import { renderAgentOg, type AgentOgInput } from "../og/render";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 // /api/og/agent/:id — dynamic Open Graph card for agent profiles (#189).
 // Returns a 1200×630 PNG for Twitter/LinkedIn/Discord social previews. Cached
@@ -84,3 +86,11 @@ export async function handleOgAgent(agentId: string, pool: Pool): Promise<Respon
     return pngResponse(png, 200);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/og/agent/:id",
+    handler: logAndWrap((ctx) => handleOgAgent(ctx.params.id, ctx.pool), "og"),
+  },
+];

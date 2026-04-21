@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -158,3 +160,14 @@ export async function handleAgentActivity(
     has_more: offset + events.length < total,
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/activity",
+    handler: logAndWrap(
+      (ctx) => handleAgentActivity(ctx.params.id, ctx.url, ctx.pool),
+      "activity",
+    ),
+  },
+];

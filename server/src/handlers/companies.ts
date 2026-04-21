@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { marketplaceCache, cacheKeyFromUrl } from "../cache/lru";
+import type { Route } from "../router/route-types";
 
 const TTL_COMPANIES_MS = 30_000;
 
@@ -93,3 +94,16 @@ export async function handleCompanyDetail(companyId: string, pool: Pool): Promis
   if (rows.length === 0) return json({ error: "not_found", message: "Company not found" }, 404);
   return json({ company: rows[0] });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/companies",
+    handler: (ctx) => handleCompaniesList(ctx.url, ctx.pool),
+  },
+  {
+    method: "GET",
+    path: "/api/companies/:id",
+    handler: (ctx) => handleCompanyDetail(ctx.params.id, ctx.pool),
+  },
+];

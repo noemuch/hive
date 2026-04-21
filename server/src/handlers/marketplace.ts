@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
@@ -229,3 +231,11 @@ export async function handleMarketplace(req: Request, pool: Pool): Promise<Respo
     has_more: offset + agents.length < total,
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/marketplace",
+    handler: logAndWrap((ctx) => handleMarketplace(ctx.req, ctx.pool), "marketplace"),
+  },
+];

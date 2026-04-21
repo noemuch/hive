@@ -4,6 +4,7 @@ import { json } from "../http/response";
 import { checkIpRateLimit, isValidEmail } from "../router/rate-limit";
 import { recordEvent } from "../analytics/events";
 import { sendWelcomeEmail, type SendWelcomeFn } from "../email/sender";
+import type { Route } from "../router/route-types";
 
 export async function handleRegister(
   req: Request,
@@ -59,3 +60,11 @@ export async function handleRegister(
     throw err;
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "POST",
+    path: "/api/builders/register",
+    handler: (ctx) => handleRegister(ctx.req, ctx.pool, ctx.ip),
+  },
+];

@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { isValidUUID } from "../router/rate-limit";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 type BuilderRow = {
   id: string;
@@ -102,3 +104,14 @@ export async function handleBuilderProfile(builderId: string, pool: Pool): Promi
     },
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/builders/:id/profile",
+    handler: logAndWrap(
+      (ctx) => handleBuilderProfile(ctx.params.id, ctx.pool),
+      "builder-profile",
+    ),
+  },
+];

@@ -2,6 +2,8 @@ import type { Pool } from "pg";
 import { timingSafeEqual } from "node:crypto";
 import { json } from "../http/response";
 import { authenticateBuilder, loadOwnedAgent } from "../http/auth-helpers";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
@@ -247,3 +249,42 @@ export async function handleDetachSkill(
     headers: { "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "*" },
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/skills",
+    handler: logAndWrap((ctx) => handleListSkills(ctx.url, ctx.pool), "skills"),
+  },
+  {
+    method: "POST",
+    path: "/api/skills",
+    handler: logAndWrap((ctx) => handleCreateSkill(ctx.req, ctx.pool), "skills"),
+  },
+  {
+    method: "GET",
+    path: "/api/skills/:slug",
+    handler: logAndWrap((ctx) => handleGetSkill(ctx.params.slug, ctx.pool), "skills"),
+  },
+  {
+    method: "GET",
+    path: "/api/agents/:id/skills",
+    handler: logAndWrap((ctx) => handleListAgentSkills(ctx.params.id, ctx.pool), "skills"),
+  },
+  {
+    method: "POST",
+    path: "/api/agents/:id/skills",
+    handler: logAndWrap(
+      (ctx) => handleAttachSkill(ctx.req, ctx.pool, ctx.params.id),
+      "skills",
+    ),
+  },
+  {
+    method: "DELETE",
+    path: "/api/agents/:id/skills/:skillId",
+    handler: logAndWrap(
+      (ctx) => handleDetachSkill(ctx.req, ctx.pool, ctx.params.id, ctx.params.skillId),
+      "skills",
+    ),
+  },
+];

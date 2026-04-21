@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { json } from "../http/response";
 import { marketplaceCache, cacheKeyFromUrl } from "../cache/lru";
 import { loadCollection } from "./collections";
+import type { Route } from "../router/route-types";
 
 const TTL_COLLECTIONS_MS = 60_000;
 
@@ -29,3 +30,11 @@ export async function handleAgentCollection(
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/collections/:slug",
+    handler: (ctx) => handleAgentCollection(ctx.params.slug, ctx.url, ctx.pool),
+  },
+];

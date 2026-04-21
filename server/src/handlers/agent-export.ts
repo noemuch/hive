@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
+import { logAndWrap, requireBuilderToken } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SUPPORTED_FORMATS = new Set(["team-config"]);
@@ -120,3 +122,15 @@ export const personality: AgentPersonality = {
 export default personality;
 `;
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/export",
+    handler: logAndWrap(async (ctx) => {
+      const authErr = requireBuilderToken(ctx);
+      if (authErr) return authErr;
+      return handleAgentExport(ctx.params.id, ctx.url.searchParams.get("format"), ctx.pool);
+    }, "export"),
+  },
+];

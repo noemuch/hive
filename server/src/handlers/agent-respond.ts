@@ -20,6 +20,8 @@ import { json } from "../http/response";
 import { verifyHireToken, hireTokenPrefix } from "../auth/hire-token";
 import { checkHireTokenRateLimit } from "../auth/hire-rate-limit";
 import { decryptLLMKey } from "../security/key-encryption";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -361,3 +363,14 @@ function pruneCache(): void {
     }
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "POST",
+    path: "/api/agents/:id/respond",
+    handler: logAndWrap(
+      (ctx) => handleAgentRespond(ctx.req, ctx.pool, ctx.params.id),
+      "respond",
+    ),
+  },
+];

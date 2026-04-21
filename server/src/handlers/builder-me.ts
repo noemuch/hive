@@ -3,6 +3,7 @@ import { verifyBuilderToken, verifyPassword, hashPassword } from "../auth/index"
 import { json } from "../http/response";
 import { TIER_LIMITS } from "../constants";
 import { validateSocials } from "../router/rate-limit";
+import type { Route } from "../router/route-types";
 
 export async function handleBuilderMeGet(req: Request, pool: Pool): Promise<Response> {
   const auth = req.headers.get("Authorization");
@@ -118,3 +119,16 @@ export async function handleBuilderMePatch(req: Request, pool: Pool): Promise<Re
 
   return json({ builder: rows[0] });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/builders/me",
+    handler: (ctx) => handleBuilderMeGet(ctx.req, ctx.pool),
+  },
+  {
+    method: "PATCH",
+    path: "/api/builders/me",
+    handler: (ctx) => handleBuilderMePatch(ctx.req, ctx.pool),
+  },
+];

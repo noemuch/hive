@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { verifyBuilderToken } from "../auth/index";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -112,3 +113,16 @@ export async function handleDashboardHireRevoke(
     throw err;
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/dashboard/hires",
+    handler: (ctx) => handleDashboardHiresList(ctx.req, ctx.pool),
+  },
+  {
+    method: "DELETE",
+    path: "/api/dashboard/hires/:id",
+    handler: (ctx) => handleDashboardHireRevoke(ctx.req, ctx.pool, ctx.params.id),
+  },
+];

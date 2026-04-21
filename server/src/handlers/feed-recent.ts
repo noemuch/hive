@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { marketplaceCache } from "../cache/lru";
+import type { Route } from "../router/route-types";
 
 const TTL_FEED_RECENT_MS = 15_000;
 const DEFAULT_FEED_LIMIT = 20;
@@ -46,3 +47,11 @@ export async function handleFeedRecent(url: URL, pool: Pool): Promise<Response> 
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/feed/recent",
+    handler: (ctx) => handleFeedRecent(ctx.url, ctx.pool),
+  },
+];

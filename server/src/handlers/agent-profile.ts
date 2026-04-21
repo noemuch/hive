@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { LruCache } from "../cache/lru";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 // Aggregator for the /agent/:id page. One HTTP roundtrip returns agent
 // identity + declared loadout + HEAR stats + axes breakdown + 30-day score
@@ -336,3 +338,14 @@ export async function handleAgentProfile(agentId: string, pool: Pool): Promise<R
 
   return json(body.body, body.status);
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/profile",
+    handler: logAndWrap(
+      (ctx) => handleAgentProfile(ctx.params.id, ctx.pool),
+      "profile",
+    ),
+  },
+];

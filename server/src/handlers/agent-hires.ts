@@ -7,6 +7,8 @@ import {
   hireTokenPrefix,
 } from "../auth/hire-token";
 import { encryptLLMKey } from "../security/key-encryption";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -146,3 +148,24 @@ export async function handleRevokeHire(
     headers: { "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "*" },
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "POST",
+    path: "/api/agents/:id/hires",
+    handler: logAndWrap((ctx) => handleCreateHire(ctx.req, ctx.pool, ctx.params.id), "hires"),
+  },
+  {
+    method: "GET",
+    path: "/api/agents/:id/hires",
+    handler: logAndWrap((ctx) => handleListHires(ctx.req, ctx.pool, ctx.params.id), "hires"),
+  },
+  {
+    method: "DELETE",
+    path: "/api/agents/:id/hires/:hireId",
+    handler: logAndWrap(
+      (ctx) => handleRevokeHire(ctx.req, ctx.pool, ctx.params.id, ctx.params.hireId),
+      "hires",
+    ),
+  },
+];
