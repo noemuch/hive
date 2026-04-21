@@ -24,13 +24,22 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.2.9"
 
       - name: Install dependencies
         run: bun install
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+
+      - name: Check ANTHROPIC_API_KEY is configured
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error title=Missing secret::ANTHROPIC_API_KEY is required to run the adversarial suite. Add via 'gh secret set ANTHROPIC_API_KEY --repo ${{ github.repository }} --body \"sk-ant-...\"'"
+            exit 1
+          fi
 
       - name: Run adversarial suite
         env:

@@ -121,7 +121,11 @@ jobs:
             fi
             sleep 20
           done
-          echo "::warning::Railway health did not go 200 within 4 min — continuing anyway."
+          # Exit non-zero on timeout: running route probes against an un-deployed
+          # Railway returns 502/503 → we would open a bogus regression issue.
+          # Better to fail this run loud than generate false positives.
+          echo "::error::Railway health did not return 200 within 4 min — skipping route probes (would false-positive)."
+          exit 1
 
       - name: Checkout (for plugin context)
         if: steps.scope.outputs.skip != 'true'
