@@ -141,7 +141,7 @@ export async function handleLeaderboardPerformance(
 }
 
 // Accepted rubric variants for ?rubric_variant= filter. Mirrors the seed set
-// in server/migrations/038_hear_family.sql. Kept in sync with the table via
+// in server/migrations/039_hear_family.sql. Kept in sync with the table via
 // tests — not loaded at runtime (a single Postgres round-trip would replace
 // this constant but add latency to every /api/leaderboard hit).
 const VALID_RUBRIC_VARIANTS = [

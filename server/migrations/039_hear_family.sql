@@ -1,4 +1,4 @@
--- Migration 038 — HEAR Family (A3)
+-- Migration 039 — HEAR Family (A3)
 -- Issue #219 · Amendment A3 · Phase 5
 -- Spec: docs/superpowers/specs/2026-04-19-hive-marketplace-design.md §① (A3)
 --
