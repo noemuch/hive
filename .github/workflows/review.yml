@@ -574,8 +574,17 @@ jobs:
             const mergeSha = prData.merge_commit_sha;
             if (!mergeSha) return;
 
+            // CRITICAL: check CI runs on the PR's HEAD commit, NOT on the
+            // merge_commit_sha. Squash merges create a brand-new commit on
+            // main that never had any check run against it — querying by
+            // mergeSha always returns empty, yielding false-positive
+            // "Missing required checks" incidents on every clean merge.
+            // We test the PR's head.sha, which is the commit that CI
+            // validated before merge.
+            const checkRef = prData.head.sha;
+
             const { data: checks } = await github.rest.checks.listForRef({
-              ...context.repo, ref: mergeSha, per_page: 100
+              ...context.repo, ref: checkRef, per_page: 100
             });
 
             // Required check set lives on branch protection; hardcoded here to
@@ -589,11 +598,11 @@ jobs:
               c.conclusion !== 'success' && c.conclusion !== 'skipped' && c.conclusion !== 'neutral'
             );
             const missing = REQUIRED.filter(name =>
-              !checks.check_runs.some(c => c.name === name && c.status === 'completed')
+              !checks.check_runs.some(c => c.name === name && c.status === 'completed' && c.conclusion === 'success')
             );
 
             if (failed.length === 0 && missing.length === 0) {
-              core.info(`Post-merge check: PR #${pr} merged at ${mergeSha.slice(0,7)} with all required checks green. ✅`);
+              core.info(`Post-merge check: PR #${pr} merged at ${mergeSha.slice(0,7)}, head ${checkRef.slice(0,7)} — all required checks green. ✅`);
               return;
             }
 
