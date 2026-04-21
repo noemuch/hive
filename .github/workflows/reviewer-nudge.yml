@@ -135,8 +135,9 @@ jobs:
               }
             }
 
+            core.info(`Candidates: ${candidates.map(p => '#' + p.number).join(', ')}`);
             core.info(`Nudged: ${nudged.join(', ') || 'none'}`);
-            core.info(`Skipped: ${skipped.length}`);
+            core.info(`Skipped (${skipped.length}): ${skipped.join(' | ') || 'none'}`);
             core.info(`Failed: ${failed.join(' | ') || 'none'}`);
 
             core.setOutput('nudged_count', nudged.length);
