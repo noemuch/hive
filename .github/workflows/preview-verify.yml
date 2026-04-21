@@ -179,6 +179,68 @@ jobs:
             echo "all_green=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Post preview URL on parent initiative (reaction gate — Gap G)
+        if: steps.scope.outputs.skip != 'true' && steps.verify.outputs.all_green == 'true'
+        uses: actions/github-script@v7
+        env:
+          PR: ${{ steps.scope.outputs.pr_number }}
+          BASE: ${{ vars.PREVIEW_URL }}
+          ROUTES: ${{ steps.scope.outputs.routes }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            // Surface the preview URL on the parent [INITIATIVE] so the user
+            // can 👍/👎 once for the whole feature instead of hunting N PR
+            // comments. Falls back to the PR itself if no native-sub-issue
+            // parent is found. The reaction is polled by preview-gate-watcher.yml
+            // which merges on 👍, escalates on 👎+24h, auto-merges on silence
+            // +30min.
+            const pr = parseInt(process.env.PR, 10);
+            const routes = JSON.parse(process.env.ROUTES || '[]');
+            if (routes.length === 0) return;
+            const base = process.env.BASE;
+
+            // Native sub-issue parent lookup via the PR's closingIssuesReferences
+            // (built from the PR body's "Closes #N" refs by GitHub).
+            let parent = null;
+            try {
+              const q = `
+                query($n: Int!) {
+                  repository(owner:"${context.repo.owner}", name:"${context.repo.repo}") {
+                    pullRequest(number: $n) {
+                      closingIssuesReferences(first: 5) {
+                        nodes { number parent { number } }
+                      }
+                    }
+                  }
+                }
+              `;
+              const res = await github.graphql(q, { n: pr });
+              const closes = res.repository.pullRequest.closingIssuesReferences.nodes;
+              for (const closed of closes) {
+                if (closed.parent) { parent = closed.parent.number; break; }
+              }
+            } catch (e) {
+              core.warning(`GraphQL parent lookup failed: ${e.message}`);
+            }
+
+            const target = parent || pr;
+            const lines = routes
+              .filter(r => !r.includes(':'))
+              .map(r => `- [${r}](${base}${r})`);
+            const body = [
+              `👀 **Preview ready** (PR #${pr}) — tap 👍 to merge, 👎 to request changes:`,
+              '',
+              ...lines,
+              '',
+              `_Silence 30 min → merges automatically. 👎 + silence 24h → \`agent-blocked\` in tomorrow's QA digest._`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: target, body
+            });
+            core.info(`Preview URL posted on #${target} (pr=${pr}, parent=${parent || 'none'})`);
+
       - name: Post verification result to PR
         if: steps.scope.outputs.skip != 'true'
         env:
