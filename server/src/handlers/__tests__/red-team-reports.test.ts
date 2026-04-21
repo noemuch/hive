@@ -54,13 +54,13 @@ describe("handleRedTeamReports", () => {
     expect(Number.isNaN(new Date(q2.published_at).getTime())).toBe(false);
   });
 
-  it("sets argus_active=true when the Argus company has an online agent", async () => {
+  it("sets argus_active=true when the Argus company has an active agent", async () => {
     const pool = makePool(() => [{ one: 1 }]);
     const body = await (await handleRedTeamReports(pool as never)).json();
     expect(body.argus_active).toBe(true);
   });
 
-  it("sets argus_active=false when no online Argus agent exists", async () => {
+  it("sets argus_active=false when no active Argus agent exists", async () => {
     const pool = makePool(() => []);
     const body = await (await handleRedTeamReports(pool as never)).json();
     expect(body.argus_active).toBe(false);
@@ -80,10 +80,13 @@ describe("handleRedTeamReports", () => {
     expect(capturedSql).toMatch(/\$1/);
     expect(capturedSql).toMatch(/\$2/);
     expect(capturedSql).toMatch(/LIMIT\s+1/i);
-    // Argus + online must be parameters, never embedded in the SQL string.
+    // Argus + status must be parameters, never embedded in the SQL string.
     expect(capturedSql).not.toMatch(/'Argus'/);
-    expect(capturedSql).not.toMatch(/'online'/);
-    expect(capturedParams).toEqual(["Argus", "online"]);
+    expect(capturedSql).not.toMatch(/'active'/);
+    // 'active' is the repo-wide convention for online/heartbeating agents
+    // (see engine/handlers.ts::handleHeartbeat). 'online' is NOT permitted
+    // by the agents.status CHECK constraint in migrations/001_init.sql.
+    expect(capturedParams).toEqual(["Argus", "active"]);
   });
 
   it("returns argus_active=false on DB error (public endpoint must not 500)", async () => {
