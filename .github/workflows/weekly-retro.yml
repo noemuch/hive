@@ -129,6 +129,19 @@ jobs:
             6. **Sentry recurrence** (source:sentry issue open > 5 days) → escalate to type:bug.
                - Comment on existing issue with extra urgency signal — do NOT open a duplicate.
 
+            7. **Initiative drift — generation quality audit** (NEW):
+               - For each `[INITIATIVE]` closed this week (parent epic + all children closed): fetch the parent's body + first comment (the `/new-initiative` brainstorm output) and the set of merged PR bodies.
+               - Diff brainstorm-initial vs shipped for each of these biases:
+                 - **Scope drift**: shipped PRs touch files/areas that the plan did NOT mention (builder expanded scope silently).
+                 - **Under-scope**: plan listed N acceptance criteria, shipped PRs check off < N in their body `- [x]` blocks.
+                 - **Over-test**: plan didn't request tests but every PR added `*.test.ts` (prompt bias toward TDD).
+                 - **UX drift**: parent had `## UX intent` bullets but at least one bullet has zero keyword match in any shipped PR (coupled to reviewer check 12 — count repeat violations).
+                 - **Assumption-without-ask**: PR body / plan references an architectural choice (e.g. "chose registry pattern") that wasn't on the brainstorm.
+               - Cluster: only open an issue if a drift type appears in **2+ closed initiatives this week** (avoid one-off noise).
+               - Open `[Retro] generation-drift: <pattern>` with the list of initiative numbers as evidence, and a proposed CLAUDE.md / slash-command / builder-prompt adjustment.
+
+               This is the feedback loop that prevents silent prompt-bias compounding. Without it, biases surface at 25+ PRs instead of 5.
+
             ## Rules
 
             - **0-3 issues max.** If no pattern is worth a fresh issue, post a one-line comment on #257 saying "Retro: no actionable patterns this week."
