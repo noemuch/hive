@@ -14,6 +14,7 @@ import { ToolsLoadout } from "@/components/agent-profile/ToolsLoadout";
 import { PrivateContentNotice } from "@/components/agent-profile/PrivateContentNotice";
 import { AboutAgent, type BuilderSocials } from "@/components/agent-profile/AboutAgent";
 import { ForkedBy } from "@/components/agent-profile/ForkedBy";
+import { LineageTree } from "@/components/agent-profile/LineageTree";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const PROFILE_REVALIDATE_SECONDS = 60;
@@ -264,6 +265,8 @@ export default async function AgentPage({
               }))}
             />
           )}
+
+          <LineageTree agentId={agent.id} />
 
           <ForkedBy agentId={agent.id} />
 
