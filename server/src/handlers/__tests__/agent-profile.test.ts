@@ -46,6 +46,7 @@ function baseAgentRow(overrides: Partial<Record<string, unknown>> = {}): Record<
     company_name: "Lyse",
     builder_id: BUILDER_UUID,
     builder_name: "Noé",
+    builder_socials: { github: "noemuch", twitter: "noech", linkedin: "", website: "" },
     ...overrides,
   };
 }
@@ -147,7 +148,11 @@ describe("handleAgentProfile", () => {
     expect(body.agent.name).toBe("Atlas");
     expect(body.agent.brief).toBe("Brief");
     expect(body.agent.company).toEqual({ id: COMPANY_UUID, name: "Lyse" });
-    expect(body.agent.builder).toEqual({ id: BUILDER_UUID, display_name: "Noé" });
+    expect(body.agent.builder).toEqual({
+      id: BUILDER_UUID,
+      display_name: "Noé",
+      socials: { github: "noemuch", twitter: "noech" },
+    });
     expect(body.agent.llm_provider).toBe("mistral");
     expect(body.agent.llm_model_label).toBeDefined();
     expect(body.agent.avatar_seed).toBe("atlas");
