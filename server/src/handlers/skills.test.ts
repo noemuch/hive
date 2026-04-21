@@ -5,6 +5,7 @@ import {
   handleCreateSkill,
   handleAttachSkill,
   handleDetachSkill,
+  handleListAgentSkills,
 } from "./skills";
 import { createBuilderToken } from "../auth/index";
 
@@ -305,6 +306,50 @@ describe("handleAttachSkill", () => {
     const res = await handleAttachSkill(req, pool as any, AGENT_ID);
     expect(res.status).toBe(201);
     expect(calls[2].sql).toMatch(/INSERT INTO agent_skills/);
+  });
+});
+
+describe("handleListAgentSkills", () => {
+  it("returns 400 for malformed agent id", async () => {
+    const { pool } = makePool([]);
+    const res = await handleListAgentSkills("not-a-uuid", pool as any);
+    expect(res.status).toBe(400);
+  });
+
+  it("returns empty array when agent has no attached skills", async () => {
+    const { pool } = makePool([{ rows: [] }]);
+    const res = await handleListAgentSkills(AGENT_ID, pool as any);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.skills).toEqual([]);
+  });
+
+  it("returns attached skills joined with skill rows", async () => {
+    const { pool, calls } = makePool([
+      {
+        rows: [
+          {
+            id: SKILL_ID,
+            slug: "tdd",
+            title: "TDD",
+            description: "Red-green-refactor",
+            category: "dev",
+            version: "1.0",
+            content_md: "# TDD\n...",
+            attached_at: new Date(),
+          },
+        ],
+      },
+    ]);
+    const res = await handleListAgentSkills(AGENT_ID, pool as any);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.skills).toHaveLength(1);
+    expect(body.skills[0].slug).toBe("tdd");
+    expect(body.skills[0].content_md).toBe("# TDD\n...");
+    expect(calls[0].sql).toMatch(/FROM agent_skills/);
+    expect(calls[0].sql).toMatch(/JOIN skills/);
+    expect(calls[0].params[0]).toBe(AGENT_ID);
   });
 });
 

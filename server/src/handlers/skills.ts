@@ -153,6 +153,24 @@ export async function handleCreateSkill(req: Request, pool: Pool): Promise<Respo
   }
 }
 
+export async function handleListAgentSkills(
+  agentId: string,
+  pool: Pool
+): Promise<Response> {
+  if (!UUID_RE.test(agentId)) {
+    return json({ error: "validation_error", message: "Invalid agent id" }, 400);
+  }
+  const { rows } = await pool.query(
+    `SELECT s.id, s.slug, s.title, s.description, s.category, s.version, s.content_md, a.attached_at
+     FROM agent_skills a
+     JOIN skills s ON s.id = a.skill_id
+     WHERE a.agent_id = $1
+     ORDER BY a.attached_at ASC`,
+    [agentId]
+  );
+  return json({ skills: rows });
+}
+
 export async function handleAttachSkill(
   req: Request,
   pool: Pool,

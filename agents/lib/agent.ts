@@ -19,6 +19,11 @@
 import type { AgentPersonality, ToolConfig } from "./types";
 import { MCPClient, connectMCPClients } from "./mcp-client";
 import { runWithTools } from "./tool-loop";
+import {
+  fetchAgentSkills,
+  composeSystemPromptWithSkills,
+  type AgentSkill,
+} from "./skill-loader";
 
 const API_KEY = process.env.HIVE_API_KEY;
 // Any OpenAI-compatible chat-completions endpoint. All major 2026 providers
@@ -27,6 +32,10 @@ const LLM_BASE_URL = (process.env.LLM_BASE_URL || "https://api.anthropic.com/v1/
 const LLM_API_KEY = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
 const LLM_MODEL = process.env.LLM_MODEL || "claude-haiku-4-5-20251001";
 const SERVER_URL = process.env.HIVE_URL || "ws://localhost:3000/agent";
+const HIVE_API_URL = process.env.HIVE_API_URL || "http://localhost:3000";
+// Budget for the skills section of the system prompt. Keeps a reply round-trip
+// cheap even when an agent has many heavy SKILL.md files attached. See #216.
+const SKILLS_TOKEN_BUDGET = 8000;
 
 if (!API_KEY || !LLM_API_KEY || !process.env.AGENT_PERSONALITY) {
   console.error(
@@ -64,6 +73,27 @@ if (process.env.AGENT_TOOLS) {
   }
 }
 let mcpClients: MCPClient[] = [];
+let agentSkills: AgentSkill[] = [];
+
+/**
+ * Build the effective system prompt for a given user message, adding
+ * only skills whose slug/title/description match the message. Logs the
+ * selected slugs once per call so operators can debug progressive disclosure.
+ */
+function systemPromptFor(userMsg: string): string {
+  const { prompt, picked } = composeSystemPromptWithSkills(
+    P.systemPrompt,
+    userMsg,
+    agentSkills,
+    SKILLS_TOKEN_BUDGET,
+  );
+  if (picked.length > 0) {
+    console.log(
+      `[skills] ${P.name} loaded ${picked.length}: ${picked.map((s) => s.slug).join(", ")}`,
+    );
+  }
+  return prompt;
+}
 
 type Message = { id: string; author: string; content: string; channel: string };
 
@@ -190,15 +220,16 @@ async function askLLMReply(msg: Message): Promise<string | null> {
     .map((m) => `[${m.channel}] ${m.author}: ${m.content}`)
     .join("\n");
   const prompt = `Recent conversation:\n${historyText}\n\nNew message from ${msg.author}: ${msg.content}\n\nRespond as ${P.name} in 1-2 sentences.`;
+  const systemPrompt = systemPromptFor(msg.content);
   if (mcpClients.length > 0 && LLM_API_KEY) {
-    return runWithTools(P.systemPrompt, prompt, mcpClients, {
+    return runWithTools(systemPrompt, prompt, mcpClients, {
       baseUrl: LLM_BASE_URL,
       apiKey: LLM_API_KEY,
       model: LLM_MODEL,
       maxTokens: 150,
     });
   }
-  return callLLM(P.systemPrompt, prompt, 150);
+  return callLLM(systemPrompt, prompt, 150);
 }
 
 async function generateArtifact(): Promise<{ type: string; title: string; content: string } | null> {
@@ -211,7 +242,9 @@ async function generateArtifact(): Promise<{ type: string; title: string; conten
   const artifactType = P.artifactTypes[Math.floor(Math.random() * P.artifactTypes.length)];
   const prompt = `Based on this recent team discussion:\n${historyText}\n\nGenerate a ${artifactType} artifact as ${P.name}. Respond in this exact format:\nTITLE: <short title under 100 chars>\nCONTENT: <2-3 sentences describing the ${artifactType}>`;
 
-  const response = await callLLM(P.systemPrompt, prompt, 200);
+  // Score skills against the full recent conversation so artifact drafts pick
+  // up topical skills (e.g. a "writing-specs" skill when the team is discussing specs).
+  const response = await callLLM(systemPromptFor(historyText), prompt, 200);
   if (!response) return null;
 
   const titleMatch = response.match(/TITLE:\s*(.+)/i);
@@ -304,6 +337,21 @@ function connect() {
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         heartbeatTimer = setInterval(() => send({ type: "heartbeat" }), 30_000);
 
+        // Load attached SKILL.md content for progressive disclosure (#216).
+        // Fire-and-forget: if the skills endpoint is briefly unreachable or the
+        // agent has no attachments, fetchAgentSkills returns [] and the agent
+        // runs as before. Re-fetched on every reconnect to pick up attach/detach.
+        fetchAgentSkills(agentId, API_KEY, HIVE_API_URL)
+          .then((skills) => {
+            agentSkills = skills;
+            if (skills.length > 0) {
+              console.log(
+                `[skills] ${P.name} boot-loaded ${skills.length} skill(s): ${skills.map((s) => s.slug).join(", ")}`,
+              );
+            }
+          })
+          .catch((err) => console.warn(`[skills] ${P.name} load failed:`, (err as Error).message));
+
         // Kickoff: first agent to connect sends initial message after 15s (once per process)
         if (!hasKickedOff) {
           hasKickedOff = true;
@@ -311,7 +359,8 @@ function connect() {
           setTimeout(async () => {
             if (history.length === 0 && canDo("send_message")) {
               record("send_message");
-              const topic = await callLLM(P.systemPrompt, `You just joined a new team. Introduce yourself briefly and ask the team a work-related question relevant to your role as ${P.role}. 1-2 sentences.`, 100);
+              const kickoffUserPrompt = `You just joined a new team. Introduce yourself briefly and ask the team a work-related question relevant to your role as ${P.role}. 1-2 sentences.`;
+              const topic = await callLLM(systemPromptFor(kickoffUserPrompt), kickoffUserPrompt, 100);
               if (topic) {
                 send({ type: "send_message", channel: ch, content: topic });
                 lastSpokeAt = Date.now();
@@ -340,7 +389,8 @@ function connect() {
                 Math.random() < PULSE_PROBABILITY
               ) {
                 record("send_message");
-                const topic = await callLLM(P.systemPrompt, `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`, 100);
+                const pulseUserPrompt = `The team has been quiet for a while. As ${P.name} (${P.role}), bring up a new work topic relevant to your expertise. 1-2 sentences, conversational.`;
+                const topic = await callLLM(systemPromptFor(pulseUserPrompt), pulseUserPrompt, 100);
                 if (topic) {
                   send({ type: "send_message", channel: ch, content: topic });
                   lastMessageTime = Date.now();
