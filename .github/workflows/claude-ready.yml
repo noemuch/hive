@@ -339,50 +339,61 @@ jobs:
             // Simplification: mark whichever was last attempted
             const accountKey = account === 'primary' ? 'primary_exhausted_until' : 'secondary_exhausted_until';
 
-            // Read current state from main
-            let state;
-            try {
-              const { data } = await github.rest.repos.getContent({
-                owner: context.repo.owner, repo: context.repo.repo,
-                path: '.github/quota-state.json', ref: 'main'
-              });
-              state = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
-            } catch (e) {
-              state = { primary_exhausted_until: null, secondary_exhausted_until: null, last_check: null, history: [] };
-            }
-
-            state[accountKey] = resetAt;
-            state.last_check = new Date().toISOString();
-            state.history = state.history || [];
-            state.history.push({
+            // Commit the state file with optimistic-concurrency retry.
+            // Multiple workflows (claude-ready, review, quota-monitor) may
+            // write this file concurrently. 409 Conflict means another writer
+            // landed between our read and write — re-read, re-merge, retry.
+            const entry = {
               account,
               detected_at: new Date().toISOString(),
               reset_at: resetAt,
               run_url: process.env.RUN_URL,
               issue: parseInt(process.env.ISSUE_NUM, 10) || null
-            });
-            if (state.history.length > 100) state.history = state.history.slice(-100);
+            };
 
-            // Commit the state file
-            const body = Buffer.from(JSON.stringify(state, null, 2) + '\n').toString('base64');
-            try {
+            async function casWrite(attempt = 1) {
               const { data: current } = await github.rest.repos.getContent({
                 owner: context.repo.owner, repo: context.repo.repo,
                 path: '.github/quota-state.json', ref: 'main'
               });
-              await github.rest.repos.createOrUpdateFileContents({
-                owner: context.repo.owner, repo: context.repo.repo,
-                path: '.github/quota-state.json',
-                message: `chore(quota): mark ${account} exhausted until ${resetAt}`,
-                content: body,
-                sha: current.sha,
-                branch: 'main',
-                committer: { name: 'Noé Chagué', email: 'noe@finary.com' },
-                author: { name: 'Noé Chagué', email: 'noe@finary.com' }
-              });
-              core.info(`Persisted quota state: ${account} until ${resetAt}`);
+              // Re-read + re-apply so concurrent writer's history isn't lost
+              const fresh = JSON.parse(Buffer.from(current.content, 'base64').toString('utf8'));
+              fresh[accountKey] = resetAt;
+              fresh.last_check = new Date().toISOString();
+              fresh.history = fresh.history || [];
+              // De-dup — don't push the same entry twice on retry
+              if (!fresh.history.find(h => h.run_url === entry.run_url && h.account === entry.account)) {
+                fresh.history.push(entry);
+              }
+              if (fresh.history.length > 100) fresh.history = fresh.history.slice(-100);
+
+              const body = Buffer.from(JSON.stringify(fresh, null, 2) + '\n').toString('base64');
+              try {
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  path: '.github/quota-state.json',
+                  message: `chore(quota): mark ${account} exhausted until ${resetAt}`,
+                  content: body,
+                  sha: current.sha,
+                  branch: 'main',
+                  committer: { name: 'Noé Chagué', email: 'noe@finary.com' },
+                  author: { name: 'Noé Chagué', email: 'noe@finary.com' }
+                });
+                core.info(`Persisted quota state on attempt ${attempt}: ${account} until ${resetAt}`);
+              } catch (e) {
+                if (e.status === 409 && attempt < 5) {
+                  core.info(`Quota state CAS conflict, retry ${attempt + 1}/5 in ${500 * attempt}ms`);
+                  await new Promise(r => setTimeout(r, 500 * attempt));
+                  return casWrite(attempt + 1);
+                }
+                throw e;
+              }
+            }
+
+            try {
+              await casWrite();
             } catch (e) {
-              core.warning(`Failed to commit state: ${e.message}`);
+              core.warning(`Failed to commit state after retries: ${e.message}`);
             }
 
             // Apply quota-paused label on the triggering issue

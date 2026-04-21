@@ -114,10 +114,28 @@ jobs:
           git add .github/quota-state.json
           if git diff --cached --quiet; then
             echo "No actual diff to commit."
-          else
-            git commit -m "chore(quota): auto-resume — ${{ steps.eval.outputs.changes || 'no state change' }}; unblocked=${{ steps.eval.outputs.unblocked || 'none' }}"
-            git push origin main
+            exit 0
           fi
+          git commit -m "chore(quota): auto-resume — ${{ steps.eval.outputs.changes || 'no state change' }}; unblocked=${{ steps.eval.outputs.unblocked || 'none' }}"
+          # Retry on push conflict (concurrent writers on the same file).
+          # Up to 5 attempts with exponential-ish backoff; rebase stashes the
+          # commit onto the new main tip before re-pushing.
+          for attempt in 1 2 3 4 5; do
+            if git push origin main; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push failed on attempt $attempt — rebase + retry."
+            git fetch origin main
+            git rebase origin/main || {
+              echo "::error::Rebase failed on quota-state merge (attempt $attempt). Aborting."
+              git rebase --abort 2>/dev/null || true
+              exit 1
+            }
+            sleep $((attempt * 2))
+          done
+          echo "::error::Push still failing after 5 attempts."
+          exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.NOEMUCH_PAT }}
 
