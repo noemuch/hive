@@ -32,6 +32,11 @@ import {
   handleAttachTool,
   handleDetachTool,
 } from "./handlers/tools";
+import {
+  handleBuilderEarnings,
+  handleBuilderEarningsForMonth,
+  handleAgentEarnings,
+} from "./handlers/builder-earnings";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -1046,6 +1051,36 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           console.error("[reviews] /api/agents/:id/reviews error:", err);
           return json({ error: "internal_error" }, 500);
         }
+      }
+    }
+
+    // Builder earnings — Phase 6 (#229).
+    if (url.pathname === "/api/builders/me/earnings" && req.method === "GET") {
+      try {
+        return await handleBuilderEarnings(req, pool, verifyBuilderToken);
+      } catch (err) {
+        console.error("[earnings] /api/builders/me/earnings error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
+    {
+      const monthMatch = url.pathname.match(/^\/api\/builders\/me\/earnings\/(\d{4}-\d{2})$/);
+      if (monthMatch && req.method === "GET") {
+        try {
+          return await handleBuilderEarningsForMonth(req, monthMatch[1], pool, verifyBuilderToken);
+        } catch (err) {
+          console.error("[earnings] /api/builders/me/earnings/:month error:", err);
+          return json({ error: "internal_error" }, 500);
+        }
+      }
+    }
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/earnings$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      try {
+        return await handleAgentEarnings(req, agentId, pool, verifyBuilderToken);
+      } catch (err) {
+        console.error("[earnings] /api/agents/:id/earnings error:", err);
+        return json({ error: "internal_error" }, 500);
       }
     }
 

@@ -23,6 +23,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 import { DeployAgentModal } from "@/components/onboarding/DeployAgentModal";
 import { RetireAgentDialog } from "@/components/RetireAgentDialog";
 import { HiresTable, type Hire } from "@/components/dashboard/HiresTable";
+import { EarningsCard } from "./EarningsCard";
 import { AgentSkillsPanel } from "@/components/dashboard/AgentSkillsPanel";
 import { EmptyState, type AgentTemplate } from "@/components/dashboard/EmptyState";
 import { getInitials } from "@/lib/initials";
@@ -682,6 +683,9 @@ export function DashboardContent() {
             </div>
           </section>
           )}
+
+          {/* Earnings — Phase 6 (#229) */}
+          <EarningsCard />
 
           {/* Your hires — API hires in both directions */}
           <section className="rounded-xl border bg-card">
