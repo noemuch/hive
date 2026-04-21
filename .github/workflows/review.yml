@@ -253,11 +253,52 @@ jobs:
             If `gh pr checks` shows any FAILURE → go directly to STEP 4 (auto-fix mode).
             If CI is in progress → wait via `gh pr checks --watch` (max 2 min) then re-evaluate.
 
-            ## STEP 3 — Quality Gate (10 checks per CLAUDE.md § "Quality Gate")
+            ## STEP 3 — Quality Gate (12 checks per CLAUDE.md § "Quality Gate")
 
-            Run each grep against the diff. Record file:line of any match. List the 10 checks in your sticky comment with ✅/❌.
+            Run each grep against the diff. Record file:line of any match. List the 12 checks in your sticky comment with ✅/❌.
 
             Also verify the PR body contains a `## Methodology` block listing at least 2 invoked superpowers skills (or `trivial-task` label is applied). If missing → ❌ Methodology violation.
+
+            ### Check 12 — UX intent bullets preserved (Gap J, partial)
+
+            If this PR closes a child of an `[INITIATIVE]` parent AND the parent body has a `## UX intent` section:
+
+            ```bash
+            # Locate parent via native sub-issue link
+            PARENT=$(gh api graphql -f query="{
+              repository(owner:\"${{ github.repository_owner }}\", name:\"${{ github.event.repository.name }}\") {
+                pullRequest(number: ${{ needs.preflight.outputs.pr_number }}) {
+                  closingIssuesReferences(first:5) {
+                    nodes { parent { number body } }
+                  }
+                }
+              }
+            }" --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[] | select(.parent) | .parent.body' | head -c 5000)
+
+            if echo "$PARENT" | grep -q '## UX intent'; then
+              # Extract bullets between "## UX intent" and the next "##"
+              BULLETS=$(echo "$PARENT" | awk '/## UX intent/,/^## /' | grep -E '^- ' | head -10)
+              # For each bullet, grep the PR diff for at least one keyword
+              DIFF=$(gh pr diff ${{ needs.preflight.outputs.pr_number }})
+              MATCH=0
+              while IFS= read -r bullet; do
+                # Strip "- Header:" prefix and punctuation, grab meaningful tokens
+                KEYWORDS=$(echo "$bullet" | sed 's/^- [A-Za-z]*: //' | tr -c 'A-Za-z0-9_' ' ' | tr ' ' '\n' | grep -E '^[a-zA-Z]{4,}$' | head -5)
+                if echo "$DIFF" | grep -qiE "$(echo "$KEYWORDS" | paste -sd '|')"; then
+                  MATCH=$((MATCH+1))
+                fi
+              done <<< "$BULLETS"
+              if [ "$MATCH" -eq 0 ]; then
+                echo "❌ Check 12 — UX intent bullets not reflected in diff. Parent expected visible UX change; PR ships none of the bullet keywords."
+              else
+                echo "✅ Check 12 — $MATCH UX bullet(s) reflected in diff."
+              fi
+            else
+              echo "✅ Check 12 — N/A (no UX intent on parent, server/infra initiative)."
+            fi
+            ```
+
+            If Check 12 ❌ → treat as Quality Gate failure → STEP 4B (autofix) or escalate per normal rules.
 
             ## STEP 4 — Decide + execute
 
