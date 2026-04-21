@@ -99,7 +99,10 @@ jobs:
                - DB migration → server handler → UI component (sequential)
                - server endpoint A / endpoint B / endpoint C (parallel)
                - UI page / UI tests / docs (parallel after code)
-            3. **Dep graph**: express in each child's body with `Depends on: #<parent>` (always) + `Depends on: #<sibling>` if strict order required.
+            3. **Dep graph** (CRITICAL — do not create deadlocks):
+               - **NEVER** write `Depends on: #<parent>` in a child body. The parent is an `epic` container that stays OPEN until all children close — declaring the parent as a blocker creates a circular deadlock (child blocks on parent, parent can't close without child). Use `Related to: #<parent>` for discoverability only.
+               - **DO** write `Depends on: #<sibling>` ONLY if strict order is required (e.g. DB migration must ship before the API handler that queries the new column). Sibling deps are fine because siblings eventually close.
+               - Native sub-issue linking (via `addSubIssue` GraphQL) is the mechanism for parent↔child relationship — don't duplicate it with a body dep.
             4. **Titles**: prefix each child with a step indicator: `[1/N] <scope>`, `[2/N] <scope>`, etc.
             5. **Labels on children**: inherit `agent-ready`, add inherited `priority:*` + `source:*` if present on parent, add `type:*` + `area:*` (reuse parent's triage) + appropriate `size:*` (usually S or M post-split).
             6. **Do NOT create more than 6 children**. If scope truly needs more, create 5 + 1 "[overflow] <rest>" parent-ish child that can itself be split later.
