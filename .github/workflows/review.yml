@@ -1,12 +1,14 @@
 name: Claude Code — Autonomous Reviewer
 
-# Reviewer workflow (v7 — 2026-04-20):
+# Reviewer workflow (v8 — 2026-04-21):
 #   - Opus 4.7 + superpowers (plugin pinned to commit bb77301)
 #   - Iteration count via PR labels (autofix-iter-1/2/3) — survives rebase
 #   - Concurrency group prevents parallel reviewers on same PR
-#   - Pre-flight secret check
+#   - Pre-flight secret + metadata computation
 #   - FULL MERGE AUTHORITY: Claude merges every clean PR (no path restrictions)
 #   - Auto-fix mode for lint/type/simple test errors
+#   - STEP 1.5: autonomous conflict resolution (3/3/3 budget)
+#   - Dual entry points: pull_request (natural) + workflow_dispatch (manual/nudge)
 #
 # Auth: NOEMUCH_PAT — appears as @noemuch.
 # LLM: Opus 4.7 via Lyse primary, Finary secondary failover on quota.
@@ -14,25 +16,27 @@ name: Claude Code — Autonomous Reviewer
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to review
+        required: true
+        type: number
 
 concurrency:
-  group: reviewer-${{ github.event.pull_request.number }}
+  group: reviewer-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: false
 
 jobs:
   preflight:
-    # Skip if killed, already blocked, or PR is from a non-Claude source.
-    # Filter on branch prefix `claude/` so manual @noemuch PRs don't trigger autonomous review.
-    if: |
-      !contains(github.event.pull_request.labels.*.name, 'stop-autonomy')
-      && !contains(github.event.pull_request.labels.*.name, 'agent-blocked')
-      && github.event.pull_request.user.login == 'noemuch'
-      && startsWith(github.event.pull_request.head.ref, 'claude/')
-
     runs-on: ubuntu-latest
     outputs:
+      pr_number: ${{ steps.meta.outputs.pr_number }}
+      head_ref: ${{ steps.meta.outputs.head_ref }}
+      head_sha: ${{ steps.meta.outputs.head_sha }}
       iter: ${{ steps.iter.outputs.n }}
       capped: ${{ steps.iter.outputs.capped }}
+      should_skip: ${{ steps.meta.outputs.should_skip }}
 
     steps:
       - name: Secret sanity
@@ -52,27 +56,69 @@ jobs:
           fi
           echo "::notice::All secrets present."
 
+      - name: Resolve PR metadata + filter
+        id: meta
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            // Resolve pr_number from either event source
+            let prNumber;
+            if (context.eventName === 'pull_request') {
+              prNumber = context.payload.pull_request.number;
+            } else if (context.eventName === 'workflow_dispatch') {
+              prNumber = parseInt(context.payload.inputs.pr_number, 10);
+            } else {
+              core.setFailed(`Unsupported event: ${context.eventName}`);
+              return;
+            }
+
+            // Fetch PR details (works for both event sources)
+            const { data: pr } = await github.rest.pulls.get({
+              ...context.repo, pull_number: prNumber
+            });
+
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_sha', pr.head.sha);
+
+            // Filters — skip if not a claude/ PR by @noemuch or labeled kill/blocked
+            const labels = (pr.labels || []).map(l => l.name);
+            const reasons = [];
+            if (labels.includes('stop-autonomy')) reasons.push('stop-autonomy label');
+            if (labels.includes('agent-blocked')) reasons.push('agent-blocked label');
+            if (pr.user.login !== 'noemuch') reasons.push(`author=${pr.user.login}`);
+            if (!pr.head.ref.startsWith('claude/')) reasons.push(`branch=${pr.head.ref}`);
+
+            if (reasons.length > 0) {
+              core.setOutput('should_skip', 'true');
+              core.notice(`Skipping review for PR #${prNumber}: ${reasons.join(', ')}`);
+            } else {
+              core.setOutput('should_skip', 'false');
+            }
+
       - name: Iteration count via labels
         id: iter
+        if: steps.meta.outputs.should_skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          PR: ${{ steps.meta.outputs.pr_number }}
         run: |
           set -euo pipefail
-          PR=${{ github.event.pull_request.number }}
-          N=$(gh pr view $PR --repo noemuch/hive --json labels --jq '[.labels[].name | select(startswith("autofix-iter-"))] | length')
+          N=$(gh pr view "$PR" --repo noemuch/hive --json labels --jq '[.labels[].name | select(startswith("autofix-iter-"))] | length')
           echo "n=$N" >> "$GITHUB_OUTPUT"
           if [ "$N" -ge 3 ]; then
             echo "capped=true" >> "$GITHUB_OUTPUT"
             echo "::warning::Iteration cap (3) reached on PR #$PR"
-            gh pr edit $PR --repo noemuch/hive --add-label agent-blocked
-            gh pr comment $PR --repo noemuch/hive --body "🔴 **Autofix cap reached** (3 iterations). @noemuch please look. \`agent-blocked\` applied."
+            gh pr edit "$PR" --repo noemuch/hive --add-label agent-blocked
+            gh pr comment "$PR" --repo noemuch/hive --body "🔴 **Autofix cap reached** (3 iterations). @noemuch please look. \`agent-blocked\` applied."
           else
             echo "capped=false" >> "$GITHUB_OUTPUT"
           fi
 
   review:
     needs: preflight
-    if: needs.preflight.outputs.capped != 'true'
+    if: needs.preflight.outputs.should_skip != 'true' && needs.preflight.outputs.capped != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -89,7 +135,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.NOEMUCH_PAT }}
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ needs.preflight.outputs.head_ref }}
           fetch-depth: 0
 
       - name: Run reviewer (primary = Lyse)
@@ -108,7 +154,7 @@ jobs:
           plugins: |
             superpowers@claude-plugins-official
           prompt: |
-            You are the autonomous **reviewer + fixer** for PR #${{ github.event.pull_request.number }}.
+            You are the autonomous **reviewer + fixer** for PR #${{ needs.preflight.outputs.pr_number }}.
             Opus 4.7 + `superpowers:requesting-code-review`. Authenticated as @noemuch via PAT.
 
             Iteration count for this PR: ${{ needs.preflight.outputs.iter }}/3.
@@ -122,9 +168,9 @@ jobs:
             ```bash
             /superpowers
             cat CLAUDE.md
-            gh pr view ${{ github.event.pull_request.number }} --json title,body,additions,deletions,files,mergeStateStatus,statusCheckRollup
-            gh pr diff ${{ github.event.pull_request.number }}
-            gh pr checks ${{ github.event.pull_request.number }}
+            gh pr view ${{ needs.preflight.outputs.pr_number }} --json title,body,additions,deletions,files,mergeStateStatus,statusCheckRollup
+            gh pr diff ${{ needs.preflight.outputs.pr_number }}
+            gh pr checks ${{ needs.preflight.outputs.pr_number }}
             ```
 
             ## STEP 1 — Rebase if BEHIND main
@@ -182,7 +228,7 @@ jobs:
             5. **On success:**
                ```bash
                git push --force-with-lease origin HEAD
-               gh pr comment ${{ github.event.pull_request.number }} --body "🔀 **Auto-rebase resolved N conflicts**:
+               gh pr comment ${{ needs.preflight.outputs.pr_number }} --body "🔀 **Auto-rebase resolved N conflicts**:
                - \`path/to/file.ts\`: <1-line summary of how it was merged>
                - (...)
 
@@ -193,8 +239,8 @@ jobs:
             **ESCALATE block** (used by any budget trip in this step):
             ```bash
             git rebase --abort 2>/dev/null || true
-            gh pr edit ${{ github.event.pull_request.number }} --repo noemuch/hive --add-label agent-blocked
-            gh pr comment ${{ github.event.pull_request.number }} --body "🔴 **Conflict auto-resolve aborted** — <precise reason: e.g. 'file server/src/engine/handlers.ts has 5 conflict hunks (budget: 3)' or 'method signature divergence in auth.ts: HEAD adds verifyJwt(token, audience), main adds verifyJwt(token, {aud})'>. @noemuch needs manual resolve. \`agent-blocked\` applied."
+            gh pr edit ${{ needs.preflight.outputs.pr_number }} --repo noemuch/hive --add-label agent-blocked
+            gh pr comment ${{ needs.preflight.outputs.pr_number }} --body "🔴 **Conflict auto-resolve aborted** — <precise reason: e.g. 'file server/src/engine/handlers.ts has 5 conflict hunks (budget: 3)' or 'method signature divergence in auth.ts: HEAD adds verifyJwt(token, audience), main adds verifyJwt(token, {aud})'>. @noemuch needs manual resolve. \`agent-blocked\` applied."
             exit 0
             ```
             Do NOT proceed to STEP 2 after ESCALATE.
@@ -214,11 +260,11 @@ jobs:
 
             ### A. Quality Gate 0/10 + Methodology block present + CI green → AUTO-MERGE
             ```bash
-            gh pr comment ${{ github.event.pull_request.number }} --body "✅ **Review passed** — Quality Gate 0/10, Methodology present, CI green. Auto-merging.
+            gh pr comment ${{ needs.preflight.outputs.pr_number }} --body "✅ **Review passed** — Quality Gate 0/10, Methodology present, CI green. Auto-merging.
 
             **Summary**: <2-3 lines>
             **Methodology**: Opus 4.7 + superpowers:requesting-code-review"
-            gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
+            gh pr merge ${{ needs.preflight.outputs.pr_number }} --auto --squash --delete-branch
             ```
 
             ### B. AUTO-FIX MODE — for mechanical issues only:
@@ -246,9 +292,9 @@ jobs:
             - 3+ iterations failed (already capped at preflight)
 
             ```bash
-            gh pr edit ${{ github.event.pull_request.number }} --add-label agent-blocked
-            gh pr merge ${{ github.event.pull_request.number }} --disable-auto 2>/dev/null || true
-            gh pr comment ${{ github.event.pull_request.number }} --body "🔴 **Escalation to @noemuch**: <why human judgment needed>. \`agent-blocked\` applied."
+            gh pr edit ${{ needs.preflight.outputs.pr_number }} --add-label agent-blocked
+            gh pr merge ${{ needs.preflight.outputs.pr_number }} --disable-auto 2>/dev/null || true
+            gh pr comment ${{ needs.preflight.outputs.pr_number }} --body "🔴 **Escalation to @noemuch**: <why human judgment needed>. \`agent-blocked\` applied."
             ```
 
             ## STYLE
@@ -290,7 +336,7 @@ jobs:
             superpowers@claude-plugins-official
           prompt: |
             [FAILOVER] Same reviewer role as primary prompt above.
-            Iteration: ${{ needs.preflight.outputs.iter }}/3 for PR #${{ github.event.pull_request.number }}.
+            Iteration: ${{ needs.preflight.outputs.iter }}/3 for PR #${{ needs.preflight.outputs.pr_number }}.
             Re-execute STEP 0 → STEP 1 → STEP 1.5 (if DIRTY/BEHIND) → STEP 2 → STEP 3 → STEP 4 from the reviewer spec in CLAUDE.md.
             Conflict auto-resolution budget: 3 files / 3 hunks / 3 iter, else agent-blocked.
             GO. Max 75 turns.
@@ -306,7 +352,7 @@ jobs:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_NUM: ${{ needs.preflight.outputs.pr_number }}
         with:
           github-token: ${{ secrets.NOEMUCH_PAT }}
           script: |
@@ -400,7 +446,7 @@ jobs:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
         run: |
           set -euo pipefail
-          PR="${{ github.event.pull_request.number }}"
+          PR="${{ needs.preflight.outputs.pr_number }}"
           ITER="${{ needs.preflight.outputs.iter }}"
           OUTCOME="${{ steps.primary.outcome }}"
-          gh issue comment 257 --repo noemuch/hive --body "🔍 **Reviewer run** for PR #${PR} — iter \`${ITER}/3\` — primary: \`${OUTCOME}\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment 257 --repo noemuch/hive --body "🔍 **Reviewer run** for PR #${PR} — iter \`${ITER}/3\` — primary: \`${OUTCOME}\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — event: \`${{ github.event_name }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

@@ -385,11 +385,13 @@ Skips PRs that are: labelled `stop-autonomy` / `agent-blocked` / `autofix-iter-*
 
 ### Reviewer nudge
 
-`.github/workflows/reviewer-nudge.yml` runs every 30 min. review.yml only fires on `pull_request` events (open/synchronize/reopened) — a PR that went DIRTY between reviewer runs stays DIRTY forever without new pushes. The nudge finds every `claude/*` PR that is DIRTY AND has no reviewer run in the last 60 min, then pushes an empty commit via the git REST API authenticated as `NOEMUCH_PAT` owner (`@noemuch`). The push fires `synchronize`, which wakes review.yml → STEP 1.5 runs.
+`.github/workflows/reviewer-nudge.yml` runs every 30 min. review.yml fires on `pull_request` events — a PR that went DIRTY between reviewer runs stays DIRTY forever without a fresh trigger. The nudge finds every `claude/*` PR whose `mergeStateStatus` is `DIRTY` or `UNKNOWN` AND has no reviewer run in the last 60 min, then calls `createWorkflowDispatch` on `review.yml` with the PR number as input.
 
-Why `NOEMUCH_PAT` and not `GITHUB_TOKEN`: pushes using the default `GITHUB_TOKEN` don't chain-fire downstream workflows (GitHub anti-loop safeguard). PAT pushes do.
+`review.yml` v8 exposes `workflow_dispatch` with a `pr_number` input and computes PR metadata from either event source in its preflight step — so natural `pull_request: synchronize` events and nudge dispatches go through the same downstream review code path.
 
-Skips same conditions as proactive-rebase plus "reviewer ran <60min ago" to avoid thrashing.
+Why `workflow_dispatch` (and not pushing empty commits): pushes made from inside a workflow — whether via git CLI or REST API `createCommit+updateRef` — do NOT reliably trigger `pull_request: synchronize`, even with a PAT. Verified empirically 2026-04-21. `workflow_dispatch` is the documented, reliable inter-workflow trigger used by Dependabot, Renovate, and Anthropic's own action examples.
+
+Skips: `stop-autonomy` / `agent-blocked` / `autofix-iter-*` labels, or reviewer ran <60min ago (anti-thrash).
 
 ### Autonomous conflict resolution (reviewer STEP 1.5)
 

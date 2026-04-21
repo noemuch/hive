@@ -1,23 +1,25 @@
 name: Reviewer Nudge — Re-fire reviewer on stuck DIRTY PRs
 
-# Every 30 min. When a claude/* PR is DIRTY (merge conflict) and no
-# reviewer has fired on it in the last 60 min, push an empty commit to
-# the PR branch — this fires `pull_request: synchronize`, which wakes up
-# review.yml which runs STEP 1.5 (autonomous conflict resolution).
+# Every 30 min. Finds claude/* PRs where mergeStateStatus is DIRTY (or
+# UNKNOWN — GitHub's background merge calculation not yet complete) AND
+# no reviewer run fired in the last 60 min. Calls `createWorkflowDispatch`
+# on review.yml with the PR number as input.
 #
-# Why this is required: review.yml fires on pull_request events only.
-# A DIRTY PR without new pushes stays DIRTY forever. Proactive-rebase
-# only handles BEHIND (not DIRTY), since GitHub's update-branch API
-# refuses to rebase a conflicted branch. The nudge is the sole path
-# that lets STEP 1.5 run on a PR that went DIRTY between reviewer runs.
+# Why workflow_dispatch (and not empty-commit pushes): pushes made from
+# inside a workflow — whether via git CLI or REST API — do NOT reliably
+# trigger `pull_request: synchronize` even with a PAT. Verified empirically
+# on 2026-04-21 (commit 3a49ebd attributed to @noemuch, zero check runs).
+# workflow_dispatch is the documented, reliable path to manually invoke
+# another workflow — used by Dependabot, Renovate, and Anthropic's own
+# action examples.
 #
-# Push authored via git REST API with NOEMUCH_PAT — this ensures the
-# event is attributed to @noemuch and fires downstream workflows
-# (GITHUB_TOKEN pushes don't chain-fire; PAT pushes do).
+# review.yml v8 exposes `workflow_dispatch` with `pr_number` input and
+# computes PR metadata from either event source in its preflight step.
 #
 # Skip conditions:
 #   - PR labelled stop-autonomy / agent-blocked / autofix-iter-*
-#   - mergeStateStatus is not DIRTY (nothing to nudge)
+#   - mergeStateStatus is CLEAN, BEHIND, BLOCKED, HAS_HOOKS (all handled
+#     by other paths)
 #   - A reviewer run fired on this branch within the last 60 min
 
 on:
@@ -33,12 +35,12 @@ jobs:
   nudge:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      actions: write
+      pull-requests: read
       issues: write
 
     steps:
-      - name: Nudge stuck DIRTY claude/* PRs
+      - name: Dispatch reviewer on stuck DIRTY/UNKNOWN claude/* PRs
         uses: actions/github-script@v7
         env:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
@@ -70,7 +72,9 @@ jobs:
                 continue;
               }
 
-              // Only nudge DIRTY (BEHIND handled by proactive-rebase, CLEAN needs no help)
+              // Nudge DIRTY (confirmed conflict) AND UNKNOWN (transient state).
+              // Skip CLEAN/BEHIND/BLOCKED/HAS_HOOKS — those are handled by
+              // the normal reviewer event flow or proactive-rebase.
               let mergeState;
               try {
                 const gql = await github.graphql(`
@@ -85,11 +89,6 @@ jobs:
                 core.warning(`mergeState #${pr.number}: ${e.message}`);
                 continue;
               }
-              // Nudge DIRTY (confirmed conflict) AND UNKNOWN (GitHub hasn't
-              // computed merge state yet — often DIRTY after a cross-merge).
-              // The reviewer re-evaluates state in STEP 0, so a false-positive
-              // nudge is cheap (reviewer exits fast); a false-negative leaves
-              // the PR stuck forever.
               if (mergeState !== 'DIRTY' && mergeState !== 'UNKNOWN') {
                 skipped.push(`#${pr.number} (${mergeState})`);
                 continue;
@@ -114,34 +113,22 @@ jobs:
                 core.warning(`runs lookup #${pr.number}: ${e.message}`);
               }
 
-              // Push empty commit via REST API — authored as NOEMUCH_PAT owner (@noemuch)
+              // Dispatch review.yml with this PR number
               try {
-                const { data: refData } = await github.rest.git.getRef({
-                  ...context.repo, ref: `heads/${pr.head.ref}`
-                });
-                const parentSha = refData.object.sha;
-                const { data: parentCommit } = await github.rest.git.getCommit({
-                  ...context.repo, commit_sha: parentSha
-                });
-                const { data: newCommit } = await github.rest.git.createCommit({
+                await github.rest.actions.createWorkflowDispatch({
                   ...context.repo,
-                  message: 'chore: reviewer-nudge — re-trigger reviewer on DIRTY PR',
-                  tree: parentCommit.tree.sha,
-                  parents: [parentSha]
-                });
-                await github.rest.git.updateRef({
-                  ...context.repo,
-                  ref: `heads/${pr.head.ref}`,
-                  sha: newCommit.sha
+                  workflow_id: 'review.yml',
+                  ref: 'main',
+                  inputs: { pr_number: String(pr.number) }
                 });
                 nudged.push(`#${pr.number}`);
               } catch (e) {
-                failed.push(`#${pr.number}: ${String(e.message).slice(0, 120)}`);
+                failed.push(`#${pr.number}: ${String(e.message).slice(0, 200)}`);
               }
             }
 
-            core.info(`Candidates: ${candidates.map(p => '#' + p.number).join(', ')}`);
-            core.info(`Nudged: ${nudged.join(', ') || 'none'}`);
+            core.info(`Candidates: ${candidates.map(p => '#' + p.number).join(', ') || 'none'}`);
+            core.info(`Nudged (dispatched review.yml): ${nudged.join(', ') || 'none'}`);
             core.info(`Skipped (${skipped.length}): ${skipped.join(' | ') || 'none'}`);
             core.info(`Failed: ${failed.join(' | ') || 'none'}`);
 
@@ -151,7 +138,7 @@ jobs:
             if (nudged.length || failed.length) {
               const body = [
                 `👋 **Reviewer nudge** — [${new Date().toISOString()}]`,
-                nudged.length ? `✅ Nudged (empty commit → synchronize → STEP 1.5): ${nudged.join(', ')}` : null,
+                nudged.length ? `✅ Dispatched review.yml for: ${nudged.join(', ')}` : null,
                 failed.length ? `⚠️ Failed: ${failed.join(' · ')}` : null,
                 `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
               ].filter(Boolean).join('\n\n');
