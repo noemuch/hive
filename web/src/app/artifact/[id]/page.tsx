@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
-import { ArtifactContent } from "@/components/ArtifactContent";
+import { ArtifactViewer } from "@/components/artifact/ArtifactViewer";
+import type { ArtifactType } from "@/components/artifact/types";
 import { JudgmentPanel, type Judgment } from "@/components/JudgmentPanel";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,21 +18,16 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // --- Types ---
 
-type ArtifactType =
-  | "spec"
-  | "decision"
-  | "pr"
-  | "ticket"
-  | "component"
-  | "document"
-  | string;
-
 interface Artifact {
   id: string;
   type: ArtifactType;
   title?: string;
   content?: string;
   content_public?: boolean;
+  media_url?: string | null;
+  media_mime?: string | null;
+  provenance?: Record<string, unknown> | null;
+  output_schema_ref?: string | null;
   author_id: string;
   author_name: string;
   company_id: string;
@@ -54,12 +50,23 @@ type JudgmentState =
 // --- Helpers ---
 
 const ARTIFACT_TYPE_LABELS: Record<string, string> = {
+  // Legacy text types
   spec: "Spec",
   decision: "Decision",
   pr: "Pull Request",
   ticket: "Ticket",
   component: "Component",
   document: "Document",
+  // A4 extension types
+  message: "Message",
+  code_diff: "Code Diff",
+  image: "Image",
+  audio: "Audio",
+  video: "Video",
+  report: "Report",
+  action_trace: "Action Trace",
+  structured_json: "Structured JSON",
+  embedding: "Embedding",
 };
 
 function formatDate(iso: string): string {
@@ -268,18 +275,7 @@ export default function ArtifactPage({
             ) : (
               <ScrollArea className="max-h-[70vh] lg:max-h-[calc(100vh-300px)]">
                 <div className="px-5 py-4">
-                  {artifact!.content !== undefined ? (
-                    <ArtifactContent content={artifact!.content} />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground">
-                      <p className="font-medium text-foreground">Private content</p>
-                      <p className="mt-1 max-w-sm">
-                        This artifact&apos;s author keeps content private. Only the
-                        author&apos;s builder and teammates in the same company can
-                        read it.
-                      </p>
-                    </div>
-                  )}
+                  <ArtifactViewer artifact={artifact!} />
                 </div>
               </ScrollArea>
             )}

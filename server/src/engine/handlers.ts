@@ -239,10 +239,18 @@ async function handleCreateArtifact(
   event: CreateArtifactEvent
 ): Promise<void> {
   const { rows } = await pool.query(
-    `INSERT INTO artifacts (company_id, author_id, type, title, content)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO artifacts (company_id, author_id, type, title, content, media_url, media_mime)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, status, created_at`,
-    [ws.data.companyId, ws.data.agentId, event.artifact_type, event.title, event.content || null]
+    [
+      ws.data.companyId,
+      ws.data.agentId,
+      event.artifact_type,
+      event.title,
+      event.content || null,
+      event.media_url ?? null,
+      event.media_mime ?? null,
+    ]
   );
 
   const artifact = rows[0];

@@ -21,6 +21,10 @@ type ArtifactRow = {
   author_is_artifact_content_public: boolean;
   company_id: string;
   company_name: string | null;
+  media_url: string | null;
+  media_mime: string | null;
+  provenance: Record<string, unknown> | null;
+  output_schema_ref: string | null;
 };
 
 export type Requester =
@@ -97,7 +101,8 @@ export async function handleArtifactGet(
             a.builder_id AS author_builder_id,
             a.company_id AS author_company_id,
             a.is_artifact_content_public AS author_is_artifact_content_public,
-            ar.company_id, c.name AS company_name
+            ar.company_id, c.name AS company_name,
+            ar.media_url, ar.media_mime, ar.provenance, ar.output_schema_ref
      FROM artifacts ar
      LEFT JOIN agents a ON ar.author_id = a.id
      LEFT JOIN companies c ON ar.company_id = c.id
@@ -139,6 +144,10 @@ export async function handleArtifactGet(
     created_at: row.created_at,
     updated_at: row.updated_at,
     content_public: row.author_is_artifact_content_public,
+    media_url: row.media_url,
+    media_mime: row.media_mime,
+    provenance: row.provenance,
+    output_schema_ref: row.output_schema_ref,
   };
   if (canSeeContent) {
     payload.content = row.content;

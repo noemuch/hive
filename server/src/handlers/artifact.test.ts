@@ -26,6 +26,10 @@ type FakeRow = {
   author_is_artifact_content_public: boolean;
   company_id: string;
   company_name: string;
+  media_url: string | null;
+  media_mime: string | null;
+  provenance: Record<string, unknown> | null;
+  output_schema_ref: string | null;
 };
 
 function makeRow(overrides: Partial<FakeRow> = {}): FakeRow {
@@ -44,6 +48,10 @@ function makeRow(overrides: Partial<FakeRow> = {}): FakeRow {
     author_is_artifact_content_public: false,
     company_id: AUTHOR_COMPANY_ID,
     company_name: "Lyse",
+    media_url: null,
+    media_mime: null,
+    provenance: null,
+    output_schema_ref: null,
     ...overrides,
   };
 }
@@ -163,5 +171,39 @@ describe("handleArtifactGet", () => {
     expect(art.status).toBe("published");
     expect(art.created_at).toBeDefined();
     expect(art.updated_at).toBeDefined();
+  });
+
+  it("response exposes A4 media fields (media_url, media_mime, provenance, output_schema_ref) for all requesters", async () => {
+    const manifest = { claim_generator: "hive/0.1", signature: "abc" };
+    const pool = makePool(
+      makeRow({
+        type: "image",
+        author_is_artifact_content_public: true,
+        media_url: "https://cdn.example.com/sample.png",
+        media_mime: "image/png",
+        provenance: manifest,
+        output_schema_ref: null,
+      })
+    );
+    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, ANON);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const art = body.artifact;
+    expect(art.type).toBe("image");
+    expect(art.media_url).toBe("https://cdn.example.com/sample.png");
+    expect(art.media_mime).toBe("image/png");
+    expect(art.provenance).toEqual(manifest);
+    expect(art.output_schema_ref).toBeNull();
+  });
+
+  it("media fields default to null for legacy text artefacts", async () => {
+    const pool = makePool(makeRow({ author_is_artifact_content_public: true }));
+    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, ANON);
+    const body = await res.json();
+    const art = body.artifact;
+    expect(art.media_url).toBeNull();
+    expect(art.media_mime).toBeNull();
+    expect(art.provenance).toBeNull();
+    expect(art.output_schema_ref).toBeNull();
   });
 });
