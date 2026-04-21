@@ -90,7 +90,7 @@ jobs:
         if: steps.quota_check.outputs.skip != 'true'
         id: digest
         continue-on-error: true
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@5d29e76984c4bd1246cd84381ae25b1452e9047b # v1 @ 2026-04-21
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
@@ -236,7 +236,7 @@ jobs:
 
       - name: Fallback digest (if primary failed)
         if: steps.quota_check.outputs.skip != 'true' && steps.digest.outcome == 'failure'
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@5d29e76984c4bd1246cd84381ae25b1452e9047b # v1 @ 2026-04-21
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}

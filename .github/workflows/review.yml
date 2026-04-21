@@ -141,7 +141,7 @@ jobs:
       - name: Run reviewer (primary = Lyse)
         id: primary
         continue-on-error: true
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@5d29e76984c4bd1246cd84381ae25b1452e9047b # v1 @ 2026-04-21
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
@@ -320,8 +320,9 @@ jobs:
           echo "::notice title=Reviewer failover::Primary failed; attempting secondary."
 
       - name: Run reviewer (failover = Finary)
+        id: failover
         if: steps.primary.outcome == 'failure' && steps.quota.outputs.is_quota == 'true'
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@5d29e76984c4bd1246cd84381ae25b1452e9047b # v1 @ 2026-04-21
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
@@ -445,35 +446,57 @@ jobs:
         env:
           MODEL: claude-opus-4-7
           PR_NUM: ${{ needs.preflight.outputs.pr_number }}
+          EXEC_FILE_PRIMARY: ${{ steps.primary.outputs.execution_file }}
+          EXEC_FILE_FAILOVER: ${{ steps.failover.outputs.execution_file }}
+          ACCOUNT: ${{ steps.failover.outputs.execution_file && 'secondary' || 'primary' }}
         with:
           github-token: ${{ secrets.NOEMUCH_PAT }}
           script: |
             const fs = require('fs');
-            const path = '/home/runner/work/_temp/claude-execution-output.json';
 
-            if (!fs.existsSync(path)) {
-              core.info(`No execution JSON at ${path}; skipping cost comment.`);
+            const path = process.env.EXEC_FILE_FAILOVER || process.env.EXEC_FILE_PRIMARY;
+            if (!path || !fs.existsSync(path)) {
+              core.info('No execution_file output set; skipping cost comment.');
               return;
             }
 
-            let data;
+            let messages;
             try {
-              data = JSON.parse(fs.readFileSync(path, 'utf8'));
+              messages = JSON.parse(fs.readFileSync(path, 'utf8'));
             } catch (e) {
-              core.warning(`Could not parse execution JSON: ${e.message}`);
+              core.warning(`Could not parse execution JSON at ${path}: ${e.message}`);
+              return;
+            }
+            if (!Array.isArray(messages)) {
+              core.warning('execution_file is not a message array; action contract may have changed.');
               return;
             }
 
-            const cost = data.total_cost_usd;
-            if (typeof cost !== 'number') {
-              core.info('No total_cost_usd in execution JSON; skipping.');
+            const result = messages.find(m => m && m.type === 'result');
+            if (!result || typeof result.total_cost_usd !== 'number') {
+              core.info('No result message with total_cost_usd; skipping.');
               return;
             }
+
+            const cost = result.total_cost_usd;
+            const turns = result.num_turns ?? '?';
+            const durationMin = result.duration_ms ? (result.duration_ms / 60000).toFixed(1) : '?';
+            const u = result.usage || {};
+            const inTok = u.input_tokens || 0;
+            const outTok = u.output_tokens || 0;
+            const cacheRead = u.cache_read_input_tokens || 0;
+            const cacheWrite = u.cache_creation_input_tokens || 0;
+            const cacheBase = cacheRead + inTok;
+            const cacheHitPct = cacheBase > 0 ? Math.round(100 * cacheRead / cacheBase) : 0;
+            const fmt = (n) => n >= 1e6 ? `${(n/1e6).toFixed(1)}M`
+                             : n >= 1e3 ? `${(n/1e3).toFixed(1)}k` : String(n);
 
             const shortModel = (process.env.MODEL || 'claude-opus-4-7').replace(/^claude-/, '');
-            const durationMin = data.duration_ms ? (data.duration_ms / 60000).toFixed(1) : '?';
-            const numTurns = data.num_turns ?? '?';
-            const body = `💰 **Reviewer cost**: $${cost.toFixed(3)} — ${numTurns} turns / ${durationMin} min — model: \`${shortModel}\``;
+            const account = process.env.ACCOUNT || 'primary';
+            const body = [
+              `💰 **Reviewer cost**: $${cost.toFixed(3)} — ${turns} turns / ${durationMin} min — \`${shortModel}\` (${account})`,
+              `in: ${fmt(inTok)} / out: ${fmt(outTok)} / cache_read: ${fmt(cacheRead)} (${cacheHitPct}%) / cache_write: ${fmt(cacheWrite)}`
+            ].join(' · ');
 
             const pr = parseInt(process.env.PR_NUM, 10);
             if (!pr) return;
@@ -481,6 +504,7 @@ jobs:
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: pr, body
               });
+              core.info(`Cost comment posted to #${pr}: $${cost.toFixed(3)}`);
             } catch (e) {
               core.warning(`Cost comment post failed: ${e.message}`);
             }
