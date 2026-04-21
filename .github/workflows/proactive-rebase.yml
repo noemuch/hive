@@ -1,0 +1,140 @@
+name: Proactive Rebase — Keep claude/* PRs current with main
+
+# Scheduled every 10 min. For each open PR authored by @noemuch on a
+# `claude/` branch whose mergeStateStatus is BEHIND, call GitHub's native
+# `update-branch --rebase` API to replay the PR commits on top of main.
+#
+# Why: the reviewer only fires on pull_request events (open, synchronize,
+# reopened, ready_for_review). When OTHER PRs merge to main, existing
+# PRs silently drift from CLEAN → BEHIND → eventually DIRTY (merge conflict).
+# Proactive rebase keeps everyone CLEAN or BEHIND, never DIRTY.
+#
+# Skip conditions:
+#   - PR has autofix-iter-* label (don't race with in-flight fix push)
+#   - PR last commit within 5 min (don't race with active builder)
+#   - PR has stop-autonomy or agent-blocked label
+#
+# Conflict handling: `update-branch --rebase` is ATOMIC on GitHub's side.
+# If it would produce a conflict, it fails gracefully (no partial state)
+# and the PR stays BEHIND → next reviewer run handles it via STEP 1.5
+# (autonomous conflict resolution).
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # every 10 min
+  workflow_dispatch:
+
+concurrency:
+  group: proactive-rebase
+  cancel-in-progress: false
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Rebase BEHIND claude/* PRs
+        uses: actions/github-script@v7
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const { execSync } = require('child_process');
+            const openPrs = await github.paginate(github.rest.pulls.list, {
+              ...context.repo, state: 'open', per_page: 100
+            });
+
+            const candidates = openPrs.filter(p =>
+              p.user && p.user.login === 'noemuch' &&
+              p.head && p.head.ref && p.head.ref.startsWith('claude/')
+            );
+
+            const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+            const rebased = [];
+            const skipped = [];
+            const failed = [];
+
+            for (const pr of candidates) {
+              // Skip kill-switched or blocked
+              const labels = (pr.labels || []).map(l => l.name);
+              if (labels.includes('stop-autonomy') || labels.includes('agent-blocked')) {
+                skipped.push(`#${pr.number} (labeled)`);
+                continue;
+              }
+              // Skip if in autofix iteration (race with builder)
+              if (labels.some(n => n.startsWith('autofix-iter-'))) {
+                skipped.push(`#${pr.number} (autofix in flight)`);
+                continue;
+              }
+              // Skip if HEAD updated within last 5 min
+              const headSha = pr.head.sha;
+              try {
+                const { data: commit } = await github.rest.git.getCommit({
+                  ...context.repo, commit_sha: headSha
+                });
+                const committedAt = new Date(commit.committer.date).getTime();
+                if (committedAt > fiveMinAgo) {
+                  skipped.push(`#${pr.number} (HEAD <5min old)`);
+                  continue;
+                }
+              } catch (e) {
+                core.warning(`Could not read HEAD commit for #${pr.number}: ${e.message}`);
+              }
+
+              // Fetch mergeStateStatus via GraphQL (REST doesn't expose it reliably)
+              let mergeState;
+              try {
+                const gql = await github.graphql(`
+                  query($o:String!, $r:String!, $n:Int!) {
+                    repository(owner:$o, name:$r) {
+                      pullRequest(number:$n) { mergeStateStatus }
+                    }
+                  }
+                `, { o: context.repo.owner, r: context.repo.repo, n: pr.number });
+                mergeState = gql.repository.pullRequest.mergeStateStatus;
+              } catch (e) {
+                core.warning(`Could not read mergeStateStatus for #${pr.number}: ${e.message}`);
+                continue;
+              }
+
+              // Only rebase BEHIND. DIRTY is handled by reviewer STEP 1.5.
+              if (mergeState !== 'BEHIND') {
+                skipped.push(`#${pr.number} (${mergeState})`);
+                continue;
+              }
+
+              // Call update-branch --rebase via gh CLI (REST has the API but
+              // gh handles the auth + retry cleanly)
+              try {
+                execSync(`gh pr update-branch ${pr.number} --repo ${context.repo.owner}/${context.repo.repo} --rebase`, {
+                  encoding: 'utf8', env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
+                });
+                rebased.push(`#${pr.number}`);
+              } catch (e) {
+                failed.push(`#${pr.number}: ${String(e.stderr || e.message).slice(0, 120)}`);
+              }
+            }
+
+            core.info(`Rebased: ${rebased.length} — ${rebased.join(', ') || 'none'}`);
+            core.info(`Skipped: ${skipped.length}`);
+            core.info(`Failed: ${failed.length} — ${failed.join(' | ') || 'none'}`);
+
+            core.setOutput('rebased_count', rebased.length);
+            core.setOutput('failed_count', failed.length);
+
+            if (rebased.length || failed.length) {
+              const body = [
+                `🔄 **Proactive rebase** — [${new Date().toISOString()}]`,
+                rebased.length ? `✅ Rebased: ${rebased.join(', ')}` : null,
+                failed.length ? `⚠️ Failed (will retry): ${failed.join(' · ')}` : null,
+                `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              ].filter(Boolean).join('\n\n');
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: 257, body
+              });
+            }
