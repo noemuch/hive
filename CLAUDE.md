@@ -423,6 +423,8 @@ Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remov
 
 ### Labels workflow
 
+Pipeline labels (control automation state):
+
 - `agent-ready` — user enrolls issue (intention)
 - `ready-to-ship` — dep-cron applies when deps closed AND throttle slot available (auto)
 - `waiting-deps` — dep-cron applies when blockers still open (auto)
@@ -433,6 +435,18 @@ Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remov
 - `quota-paused` — paused due to LLM quota exhaustion (auto, resumes on reset)
 - `autofix-iter-1/2/3` — reviewer autofix iteration counter (auto)
 - `qa-digest` — daily morning digest issue
+
+Taxonomy labels (applied by `issue-triage`, see Autonomy v2 loop):
+
+- `type:bug` / `type:feature` / `type:refactor` / `type:docs` / `type:chore` — nature of work (exactly one)
+- `area:server` / `area:web` / `area:agents` / `area:hear` / `area:infra` — subtree scope (exactly one)
+- `size:XS` / `size:S` / `size:M` / `size:L` / `size:XL` — expected PR LOC (exactly one; XL → auto-split)
+- `source:main-healer` / `source:retro` / `source:sentry` — origin workflow (auto)
+- `needs-split` — issue-splitter will decompose (auto on size:XL)
+- `split-done` — already decomposed into sub-issues (auto)
+- `epic` — container issue after split (auto)
+- `no-triage` — skip auto-triage (manual opt-out)
+- `priority:critical` / `priority:high` / `priority:medium` / `priority:low` — severity
 
 ## Daily QA Digest
 
@@ -447,6 +461,38 @@ Every morning at **08:00 UTC (≈ 9h Paris)**, workflow `.github/workflows/daily
 **Goal**: Noé reads digest with coffee (3 min), tests UX (15 min), gives feedback via `@claude` on the relevant PR. Rest is autonomous.
 
 Manual trigger: `gh workflow run daily-qa-digest.yml --repo noemuch/hive`.
+
+## Autonomy v2 loop — Triage / Split / Heal / Retro / Verify / Sentry / Cost
+
+On top of the dispatch-ready / builder / reviewer loop, seven workflows close the end-to-end autonomy:
+
+### 1. `issue-triage.yml` — auto-label new issues
+Trigger: `issues.opened`. Sonnet 4.6 classifies the issue into `type:*` + `area:*` + `size:*` + optional model hint (`use-sonnet`/`use-haiku`), applied atomically. `size:XL` → also applies `needs-split`. Skips issues labeled `stop-autonomy` / `no-triage` / `source:main-healer` / `source:retro` / `source:sentry` (already pre-labeled). Cost: ~$0.005/issue. Logs to #257.
+
+### 2. `issue-splitter.yml` — ROMA decomposition
+Trigger: `issues.labeled` where label = `needs-split`. Sonnet 4.6 + `superpowers:writing-plans` reads the issue, decomposes into 2-6 atomic children via GitHub native sub-issues API, adds `Depends on: #N` edges when order matters (DB → server → UI), and labels each child `agent-ready` + inherited triage labels. Parent becomes `epic` + `split-done`. Each child flows through dispatch-ready as a normal PR.
+
+### 3. `main-healer.yml` — self-healing CI on main
+Trigger: `workflow_run` on CI failure with `head_branch == main`. Extracts failing tests + last 60 log lines, dedups by `head_sha` (skip if open healer issue already exists for same SHA), opens a `priority:critical` + `agent-ready` + `source:main-healer` issue. The normal pipeline picks it up. **Anti-recursion**: if 3+ healer issues opened in last 30 min → pause + apply `agent-blocked` to each (prevents heal-breaks-heal loop). Fix-forward, never auto-revert.
+
+### 4. `weekly-retro.yml` — self-improvement agent
+Trigger: `schedule: '0 19 * * 0'` (Sunday 21h Paris CEST). Opus 4.7 + `superpowers:brainstorming` analyzes last 7 days of merged PRs, blocked issues, Sentry errors, `autofix-iter-3` hits, and CI pass rate. Opens 0-3 `priority:low` + `source:retro` issues (refactor / tests / doc clarifications) — **never blocks the normal queue**. Quota-aware: skips run if both Max accounts exhausted.
+
+### 5. `preview-verify.yml` — post-merge UX check
+Trigger: `pull_request.closed` with `merged == true` and head `claude/*`. Waits up to 4 min for Railway to redeploy `hive-web-production.up.railway.app`, then curls each `web/src/app/**/page.tsx` route touched by the diff. Posts `🟢` (all 2xx/3xx) or `🔴` + failing routes on the PR. On regression: opens a `type:bug` + `agent-ready` follow-up issue. Skips PRs that touched only docs/scripts/workflows/tests. Not a merge blocker (merge already happened) — surfaces regressions in next QA digest.
+
+### 6. `sentry-triage.yml` — runtime errors → issues
+Trigger: `repository_dispatch` with `event_type: sentry.issue`. Dedups by fingerprint (searches open `source:sentry` issues — same fingerprint → append `+1 occurrence` comment; new fingerprint → create `type:bug` + `agent-ready` + priority scaled by occurrence count). **Inert until Sentry webhook is configured** (one-time setup: Sentry alert → GitHub dispatches URL with `Bearer <PAT>`). Issue then flows through `issue-triage` → dispatch-ready normally.
+
+### 7. Per-run cost comment (embedded in claude-ready + review)
+Each claude-code-action step ends with a cost-computation step: reads `input_tokens` / `output_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens` from the run log, applies Anthropic public pricing 2026 (Opus 4.7: \$15/\$75/\$1.50/\$18.75 per M; Sonnet 4.6: \$3/\$15/\$0.30/\$3.75; Haiku 4.5: \$1/\$5/\$0.10/\$1.25), posts a one-line comment on the issue/PR (`💰 Run cost: $X.XXX — in/out/cache_read/cache_write + hit %`). Enables per-feature ROI tracking without a dashboard. Silent no-op if log has no token lines.
+
+### Prompt-cache-friendly builder prompt
+`claude-ready.yml` builder prompt has the stable prefix (CLAUDE.md + superpowers + STEP 0→5 template) at the top and the volatile runtime context (issue number, trivial flag, model, max_turns) in a dedicated block just before `GO.` — maximizes Anthropic prompt cache hits on builder re-runs within the 5-min TTL window (`cache_read` = 0.1× base input price).
+
+### Future setup
+- **Sentry activation**: create Sentry project → Integrations → GitHub link → Alert rule → Webhook `https://api.github.com/repos/noemuch/hive/dispatches` with `Bearer <PAT>`, body `{"event_type":"sentry.issue","client_payload":{fingerprint,title,culprit,count,url,stack_trace}}`. Optional: enable Sentry Seer for root-cause hints (populates `seer_hint` in payload).
+- **Railway health endpoint**: already at `/health`. `preview-verify` uses `/api/health` with fallback to root.
 
 ## Quota Resilience
 
