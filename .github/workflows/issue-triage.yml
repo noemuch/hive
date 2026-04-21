@@ -75,7 +75,6 @@ jobs:
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@triage-bot"
           prompt: |
             You are the **issue triage bot** for the Hive repo. Classify issue #${{ steps.gate.outputs.issue_number }} and apply labels atomically.

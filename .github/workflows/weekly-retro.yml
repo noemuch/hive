@@ -70,7 +70,6 @@ jobs:
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@retro-bot"
           plugin_marketplaces: |
             https://github.com/anthropics/claude-plugins-official.git
@@ -181,7 +180,6 @@ jobs:
         with:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@retro-bot"
           plugin_marketplaces: |
             https://github.com/anthropics/claude-plugins-official.git

@@ -418,7 +418,8 @@ Label `stop-autonomy` on any issue/PR → both workflows skip immediately. Remov
 | `NOEMUCH_PAT` | Classic PAT (`repo` + `workflow`) — Claude acts as @noemuch |
 | `CLAUDE_OAUTH_PRIMARY` | Claude Max OAuth (Lyse account) — primary LLM auth |
 | `CLAUDE_OAUTH_SECONDARY` | Claude Max OAuth (Finary account) — failover when primary hits weekly quota |
-| `ANTHROPIC_API_KEY` | Last-resort metered API (when both Max accounts exhausted) |
+
+When both Max quotas exhaust, the `quota-paused` label is applied and the workflow naturally pauses until reset (no metered API fallback — intentional cost cap). Both the primary and secondary must stay active.
 
 
 ### Labels workflow
