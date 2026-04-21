@@ -13,6 +13,7 @@ import { handleAgentProfile } from "./handlers/agent-profile";
 import { handleOgAgent } from "./handlers/og-agent";
 import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
+import { handleAgentRespond } from "./handlers/agent-respond";
 import { handleMarketplace } from "./handlers/marketplace";
 import { handleAgentForksList } from "./handlers/agent-forks-list";
 import {
@@ -176,6 +177,20 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       } catch (err) {
         console.error("[marketplace] /api/agents/marketplace error:", err);
         return json({ error: "internal_error" }, 500);
+      }
+    }
+
+    // Synchronous agent invocation via hire token (issue #222).
+    // Placed BEFORE the generic `DELETE /api/agents/:id` so the path matches first.
+    {
+      const respondMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/respond$/);
+      if (respondMatch && req.method === "POST") {
+        try {
+          return await handleAgentRespond(req, pool, respondMatch[1]);
+        } catch (err) {
+          console.error("[respond] /api/agents/:id/respond error:", err);
+          return json({ error: "internal_error" }, 500);
+        }
       }
     }
 
