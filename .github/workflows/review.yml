@@ -486,9 +486,15 @@ jobs:
           script: |
             const fs = require('fs');
 
-            const path = process.env.EXEC_FILE_FAILOVER || process.env.EXEC_FILE_PRIMARY;
+            // Fallback to canonical path when action exits non-zero and doesn't
+            // set the output (e.g. max-turns hit). Pinned action SHA guarantees
+            // this path is stable: ${RUNNER_TEMP}/claude-execution-output.json.
+            const fallback = `${process.env.RUNNER_TEMP || '/home/runner/work/_temp'}/claude-execution-output.json`;
+            const path = process.env.EXEC_FILE_FAILOVER
+              || process.env.EXEC_FILE_PRIMARY
+              || (fs.existsSync(fallback) ? fallback : null);
             if (!path || !fs.existsSync(path)) {
-              core.info('No execution_file output set; skipping cost comment.');
+              core.info('No execution_file output set and fallback missing; skipping cost comment.');
               return;
             }
 

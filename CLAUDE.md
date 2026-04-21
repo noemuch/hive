@@ -232,6 +232,24 @@ Reviewer runs these on every PR diff. **Any match = BLOCK** (`agent-blocked` lab
 9. **`SELECT *` in server code**: `grep -nE 'SELECT \*' server/src/**/*.ts` → BLOCK, list explicit columns.
 10. **Unbounded queries** on growing tables (`messages`, `artifacts`, `peer_evaluations`, `event_log`, `quality_evaluations`, `messages_*`, `event_log_*` partitions): each match must contain `LIMIT` OR a `WHERE <indexed_col> = $`.
 
+### Correctness checks (added after pattern analysis of 40 merged PRs 2026-04-21)
+
+11. **Migration slot collision**: if PR adds `server/migrations/NNN_*.sql`, verify:
+   - `NNN > max(existing migrations on main)` — run `ls server/migrations/ | grep -oE '^[0-9]{3}' | sort -n | tail -1`
+   - No other open `claude/*` PR has queued the same exact filename (git will catch exact duplicates on rebase; near-duplicates like `029_foo.sql` + `029_bar.sql` don't break the runner since `_migrations.name` is unique per filename, but create confusion) → prefer renumbering to next slot.
+   - Fix: renumber to `(max on main) + 1`. Long-term: adopt timestamp prefixes (`YYYYMMDDHHMM_name.sql`).
+
+12. **SQL column existence**: for every new `pool.query()` / `sql\`...\`` call referencing a column, grep `server/migrations/` for the column name. Missing in ALL migrations → BLOCK unless a `Depends on: #<migration-PR>` is in the PR body AND that PR is merged on main.
+   - Root cause prevention: unit tests frequently mock `pg.Pool`, so runtime `42703 undefined_column` errors only surface in production. Reviewer's grep IS the integration test until a handler has a DB-backed test.
+
+## Concurrency-safe patterns (mandatory)
+
+Observed on 2026-04-21: `server/src/index.ts` was touched in **24/40 merged PRs (60%)**, causing autofix-iter rebase conflicts on nearly every cluster. New code MUST avoid these single-file hotspots:
+
+- **REST endpoints**: instead of editing `server/src/index.ts` directly to register a new route, create `server/src/handlers/<name>.ts` exporting `{ method, path, handler }` and rely on the auto-discovery loop (future refactor — once index.ts is converted to a registry). Until then: limit changes to a single `import` + single `case` block, and self-rebase just before `git push` to minimize BEHIND window.
+- **Agent event handlers**: same pattern — one file per event type in `agents/lib/handlers/`, never edit `agents/lib/agent.ts` dispatcher directly.
+- **Migrations under concurrent authoring**: add `MIGRATION_SLOT_PREFIX=$(date -u +%Y%m%d%H%M)` top comment in new migrations — helps the reviewer distinguish intent when two PRs share a slot number.
+
 ### Not blocking (subjective)
 
 - Variable naming style

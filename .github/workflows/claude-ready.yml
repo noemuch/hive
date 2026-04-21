@@ -91,13 +91,21 @@ jobs:
           LABELS="${ISSUE_LABELS:-${PR_LABELS:-[]}}"
           echo "Detected labels: $LABELS"
 
-          # Model routing (Opus default, opt-in downgrades)
+          # Model routing (Opus default, opt-in downgrades).
+          # Max-turns are also size-aware: size:L/XL get extra headroom for
+          # big refactors that easily burn 75+ turns (observed on #312:
+          # primary 76 turns maxed out + failover 76 turns maxed out again,
+          # $13 burned with zero PR — raising L/XL to 120 prevents this).
+          SIZE_BUMP=0
+          if echo "$LABELS" | grep -iq '"size:L"\|"size:XL"'; then
+            SIZE_BUMP=45
+          fi
           if echo "$LABELS" | grep -iq '"use-sonnet"'; then
-            MODEL="claude-sonnet-4-6"; MAX=60; REASON="explicit use-sonnet (speed/cost)"
+            MODEL="claude-sonnet-4-6"; MAX=$((60 + SIZE_BUMP)); REASON="explicit use-sonnet (speed/cost)"
           elif echo "$LABELS" | grep -iq '"use-haiku"'; then
-            MODEL="claude-haiku-4-5"; MAX=25; REASON="explicit use-haiku (trivial)"
+            MODEL="claude-haiku-4-5"; MAX=$((25 + SIZE_BUMP)); REASON="explicit use-haiku (trivial)"
           else
-            MODEL="claude-opus-4-7"; MAX=75; REASON="default (Opus 4.7 top-tier)"
+            MODEL="claude-opus-4-7"; MAX=$((75 + SIZE_BUMP)); REASON="default (Opus 4.7 top-tier)"
           fi
 
           # Trivial task flag (skip writing-plans + TDD per CLAUDE.md)
@@ -443,9 +451,19 @@ jobs:
             // The execution JSON is a JSON.stringify(messages, null, 2) array;
             // the cost/duration/turns live on the element with type === "result".
             // Source: anthropics/claude-code-action base-action run-claude-sdk.ts.
-            const path = process.env.EXEC_FILE_FAILOVER || process.env.EXEC_FILE_PRIMARY;
+            //
+            // When the action exits non-zero (e.g. hit max-turns), it DOESN'T
+            // set the `execution_file` output reliably — we fall back to the
+            // hardcoded path `${RUNNER_TEMP}/claude-execution-output.json`
+            // which is the action's internal canonical location (pinned to v1
+            // = 5d29e7698...). Covers the failure case we saw on #312 where
+            // both primary AND failover hit max-turns and no cost was posted.
+            const fallback = `${process.env.RUNNER_TEMP || '/home/runner/work/_temp'}/claude-execution-output.json`;
+            const path = process.env.EXEC_FILE_FAILOVER
+              || process.env.EXEC_FILE_PRIMARY
+              || (fs.existsSync(fallback) ? fallback : null);
             if (!path || !fs.existsSync(path)) {
-              core.info(`No execution_file output set; builder likely never started. Skipping cost comment.`);
+              core.info(`No execution_file output set and fallback missing; builder likely never started. Skipping cost comment.`);
               return;
             }
 
