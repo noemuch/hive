@@ -1,0 +1,72 @@
+name: Rotate Automation Log — monthly
+
+# Every 1st of the month, 00:05 UTC, rotate the `AUTOMATION_LOG_ISSUE`
+# repo variable to a fresh issue scoped to the new month. Keeps the
+# log readable: 10+ workflows post to it every run, so a single
+# permanent issue would accumulate thousands of comments.
+#
+# Mechanic:
+#   1. Create `[YYYY-MM] Automation log` issue, labeled `qa-digest`-style.
+#   2. Update repo variable `AUTOMATION_LOG_ISSUE` to the new number.
+#   3. Close the previous month's issue with a summary comment.
+#
+# After rotation: every workflow that uses ${{ vars.AUTOMATION_LOG_ISSUE }}
+# immediately writes to the new issue — no code edits needed.
+#
+# Also exposes workflow_dispatch for manual rotation (e.g. if the current
+# log gets abusively large mid-month, or during staging tests).
+
+on:
+  schedule:
+    - cron: '5 0 1 * *'  # 00:05 UTC on the 1st
+  workflow_dispatch:
+
+concurrency:
+  group: rotate-automation-log
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Create new log, update var, close old log
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          set -euo pipefail
+
+          MONTH_TAG=$(date -u +%Y-%m)
+          NEW_TITLE="[$MONTH_TAG] Automation log"
+          OLD_NUM="${{ vars.AUTOMATION_LOG_ISSUE }}"
+
+          # Create the new month log
+          NEW_URL=$(gh issue create \
+            --repo ${{ github.repository }} \
+            --title "$NEW_TITLE" \
+            --body "Automation runs (triage, builder, reviewer, QA digest, retros, previews, heals) post summaries here for $MONTH_TAG. Rotated on the 1st — previous log is closed with a summary. Search across all logs via label \`automation-log\`." \
+            --label "automation-log" \
+            --assignee noemuch)
+          NEW_NUM=$(echo "$NEW_URL" | grep -oE '[0-9]+$')
+          echo "Created $NEW_URL (#$NEW_NUM)"
+
+          # Update repo variable — every workflow now points here
+          gh api --method PATCH \
+            "/repos/${{ github.repository }}/actions/variables/AUTOMATION_LOG_ISSUE" \
+            -f name=AUTOMATION_LOG_ISSUE -f value="$NEW_NUM"
+          echo "Updated var AUTOMATION_LOG_ISSUE: $OLD_NUM → $NEW_NUM"
+
+          # Close the old log with a pointer + summary
+          if [ -n "$OLD_NUM" ] && [ "$OLD_NUM" != "$NEW_NUM" ]; then
+            COMMENT_COUNT=$(gh api "/repos/${{ github.repository }}/issues/$OLD_NUM" --jq '.comments' 2>/dev/null || echo "?")
+            gh issue comment "$OLD_NUM" --repo ${{ github.repository }} --body "🔁 **Rotated** — new automation log is #$NEW_NUM ($MONTH_TAG). This issue received $COMMENT_COUNT comments; closing for readability." || true
+            gh issue close "$OLD_NUM" --repo ${{ github.repository }} --reason completed || true
+          fi
+
+          # Post one kickoff line on the new log
+          gh issue comment "$NEW_NUM" --repo ${{ github.repository }} --body "🟢 **Log opened** for $MONTH_TAG. Previous: #$OLD_NUM. All workflow summaries (builder, reviewer, triage, QA digest, etc.) land here for the month. Rotate run: [log](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})."
