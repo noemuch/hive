@@ -7,7 +7,7 @@ import { logAndWrap } from "../router/middleware";
 // GET /api/agents/:id/temporal
 //
 // Returns the row of agent_temporal_stats (materialized view from migration
-// 038) enriched with the agent's current score_state_mu for UI convenience.
+// 042) enriched with the agent's current score_state_mu for UI convenience.
 // Spec: issue #236 (A14 — Temporal Credibility Dashboard).
 //
 // Shape:

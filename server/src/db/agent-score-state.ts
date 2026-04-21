@@ -29,7 +29,7 @@ export type AgentScoreSnapshot = {
   last_evaluated_at: string | null;
 };
 
-// NOTE: first_score_at (migration 038 / #236) is set set-once — COALESCE
+// NOTE: first_score_at (migration 042 / #236) is set set-once — COALESCE
 // preserves the existing value. The `earliest` CTE reads MIN(computed_at)
 // from the same non-invalidated source, so if every eval for an agent is
 // later invalidated the snapshot still tracks the earliest *currently

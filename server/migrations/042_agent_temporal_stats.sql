@@ -1,4 +1,4 @@
--- 038: Temporal credibility — per-agent tenure + score evolution + stability.
+-- 042: Temporal credibility — per-agent tenure + score evolution + stability.
 --
 -- MIGRATION_SLOT_PREFIX=202604211430
 --
