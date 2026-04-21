@@ -1,0 +1,203 @@
+name: Weekly Retro — self-improvement agent
+
+# Every Sunday 19:00 UTC (21h Paris CEST): Opus 4.7 + superpowers:brainstorming
+# analyzes last 7 days of merged PRs, agent-blocked issues, Sentry issues,
+# and CI pass rate. Opens 0-3 priority:low refactor/docs issues tagged
+# source:retro for long-horizon self-improvement.
+#
+# Goal: Hive learns from itself. Patterns (recurring bug types, CLAUDE.md drift,
+# test coverage gaps, tech debt hotspots) become actionable issues that flow
+# through the normal pipeline during the next week.
+
+on:
+  schedule:
+    - cron: '0 19 * * 0'  # Sunday 19h UTC = 21h Paris CEST / 20h Paris CET
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-retro
+  cancel-in-progress: false
+
+jobs:
+  retro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      actions: read
+
+    steps:
+      - name: Check quota before spending Opus budget
+        id: quota_check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            try {
+              const { data } = await github.rest.repos.getContent({
+                ...context.repo, path: '.github/quota-state.json', ref: 'main'
+              });
+              const state = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+              const now = new Date();
+              const pDead = state.primary_exhausted_until && new Date(state.primary_exhausted_until) > now;
+              const sDead = state.secondary_exhausted_until && new Date(state.secondary_exhausted_until) > now;
+              if (pDead && sDead) {
+                core.warning('Both quotas exhausted; skipping retro.');
+                core.setOutput('skip', 'true');
+              } else {
+                core.setOutput('skip', 'false');
+              }
+            } catch (e) {
+              core.info(`quota-state unreadable; proceeding`);
+              core.setOutput('skip', 'false');
+            }
+
+      - name: Checkout
+        if: steps.quota_check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NOEMUCH_PAT }}
+          fetch-depth: 1
+
+      - name: Run retro agent
+        if: steps.quota_check.outputs.skip != 'true'
+        id: retro
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.NOEMUCH_PAT }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@retro-bot"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+          prompt: |
+            You are the **weekly retro agent** for Hive. Analyze the last 7 days and open 0-3 self-improvement issues (`priority:low`, `source:retro`).
+
+            ## Data gathering
+
+            ```bash
+            /superpowers
+            cat CLAUDE.md | head -200
+
+            WEEK_AGO=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)
+
+            # Merged PRs
+            gh pr list --repo noemuch/hive --state merged --search "merged:>=$WEEK_AGO" --json number,title,files,mergedAt --limit 100
+
+            # Blocked issues (past + present)
+            gh issue list --repo noemuch/hive --label agent-blocked --state all --search "updated:>=$WEEK_AGO" --json number,title,body,labels --limit 30
+
+            # Sentry-source issues still open (may indicate persistent bugs)
+            gh issue list --repo noemuch/hive --label source:sentry --state open --json number,title,body --limit 30
+
+            # Autofix iterations (>1 = patterns to fix upstream)
+            gh issue list --repo noemuch/hive --label "autofix-iter-3" --state all --search "updated:>=$WEEK_AGO" --json number,title --limit 10
+
+            # CI pass rate last week (informational)
+            gh api "repos/noemuch/hive/actions/workflows/ci.yml/runs?created=>=$WEEK_AGO&per_page=100" --jq '[.workflow_runs[] | {conclusion}] | group_by(.conclusion) | map({status: .[0].conclusion, count: length})'
+
+            # quota-state — recent exhaustion events
+            cat .github/quota-state.json
+            ```
+
+            ## Apply superpowers:brainstorming to identify patterns
+
+            For each pattern found, decide: is it **actionable as a discrete issue** that a builder can ship in < 500 LOC next week? If yes, open the issue.
+
+            ### Pattern catalogue (examples — use judgment)
+
+            1. **Same file edited 3+ times in different PRs** → refactor candidate (likely too much responsibility in one file).
+               - Open `[Retro] refactor: split <file> into focused modules` with the PR list as evidence.
+
+            2. **Multiple bugs in the same subsystem (e.g. 4 server/src/auth/ fixes)** → missing integration tests.
+               - Open `[Retro] test: add integration test suite for <area>` listing the recent bug PRs.
+
+            3. **CLAUDE.md rule violated repeatedly in reviewer comments** → doc is outdated or unclear.
+               - Open `[Retro] docs: clarify CLAUDE.md § <X> after N violations`.
+
+            4. **N autofix-iter-3 caps reached** → specific class of error the builder can't self-fix.
+               - Open `[Retro] tool: add pre-commit check for <class>`.
+
+            5. **Tech debt hotspots** (TODO/FIXME comments added by recent PRs) → schedule cleanup.
+               - Open `[Retro] refactor: address TODO cluster in <module>` with a list of TODOs and suggested approach.
+
+            6. **Sentry recurrence** (source:sentry issue open > 5 days) → escalate to type:bug.
+               - Comment on existing issue with extra urgency signal — do NOT open a duplicate.
+
+            ## Rules
+
+            - **0-3 issues max.** If no pattern is worth a fresh issue, post a one-line comment on #257 saying "Retro: no actionable patterns this week."
+            - **Always `priority:low`** — we don't want retro issues blocking the normal queue.
+            - **Always `source:retro`** label.
+            - Also apply `type:*` + `area:*` + `size:*` per normal taxonomy.
+            - Body MUST include: (a) evidence (PR numbers, issue numbers), (b) rationale (why this is worth fixing now), (c) proposed approach (1-2 lines).
+
+            ## Open each issue
+
+            ```bash
+            gh issue create --repo noemuch/hive \
+              --title "[Retro] <kind>: <scope>" \
+              --body "$(cat <<'EOF'
+            ## Evidence
+            - #PR1 (...) — what it changed
+            - #PR2 (...) — what it changed
+            - ...
+
+            ## Rationale
+            <1-3 lines: why this pattern matters, what it prevents or enables>
+
+            ## Proposed approach
+            <1-3 lines: what the builder should do — no exhaustive spec, just direction>
+
+            Source: `weekly-retro.yml` run ${{ github.run_id }} on ${{ github.event.repository.updated_at }}.
+            EOF
+            )" \
+              --label "agent-ready,source:retro,priority:low,<type>,<area>,<size>"
+            ```
+
+            ## Final
+
+            Post to #257 a summary of retro findings:
+
+            ```bash
+            gh issue comment 257 --repo noemuch/hive --body "🔄 **Weekly retro** (run ${{ github.run_id }}): opened N issues: #A, #B, #C. Patterns: <one-line each>."
+            ```
+
+            GO. Max 40 turns. Be judicious — quality over quantity.
+          claude_args: |
+            --model claude-opus-4-7
+            --max-turns 40
+            --dangerously-skip-permissions
+
+      - name: Fallback to Finary on failure
+        if: steps.quota_check.outputs.skip != 'true' && steps.retro.outcome == 'failure'
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.NOEMUCH_PAT }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@retro-bot"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+          prompt: |
+            [FAILOVER] Same retro role as primary. Re-execute per spec in CLAUDE.md.
+            GO. Max 40 turns.
+          claude_args: |
+            --model claude-opus-4-7
+            --max-turns 40
+            --dangerously-skip-permissions
+
+      - name: Log to #257
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          gh issue comment 257 --repo noemuch/hive --body "🔄 **Weekly retro run** — skip=\`${{ steps.quota_check.outputs.skip }}\` — primary=\`${{ steps.retro.outcome }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
