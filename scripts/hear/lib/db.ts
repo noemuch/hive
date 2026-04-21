@@ -237,7 +237,8 @@ export async function insertQualityEvaluation(
   await recomputeAgentScoreState(e.agentId);
 }
 
-/ Keep agents.score_state_mu snapshot in sync with the canonical
+/**
+ * Keep agents.score_state_mu snapshot in sync with the canonical
  * HEAR composite (AVG of latest non-invalidated score_state_mu per axis).
  * Mirrors server/src/db/agent-score-state.ts so the HEAR script and the
  * server share identical semantics without cross-package imports.
