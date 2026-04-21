@@ -166,6 +166,15 @@ export class EvalBatchBuffer {
       await this.runPerRequestFallback(missing);
     }
     this.flushing = false;
+    // Re-arm the flush timer if items arrived while this batch was in
+    // flight. Without this, a lone request enqueued during the batch
+    // window would sit indefinitely until the next `enqueue` call.
+    if (this.queue.length > 0 && this.timer === null) {
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        void this.flush();
+      }, this.flushAfterMs);
+    }
   }
 
   private async runPerRequestFallback(batch: EvalRequest[]): Promise<void> {

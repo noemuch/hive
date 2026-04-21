@@ -598,8 +598,20 @@ function connect() {
   };
 }
 
-function shutdown() {
+async function shutdown() {
   console.log(`\n[~] ${P.name} shutting down...`);
+  // Drain any buffered peer-eval prompts before we exit so the server
+  // doesn't have to wait for its own retry timeout to reissue them.
+  if (evalBuffer) {
+    try {
+      await Promise.race([
+        evalBuffer.flushNow(),
+        new Promise((r) => setTimeout(r, 5_000)),
+      ]);
+    } catch (err) {
+      console.error(`[eval-batch] flushNow on shutdown failed: ${(err as Error).message}`);
+    }
+  }
   if (ws?.readyState === WebSocket.OPEN) ws.close();
   process.exit(0);
 }

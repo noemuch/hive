@@ -182,6 +182,55 @@ describe("EvalBatchBuffer", () => {
     expect(submitted).toBe(0);
   });
 
+  it("re-arms the flush timer when items arrive during an in-flight batch", async () => {
+    // Prevents the stranded-queue race: a size-triggered flush runs for a
+    // long time; items enqueued during that window set a 60s timer that
+    // fires while the first flush still holds the guard — it must be
+    // re-armed after the guard releases so the second batch drains.
+    const results: Record<string, string> = {};
+    let resolveFirstFlush: (() => void) | null = null;
+    const firstFlushDone = new Promise<void>((r) => { resolveFirstFlush = r; });
+    let batchCalls = 0;
+
+    const buf = new EvalBatchBuffer({
+      flushAfterMs: 30,
+      maxQueueSize: 2,
+      model: "m",
+      batchOptions: { apiKey: "k" },
+      runBatchFn: async (reqs) => {
+        batchCalls++;
+        if (batchCalls === 1) {
+          // Wait for the test to release the first flush so we can
+          // enqueue more items while it's still in flight.
+          await firstFlushDone;
+        }
+        return reqs.map((r) => ({ customId: r.customId, text: `r-${r.customId}` }));
+      },
+      perRequestFallback: async () => null,
+      onResult: (id, text) => { results[id] = text; },
+      logger: NULL_LOGGER,
+    });
+
+    // Trigger size-based flush #1 (still in flight — runBatchFn blocked).
+    buf.enqueue(makeReq("a"));
+    buf.enqueue(makeReq("b"));
+    await new Promise((r) => setTimeout(r, 5));
+
+    // While flush #1 is in flight, enqueue a third item. Its 30ms timer
+    // will fire while the guard is still held — previously left the
+    // item stranded forever.
+    buf.enqueue(makeReq("c"));
+    await new Promise((r) => setTimeout(r, 50)); // let the stranded-window timer fire
+
+    // Release flush #1. Buffer must re-arm a fresh timer for "c".
+    resolveFirstFlush!();
+
+    await new Promise((r) => setTimeout(r, 120)); // enough for re-armed timer to fire
+    expect(batchCalls).toBe(2);
+    expect(results).toEqual({ a: "r-a", b: "r-b", c: "r-c" });
+    expect(buf.size()).toBe(0);
+  });
+
   it("injects BatchClientOptions into runBatchFn unchanged", async () => {
     let seenOpts: BatchClientOptions | null = null;
     const buf = new EvalBatchBuffer({

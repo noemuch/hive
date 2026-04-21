@@ -22,6 +22,12 @@ import type { BatchRequest, BatchResult } from "../../../agents/lib/llm-batch";
 import { AXES } from "./rubric";
 import type { AxisScore } from "./schema";
 import type { ArtifactEvaluation, JudgeRunRecord } from "./orchestrator";
+import { ESTIMATED_COST_PER_CALL_USD } from "./cost";
+
+// Batch API applies a 50% per-token discount vs sync. We split the per-judge
+// estimate across AXES so `hydrateCostMonitor` (which sums `judge_runs.cost_usd`
+// by day) keeps the daily / monthly budget cap enforceable in batch mode.
+const BATCH_DISCOUNT = 0.5;
 
 export type BatchArtifactInput = {
   artifactId: string;
@@ -179,8 +185,14 @@ export async function evaluateArtifactsBatch(
       if (parsed.scores) judgeOutputs[i] = { scores: parsed.scores };
     }
 
+    // Require BOTH judges to succeed, matching the sync path invariant
+    // (in `orchestrator.ts::evaluateArtifact` a single judge failure throws
+    // and the whole artifact is skipped). A 1-of-2 partial would otherwise
+    // be recorded downstream as `judgeCount: 2` with `disagreement: 0`,
+    // which is an incorrect audit trail. The main loop retries these
+    // per-call. See review findings on #174.
     const validOutputs = judgeOutputs.filter((o): o is { scores: Record<string, AxisScore> } => o !== null);
-    if (validOutputs.length === 0) {
+    if (validOutputs.length < 2) {
       failedArtifactIds.push(artifactId);
       continue;
     }
@@ -188,39 +200,33 @@ export async function evaluateArtifactsBatch(
     const axes: ArtifactEvaluation["axes"] = {};
     const judgeRuns: JudgeRunRecord[] = [];
 
+    // Per-judge-call estimate @ 50% of sync rate, split across axes so
+    // each JudgeRunRecord carries a fair share. `hydrateCostMonitor` sums
+    // these back by day and enforces the monthly cap.
+    const perAxisCost = (ESTIMATED_COST_PER_CALL_USD * BATCH_DISCOUNT) / AXES.length;
+
     for (const axis of AXES) {
       const scoresFromJudges: (number | null)[] = [];
-      const confidences: number[] = [];
 
       for (let judgeIndex = 0; judgeIndex < judgeOutputs.length; judgeIndex++) {
         const jo = judgeOutputs[judgeIndex];
         const score = jo?.scores[axis]?.score ?? null;
         const confidence = jo?.scores[axis]?.confidence ?? 5;
         scoresFromJudges.push(score);
-        confidences.push(confidence);
 
-        // Only emit a judge run record for judges that actually produced
-        // output — a null bucket means the batch returned no text for that
-        // slot (which we've already counted in `errorCount`).
-        if (jo) {
-          const rawText = bucket.results[judgeIndex]?.text ?? "";
-          judgeRuns.push({
-            artifactId,
-            axis,
-            judgeIndex,
-            promptVersion: PROMPT_VERSION,
-            model: opts.model,
-            inputHash: hashContent(bucket.prompts[judgeIndex]),
-            rawOutput: jo,
-            score,
-            confidence,
-            // Batch path: per-call cost tracking is handled at the batch
-            // level (50% of sync rate). Per-axis cost = 0 here; the caller
-            // logs aggregate batch cost from provider usage.
-            costUsd: 0,
-            durationMs: 0,
-          });
-        }
+        judgeRuns.push({
+          artifactId,
+          axis,
+          judgeIndex,
+          promptVersion: PROMPT_VERSION,
+          model: opts.model,
+          inputHash: hashContent(bucket.prompts[judgeIndex]),
+          rawOutput: jo,
+          score,
+          confidence,
+          costUsd: perAxisCost,
+          durationMs: 0,
+        });
       }
 
       const validScores = scoresFromJudges.filter((s): s is number => s !== null);

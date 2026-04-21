@@ -108,6 +108,81 @@ describe("evaluateArtifactsBatch", () => {
     restore();
   });
 
+  it("marks an artifact as failed when only ONE of two judges succeeds", async () => {
+    // Matches the sync-path invariant: a single missing judge → skip the
+    // whole artifact and let the per-call path retry. Prevents downstream
+    // `judgeCount: 2` mislabel with `disagreement: 0`.
+    const originalFetch = globalThis.fetch;
+    let step = 0;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/messages/batches") && init?.method === "POST") {
+        return new Response(JSON.stringify({ id: "batch_partial" }), { status: 200 });
+      }
+      if (url.includes("/results")) {
+        const body = [
+          JSON.stringify({
+            custom_id: "art_art-half::judge_0",
+            result: {
+              type: "succeeded",
+              message: {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    scores: {
+                      reasoning_depth: { score: 7, confidence: 8, justification: "", evidence_quotes: [] },
+                    },
+                  }),
+                }],
+              },
+            },
+          }),
+          JSON.stringify({
+            custom_id: "art_art-half::judge_1",
+            result: { type: "errored", error: { type: "overloaded", message: "busy" } },
+          }),
+        ].join("\n");
+        return new Response(body, { status: 200 });
+      }
+      const status = step++ === 0 ? "in_progress" : "ended";
+      return new Response(JSON.stringify({ processing_status: status }), { status: 200 });
+    }) as typeof globalThis.fetch;
+
+    const result = await evaluateArtifactsBatch(
+      [{ artifactId: "art-half", artifactType: "x", prompts: ["a", "b"] }],
+      { model: "m", apiKey: "k", pollIntervalMs: 1, maxWaitMs: 10_000 },
+    );
+
+    expect(result.failedArtifactIds).toEqual(["art-half"]);
+    expect(result.evaluations).toEqual([]);
+    expect(result.errorCount).toBeGreaterThanOrEqual(1);
+    globalThis.fetch = originalFetch;
+  });
+
+  it("assigns non-zero costUsd to each JudgeRunRecord so the budget cap stays enforceable", async () => {
+    const fakeScores = {
+      reasoning_depth: { score: 7, confidence: 8, justification: "", evidence_quotes: [] },
+      decision_wisdom: { score: 6, confidence: 7, justification: "", evidence_quotes: [] },
+    };
+    const restore = mockBatchFlow(() => JSON.stringify({ scores: fakeScores }));
+
+    const result = await evaluateArtifactsBatch(
+      [{ artifactId: "art-cost", artifactType: "x", prompts: ["p0", "p1"] }],
+      { model: "m", apiKey: "k", pollIntervalMs: 1, maxWaitMs: 10_000 },
+    );
+
+    expect(result.evaluations).toHaveLength(1);
+    const runs = result.evaluations[0].judgeRuns;
+    // Every run should have a positive cost so hydrateCostMonitor can bill.
+    expect(runs.every((r) => r.costUsd > 0)).toBe(true);
+    // Total per-artifact cost is bounded above by a full 2-call sync run
+    // (batch is a 50% discount).
+    const total = runs.reduce((sum, r) => sum + r.costUsd, 0);
+    expect(total).toBeLessThanOrEqual(0.1); // 2 × 0.05 = 0.10 sync upper bound
+    expect(total).toBeGreaterThan(0);
+    restore();
+  });
+
   it("marks an artifact as failed when BOTH judges return error", async () => {
     const originalFetch = globalThis.fetch;
     let step = 0;
