@@ -1,0 +1,148 @@
+name: Main Healer — auto-fix broken main CI
+
+# When the CI workflow fails on main (post-merge), open a priority:critical
+# agent-ready issue so the builder picks it up via throttle and fixes forward.
+# Alternative to auto-revert — we fix forward because reverting a merged PR
+# can cascade; fix-forward is simpler and more honest.
+#
+# Anti-recursion: if 3+ main-healer issues opened in last 30 min → pause, label
+# latest as agent-blocked (prevents healer-causes-break-causes-healer loop).
+#
+# Pattern source: "Pipeline Doctor / Repair Agent" — 2026 self-healing CI/CD.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: main-healer
+  cancel-in-progress: false
+
+jobs:
+  heal:
+    # Only fire on CI failure on main, or manual dispatch
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'failure')
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+
+    steps:
+      - name: Evaluate + open healer issue
+        uses: actions/github-script@v7
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const { execSync } = require('child_process');
+
+            // Get the failing run info
+            const ciRunId = context.eventName === 'workflow_run'
+              ? context.payload.workflow_run.id
+              : null;
+            const headSha = context.eventName === 'workflow_run'
+              ? context.payload.workflow_run.head_sha
+              : execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+            const headShaShort = headSha.slice(0, 7);
+            const runUrl = ciRunId
+              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${ciRunId}`
+              : 'manual dispatch';
+
+            // Dedup: if an open main-healer issue already exists for this SHA, skip
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo,
+              labels: 'source:main-healer',
+              state: 'open',
+              per_page: 50
+            });
+            const dup = existing.find(i => i.body && i.body.includes(headShaShort));
+            if (dup) {
+              core.notice(`Already have open healer issue #${dup.number} for ${headShaShort}`);
+              return;
+            }
+
+            // Anti-recursion: count healer issues opened in last 30 min
+            const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+            const recentHealers = existing.filter(i => new Date(i.created_at) > thirtyMinAgo);
+            if (recentHealers.length >= 3) {
+              core.error(`3+ healer issues in last 30 min — pausing healer to prevent loop. Add stop-autonomy to these if desired.`);
+              for (const i of recentHealers) {
+                try {
+                  await github.rest.issues.addLabels({
+                    ...context.repo, issue_number: i.number,
+                    labels: ['agent-blocked']
+                  });
+                } catch (e) { core.warning(e.message); }
+              }
+              return;
+            }
+
+            // Get log excerpt from failing CI run
+            let logExcerpt = '(no log available)';
+            if (ciRunId) {
+              try {
+                const rawLog = execSync(`gh run view ${ciRunId} --repo ${context.repo.owner}/${context.repo.repo} --log-failed 2>&1`, {
+                  encoding: 'utf8',
+                  env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
+                  maxBuffer: 10 * 1024 * 1024
+                });
+                // Keep last ~60 lines
+                const lines = rawLog.split('\n').filter(l => l.trim());
+                logExcerpt = lines.slice(-60).join('\n').slice(0, 4000);
+              } catch (e) {
+                logExcerpt = `(log fetch failed: ${e.message})`;
+              }
+            }
+
+            // Extract failing test names (best effort)
+            const testFailMatches = logExcerpt.match(/(FAIL|✗|error[: ][^\n]+|assertion[^\n]+|expected[^\n]+)/gi) || [];
+            const summary = testFailMatches.slice(0, 5).join(' | ').slice(0, 200) || 'CI failed (see log excerpt)';
+
+            // Open the healer issue
+            const body = [
+              `🔴 **Main CI failed** at \`${headShaShort}\` — autonomous healer requested.`,
+              ``,
+              `**Failing run**: ${runUrl}`,
+              `**Head SHA**: \`${headSha}\``,
+              `**Summary**: ${summary}`,
+              ``,
+              `## Log excerpt (last 60 lines of failed steps)`,
+              ``,
+              '```',
+              logExcerpt,
+              '```',
+              ``,
+              `## Task`,
+              `- Reproduce the failure via \`bun test\` / \`bun run lint\` locally.`,
+              `- Apply \`superpowers:systematic-debugging\` to find root cause.`,
+              `- Fix forward (do NOT revert the PR that broke main).`,
+              `- Open a standard PR — the reviewer will auto-merge if Quality Gate passes.`,
+              ``,
+              `This issue is auto-generated by \`.github/workflows/main-healer.yml\`. If it is a false positive (e.g. flaky test that passes on re-run), close with comment "flake — reran" and apply \`stop-autonomy\`.`
+            ].join('\n');
+
+            const { data: created } = await github.rest.issues.create({
+              ...context.repo,
+              title: `[Main CI red @ ${headShaShort}] ${summary.slice(0, 60)}`,
+              body,
+              labels: ['agent-ready', 'priority:critical', 'source:main-healer',
+                       'type:bug', 'area:infra', 'size:S', 'use-sonnet']
+            });
+
+            core.notice(`Opened healer issue #${created.number}`);
+
+            // Log to #257
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: 257,
+              body: `🩺 **Main healer** opened #${created.number} for CI failure at \`${headShaShort}\`. Builder will pick it up via throttle. [run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+            });
