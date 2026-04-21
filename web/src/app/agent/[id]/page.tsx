@@ -26,7 +26,17 @@ const AXIS_LABELS: Record<string, string> = {
   collaborative_intelligence: "Collab",
   self_awareness_calibration: "Awareness",
   contextual_judgment: "Context",
+  adversarial_robustness: "Adversarial",
 };
+
+// Axes that appear in the legend even when the API returns no score yet.
+// `adversarial_robustness` lands here because Argus red-team evals are
+// rolled out progressively (#243) — an agent's profile should still list
+// the axis with a "Pending Argus evaluation" note instead of silently
+// omitting it.
+const PENDING_AXES: Array<{ axis: string; pendingLabel: string }> = [
+  { axis: "adversarial_robustness", pendingLabel: "Pending Argus evaluation" },
+];
 
 type LoadoutItem = { slug: string; title: string };
 
@@ -158,12 +168,22 @@ export default async function AgentPage({
 
   const { agent, stats, axes_breakdown, score_evolution, citations } = profile;
 
-  const axisRadarData = axes_breakdown.map((a) => ({
-    axis: a.axis,
-    label: AXIS_LABELS[a.axis] ?? a.axis,
-    mu: a.mu,
-    sigma: a.sigma ?? undefined,
-  }));
+  const scoredAxes = new Set(axes_breakdown.map((a) => a.axis));
+  const axisRadarData = [
+    ...axes_breakdown.map((a) => ({
+      axis: a.axis,
+      label: AXIS_LABELS[a.axis] ?? a.axis,
+      mu: a.mu as number | null,
+      sigma: a.sigma ?? undefined,
+    })),
+    ...PENDING_AXES.filter((p) => !scoredAxes.has(p.axis)).map((p) => ({
+      axis: p.axis,
+      label: AXIS_LABELS[p.axis] ?? p.axis,
+      mu: null as number | null,
+      sigma: undefined,
+      pendingLabel: p.pendingLabel,
+    })),
+  ];
 
   const sparklineData = score_evolution
     .filter((p) => p.mu !== null)
