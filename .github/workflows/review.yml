@@ -153,7 +153,10 @@ jobs:
             https://github.com/anthropics/claude-plugins-official.git
           plugins: |
             superpowers@claude-plugins-official
-          prompt: |
+          # Prompt shared between primary + failover via YAML anchor (*reviewer_prompt).
+          # When primary OAuth exhausts, the failover reruns the identical prompt
+          # with the secondary token — no behavior divergence across accounts.
+          prompt: &reviewer_prompt |
             You are the autonomous **reviewer + fixer** for PR #${{ needs.preflight.outputs.pr_number }}.
             Opus 4.7 + `superpowers:requesting-code-review`. Authenticated as @noemuch via PAT.
 
@@ -347,15 +350,13 @@ jobs:
             https://github.com/anthropics/claude-plugins-official.git
           plugins: |
             superpowers@claude-plugins-official
-          prompt: |
-            [FAILOVER] Same reviewer role as primary prompt above.
-            Iteration: ${{ needs.preflight.outputs.iter }}/3 for PR #${{ needs.preflight.outputs.pr_number }}.
-            Re-execute STEP 0 → STEP 1 → STEP 1.5 (if DIRTY/BEHIND) → STEP 2 → STEP 3 → STEP 4 from the reviewer spec in CLAUDE.md.
-            Conflict auto-resolution budget: 3 files / 3 hunks / 3 iter, else agent-blocked.
-            GO. Max 75 turns.
+          # YAML anchor: identical prompt as primary step above. Prevents drift
+          # (previously a terse failover prompt skipped STEP 4, leaving PRs
+          # reviewed but unmerged when primary exhausted).
+          prompt: *reviewer_prompt
           claude_args: |
             --model claude-opus-4-7
-            --max-turns 75
+            --max-turns 95
             --dangerously-skip-permissions
 
       - name: Detect quota exhaustion + persist state (reviewer)

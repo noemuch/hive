@@ -150,7 +150,10 @@ jobs:
             https://github.com/anthropics/claude-plugins-official.git
           plugins: |
             superpowers@claude-plugins-official
-          prompt: |
+          # Prompt shared between primary + failover via YAML anchor (*builder_prompt).
+          # When primary OAuth exhausts, the failover reruns the identical prompt
+          # with the secondary token — no behavior divergence across accounts.
+          prompt: &builder_prompt |
             You are the autonomous **builder**. Authenticated as @noemuch via PAT.
             Identity model: act as the human owner, not a bot.
 
@@ -272,11 +275,11 @@ jobs:
             https://github.com/anthropics/claude-plugins-official.git
           plugins: |
             superpowers@claude-plugins-official
-          prompt: |
-            [FAILOVER from primary] Same builder role as the primary prompt.
-            Re-execute STEP 0 → STEP 5 from the builder spec in CLAUDE.md.
-            Trivial: ${{ needs.preflight.outputs.trivial }}. Model: ${{ needs.preflight.outputs.model }}.
-            GO.
+          # YAML anchor: identical prompt as primary step. Prevents failover
+          # from drifting behaviorally (previously a terse failover prompt
+          # skipped STEP 4, writing code + pushing a branch but never calling
+          # gh pr create — leaving the work orphaned on a branch).
+          prompt: *builder_prompt
           claude_args: |
             --model ${{ needs.preflight.outputs.model }}
             --max-turns ${{ needs.preflight.outputs.max_turns }}
