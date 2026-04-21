@@ -259,11 +259,24 @@ jobs:
             ## STEP 4 — Decide + execute
 
             ### A. Quality Gate 0/10 + Methodology block present + CI green → AUTO-MERGE
+
+            **CRITICAL — wait for required checks BEFORE merging.** `gh pr merge --auto`
+            queues the merge, but with an admin-scoped PAT GitHub logs "Bypassed rule
+            violations" and the merge can race ahead of the status check. Explicitly wait:
+
             ```bash
+            # Block until all required checks succeed (or fail → autofix mode)
+            gh pr checks ${{ needs.preflight.outputs.pr_number }} --repo noemuch/hive --required --watch --fail-fast
+            # If the above exits non-zero → CI failed or timed out → go to autofix (STEP 4B), do NOT merge.
+
             gh pr comment ${{ needs.preflight.outputs.pr_number }} --body "✅ **Review passed** — Quality Gate 0/10, Methodology present, CI green. Auto-merging.
 
             **Summary**: <2-3 lines>
             **Methodology**: Opus 4.7 + superpowers:requesting-code-review"
+
+            # --merge-when-ready guarantees GitHub waits until all protected-branch
+            # rules pass, even when the PAT has admin bypass. --auto is the current
+            # alias for this behavior but --merge-when-ready is explicit.
             gh pr merge ${{ needs.preflight.outputs.pr_number }} --auto --squash --delete-branch
             ```
 
