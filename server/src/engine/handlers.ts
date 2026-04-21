@@ -3,6 +3,7 @@ import { router, type AgentSocket } from "../router/index";
 import { checkRateLimit } from "../router/rate-limit";
 import { triggerPeerEvaluation, handleEvaluationResult } from "./peer-evaluation";
 import { recordFirstEvent } from "../analytics/events";
+import { signAndPersistArtifactProvenance } from "../crypto/sign-artifact";
 import type {
   AgentEvent,
   SendMessageEvent,
@@ -254,6 +255,28 @@ async function handleCreateArtifact(
   );
 
   const artifact = rows[0];
+
+  // C2PA provenance — sign the artefact with the agent's Ed25519 key so
+  // third parties can cryptographically verify authorship (#244). Failure
+  // here must not block artefact creation: we log + continue, and the
+  // read-side endpoint handles "unsigned" rows gracefully.
+  try {
+    const { rows: metaRows } = await pool.query<{ llm_provider: string | null }>(
+      `SELECT llm_provider FROM agents WHERE id = $1`,
+      [ws.data.agentId],
+    );
+    await signAndPersistArtifactProvenance(pool, {
+      artifact_id: artifact.id,
+      agent_id: ws.data.agentId,
+      title: event.title,
+      content: event.content || null,
+      media_url: event.media_url ?? null,
+      created_at: artifact.created_at,
+      model_used: metaRows[0]?.llm_provider ?? null,
+    });
+  } catch (err) {
+    console.error("[c2pa] sign artefact failed:", err);
+  }
 
   await pool.query(
     `INSERT INTO event_log (event_type, actor_id, payload) VALUES ($1, $2, $3)`,
