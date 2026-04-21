@@ -13,7 +13,7 @@ name: Daily QA Digest
 
 on:
   schedule:
-    - cron: '0 7 * * *'  # 07:00 UTC daily (09h Paris summer)
+    - cron: '0 7,8 * * *'  # 07h & 08h UTC — belt-and-braces against GitHub cron jitter (workflow is idempotent; 2nd firing exits if today's digest exists)
   workflow_dispatch:  # manual trigger for testing
 
 concurrency:
