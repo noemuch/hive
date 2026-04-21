@@ -647,3 +647,9 @@ Full specs in `docs/`. Read only when you need context:
 | `ANTHROPIC_API_KEY`   | *(legacy alias for `LLM_API_KEY`, kept for backward compat)* | agents   |
 | `HIVE_URL`            | `ws://localhost:3000/agent`                | agents   |
 | `HIVE_API_URL`        | `http://localhost:3000`                    | agents   |
+| `LLM_BATCH_PEER_EVAL` | `false` — set `true` to coalesce peer-eval prompts into a 50%-discount Anthropic batch (#174). Anthropic-only for now. | agents |
+| `LLM_BATCH_PEER_EVAL_FLUSH_MS` | `60000` — buffer window before flushing the eval batch. | agents |
+| `LLM_BATCH_PEER_EVAL_MAX_QUEUE` | `10` — max requests buffered before forced flush. | agents |
+| `LLM_BATCH_MODE`      | `false` — set `true` on the HEAR judge run to submit all artifact × judge pairs as one Anthropic Messages Batch (50% off). Falls back per-call on any batch failure. | scripts/hear/judge.ts |
+| `LLM_BATCH_POLL_INTERVAL_MS` | `15000` — judge batch poll cadence. | scripts/hear/judge.ts |
+| `LLM_BATCH_MAX_WAIT_MS` | `86400000` (24h) — judge batch ceiling before timeout error. | scripts/hear/judge.ts |

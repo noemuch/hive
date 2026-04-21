@@ -24,6 +24,8 @@ import {
   composeSystemPromptWithSkills,
   type AgentSkill,
 } from "./skill-loader";
+import { EvalBatchBuffer } from "./eval-batch-buffer";
+import { batchIsSupported } from "./llm-batch";
 
 const API_KEY = process.env.HIVE_API_KEY;
 // Any OpenAI-compatible chat-completions endpoint. All major 2026 providers
@@ -74,6 +76,33 @@ if (process.env.AGENT_TOOLS) {
 }
 let mcpClients: MCPClient[] = [];
 let agentSkills: AgentSkill[] = [];
+
+// Peer-eval batch mode (hive#174). When enabled, incoming `evaluate_artifact`
+// events are coalesced into a single provider Batch API submission (50% off
+// per-token cost, minutes-of-latency trade). Off by default for backward
+// compat. Only supported when LLM_BASE_URL points at Anthropic.
+const LLM_BATCH_PEER_EVAL =
+  process.env.LLM_BATCH_PEER_EVAL === "true" ||
+  process.env.LLM_BATCH_PEER_EVAL === "1";
+const PEER_EVAL_BATCH_FLUSH_MS = Number(
+  process.env.LLM_BATCH_PEER_EVAL_FLUSH_MS ?? 60_000,
+);
+const PEER_EVAL_BATCH_MAX_QUEUE = Number(
+  process.env.LLM_BATCH_PEER_EVAL_MAX_QUEUE ?? 10,
+);
+
+let evalBuffer: EvalBatchBuffer | null = null;
+if (LLM_BATCH_PEER_EVAL) {
+  if (!batchIsSupported(LLM_BASE_URL) || !LLM_API_KEY) {
+    console.warn(
+      "[eval-batch] LLM_BATCH_PEER_EVAL is set but batch mode is only supported with an Anthropic LLM_BASE_URL. Falling back to per-request eval.",
+    );
+  } else {
+    console.log(
+      `[eval-batch] enabled (flush=${PEER_EVAL_BATCH_FLUSH_MS}ms, maxQueue=${PEER_EVAL_BATCH_MAX_QUEUE})`,
+    );
+  }
+}
 
 /**
  * Build the effective system prompt for a given user message, adding
@@ -211,6 +240,40 @@ async function callLLM(systemPrompt: string, userPrompt: string, maxTokens = 150
   } catch (err) {
     console.error("[!] LLM API failed:", err);
     return null;
+  }
+}
+
+/**
+ * Parse a peer-eval LLM response (JSON body) and forward the parsed scores
+ * back to the server. Shared by both the synchronous path and the batch
+ * buffer so the two modes emit identical protocol events.
+ */
+function handleEvalResponse(evaluationId: string, response: string): void {
+  const jsonMatch = response.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.error(`[eval] ${P.name} no JSON found in response`);
+    return;
+  }
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    const rawQuotes = Array.isArray(parsed.evidence_quotes) ? parsed.evidence_quotes : [];
+    const quotes: string[] = rawQuotes
+      .filter((q: unknown): q is string => typeof q === "string")
+      .map((q: string) => q.trim())
+      .filter((q: string) => q.length > 0)
+      .slice(0, 3)
+      .map((q: string) => q.length > 200 ? q.slice(0, 200) : q);
+    send({
+      type: "evaluation_result",
+      evaluation_id: evaluationId,
+      scores: parsed.scores,
+      reasoning: parsed.reasoning || "",
+      confidence: parsed.confidence || 5,
+      evidence_quotes: quotes,
+    });
+    console.log(`[eval] ${P.name} submitted evaluation for ${evaluationId}`);
+  } catch (e) {
+    console.error(`[eval] ${P.name} JSON parse failed:`, (e as Error).message, jsonMatch[0].slice(0, 100));
   }
 }
 
@@ -476,40 +539,35 @@ function connect() {
         // v2 for why. The agent's job here is just to forward it to the LLM.
         const evalSystemPrompt = "You are an impartial quality evaluator. You evaluate artifacts objectively using a rubric. Always respond with valid JSON only, no markdown, no explanation outside the JSON.";
         const evalPrompt = data.eval_prompt as string;
+        const evaluationId = data.evaluation_id as string;
 
-        callLLM(evalSystemPrompt, evalPrompt, 1000).then(response => {
-          if (!response) return;
-          // Extract JSON from response (Claude may wrap in ```json blocks)
-          let jsonStr = response.trim();
-          const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            console.error(`[eval] ${P.name} no JSON found in response`);
-            return;
-          }
-          try {
-            const parsed = JSON.parse(jsonMatch[0]);
-            const rawQuotes = Array.isArray(parsed.evidence_quotes) ? parsed.evidence_quotes : [];
-            const quotes: string[] = rawQuotes
-              .filter((q: unknown): q is string => typeof q === "string")
-              .map((q: string) => q.trim())
-              .filter((q: string) => q.length > 0)
-              .slice(0, 3)
-              .map((q: string) => q.length > 200 ? q.slice(0, 200) : q);
-            send({
-              type: "evaluation_result",
-              evaluation_id: data.evaluation_id as string,
-              scores: parsed.scores,
-              reasoning: parsed.reasoning || "",
-              confidence: parsed.confidence || 5,
-              evidence_quotes: quotes,
+        if (LLM_BATCH_PEER_EVAL && batchIsSupported(LLM_BASE_URL) && LLM_API_KEY) {
+          // Lazy-init the buffer on first eval so agents that never receive
+          // evaluate_artifact events don't hold timers.
+          if (!evalBuffer) {
+            evalBuffer = new EvalBatchBuffer({
+              flushAfterMs: PEER_EVAL_BATCH_FLUSH_MS,
+              maxQueueSize: PEER_EVAL_BATCH_MAX_QUEUE,
+              model: LLM_MODEL,
+              batchOptions: { baseUrl: LLM_BASE_URL, apiKey: LLM_API_KEY },
+              perRequestFallback: callLLM,
+              onResult: (evalId, text) => handleEvalResponse(evalId, text),
             });
-            console.log(`[eval] ${P.name} submitted evaluation for ${data.evaluation_id}`);
-          } catch (e) {
-            console.error(`[eval] ${P.name} JSON parse failed:`, (e as Error).message, jsonMatch[0].slice(0, 100));
           }
-        }).catch(err => {
-          console.error(`[eval] ${P.name} evaluation error:`, err);
-        });
+          evalBuffer.enqueue({
+            evaluationId,
+            systemPrompt: evalSystemPrompt,
+            userPrompt: evalPrompt,
+            maxTokens: 1000,
+          });
+        } else {
+          callLLM(evalSystemPrompt, evalPrompt, 1000).then(response => {
+            if (!response) return;
+            handleEvalResponse(evaluationId, response);
+          }).catch(err => {
+            console.error(`[eval] ${P.name} evaluation error:`, err);
+          });
+        }
         break;
       }
 
