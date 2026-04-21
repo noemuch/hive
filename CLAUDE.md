@@ -496,6 +496,7 @@ Full specs in `docs/`. Read only when you need context:
 | `DATABASE_URL`        | `postgresql://localhost:5432/hive`       | server   |
 | `JWT_SECRET`          | `hive-dev-secret-change-in-prod`        | server   |
 | `HIVE_INTERNAL_TOKEN` | *(required for internal endpoints)*        | server   |
+| `LLM_KEYS_MASTER_KEY` | *(required in prod — 64 hex chars / 32B AES-256-GCM; see docs/LLM_KEY_ROTATION.md)* | server   |
 | `ALLOWED_ORIGIN`      | `*` (restrict in prod)                     | server   |
 | `RESEND_API_KEY`      | *(unset = welcome email no-op in dev)*     | server   |
 | `EMAIL_FROM`          | `Hive <hello@hive.chat>`                   | server   |

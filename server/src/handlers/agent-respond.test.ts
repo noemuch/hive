@@ -1,9 +1,26 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, beforeAll, afterAll } from "bun:test";
 import {
   handleAgentRespond,
   __resetCacheForTests,
 } from "./agent-respond";
 import { generateHireToken, hashHireToken, hireTokenPrefix } from "../auth/hire-token";
+import {
+  checkHireTokenRateLimit,
+  HIRE_RATE_LIMIT_PER_MINUTE,
+  __resetHireRateLimitForTests,
+} from "../auth/hire-rate-limit";
+import { encryptLLMKey } from "../security/key-encryption";
+
+// Tests use a deterministic 32-byte master key so round-trip encryption works.
+let prevMasterKey: string | undefined;
+beforeAll(() => {
+  prevMasterKey = process.env.LLM_KEYS_MASTER_KEY;
+  process.env.LLM_KEYS_MASTER_KEY = "0".repeat(64);
+});
+afterAll(() => {
+  if (prevMasterKey === undefined) delete process.env.LLM_KEYS_MASTER_KEY;
+  else process.env.LLM_KEYS_MASTER_KEY = prevMasterKey;
+});
 
 const AGENT_ID = "55555555-5555-5555-5555-555555555555";
 const HIRE_ID = "66666666-6666-6666-6666-666666666666";
@@ -94,7 +111,7 @@ function bearer(token: string): Record<string, string> {
 }
 
 describe("handleAgentRespond — auth", () => {
-  beforeEach(() => __resetCacheForTests());
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
 
   it("returns 404 when :id is not a UUID", async () => {
     const { pool } = makePool([]);
@@ -196,7 +213,7 @@ describe("handleAgentRespond — auth", () => {
 });
 
 describe("handleAgentRespond — body validation", () => {
-  beforeEach(() => __resetCacheForTests());
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
 
   it("returns 400 when body is missing context", async () => {
     const { token, row } = await makeHireRow();
@@ -231,7 +248,7 @@ describe("handleAgentRespond — body validation", () => {
 });
 
 describe("handleAgentRespond — agent state", () => {
-  beforeEach(() => __resetCacheForTests());
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
 
   it("returns 410 when agent is retired", async () => {
     const { token, row } = await makeHireRow();
@@ -267,7 +284,7 @@ describe("handleAgentRespond — agent state", () => {
 });
 
 describe("handleAgentRespond — happy path", () => {
-  beforeEach(() => __resetCacheForTests());
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
 
   it("returns 200 with response, usage, latency_ms when LLM call succeeds", async () => {
     const { token, row } = await makeHireRow();
@@ -338,7 +355,7 @@ describe("handleAgentRespond — happy path", () => {
 });
 
 describe("handleAgentRespond — failures", () => {
-  beforeEach(() => __resetCacheForTests());
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
 
   it("returns 502 when the LLM upstream returns non-2xx", async () => {
     const { token, row } = await makeHireRow();
@@ -380,5 +397,116 @@ describe("handleAgentRespond — failures", () => {
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
     expect(res.status).toBe(502);
+  });
+});
+
+describe("handleAgentRespond — rate limiting", () => {
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
+
+  it(`returns 429 after ${HIRE_RATE_LIMIT_PER_MINUTE} requests on the same hire prefix`, async () => {
+    const { token } = await makeHireRow();
+    const prefix = hireTokenPrefix(token);
+    // Burn the quota via the helper (the handler calls the same function, so the
+    // N+1th real request will hit the limit).
+    for (let i = 0; i < HIRE_RATE_LIMIT_PER_MINUTE; i++) {
+      checkHireTokenRateLimit(prefix);
+    }
+    const { pool } = makePool([]);
+    const req = new Request(`http://localhost/api/agents/${AGENT_ID}/respond`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ context: "hi" }),
+    });
+    const res = await handleAgentRespond(req, pool as any, AGENT_ID);
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toBe("rate_limited");
+    expect(typeof body.retry_after).toBe("number");
+    expect(body.retry_after).toBeGreaterThan(0);
+  });
+
+  it("does not touch the DB when rate-limited (rejects pre-auth)", async () => {
+    const { token } = await makeHireRow();
+    const prefix = hireTokenPrefix(token);
+    for (let i = 0; i < HIRE_RATE_LIMIT_PER_MINUTE; i++) {
+      checkHireTokenRateLimit(prefix);
+    }
+    const { pool, calls } = makePool([]);
+    const req = new Request(`http://localhost/api/agents/${AGENT_ID}/respond`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ context: "hi" }),
+    });
+    await handleAgentRespond(req, pool as any, AGENT_ID);
+    expect(calls.length).toBe(0);
+  });
+});
+
+describe("handleAgentRespond — encryption", () => {
+  beforeEach(() => { __resetCacheForTests(); __resetHireRateLimitForTests(); });
+
+  it("decrypts llm_api_key_encrypted before sending Bearer to the LLM", async () => {
+    const plain = "byok-real-key-DO-NOT-USE";
+    const cipher = encryptLLMKey(plain);
+    const { token, row } = await makeHireRow({ llm_api_key_encrypted: cipher });
+    const { pool } = makePool([
+      { rows: [row] },
+      { rows: [fakeAgentRow()] },
+    ]);
+    const fetchMock = mockLLMOk("ok");
+    const req = new Request(`http://localhost/api/agents/${AGENT_ID}/respond`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ context: "hello" }),
+    });
+    const res = await handleAgentRespond(req, pool as any, AGENT_ID, {
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    expect(res.status).toBe(200);
+    const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe(`Bearer ${plain}`);
+  });
+
+  it("treats legacy plaintext rows as-is (no v1: prefix)", async () => {
+    // Hires created before #223 were stored as plaintext. Keep them working.
+    const legacyPlaintext = "legacy-plaintext-FAKE";
+    const { token, row } = await makeHireRow({ llm_api_key_encrypted: legacyPlaintext });
+    const { pool } = makePool([
+      { rows: [row] },
+      { rows: [fakeAgentRow()] },
+    ]);
+    const fetchMock = mockLLMOk("ok");
+    const req = new Request(`http://localhost/api/agents/${AGENT_ID}/respond`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ context: "hello" }),
+    });
+    const res = await handleAgentRespond(req, pool as any, AGENT_ID, {
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    expect(res.status).toBe(200);
+    const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe(`Bearer ${legacyPlaintext}`);
+  });
+
+  it("returns 500 hire_misconfigured when decrypt fails", async () => {
+    // Tampered ciphertext (valid v1: prefix, corrupted body). The handler should
+    // surface a clear error rather than leaking crypto internals.
+    const cipher = encryptLLMKey("plain");
+    const tampered = cipher.slice(0, -4) + "AAAA";
+    const { token, row } = await makeHireRow({ llm_api_key_encrypted: tampered });
+    const { pool } = makePool([
+      { rows: [row] },
+      { rows: [fakeAgentRow()] },
+    ]);
+    const req = new Request(`http://localhost/api/agents/${AGENT_ID}/respond`, {
+      method: "POST",
+      headers: bearer(token),
+      body: JSON.stringify({ context: "hello" }),
+    });
+    const res = await handleAgentRespond(req, pool as any, AGENT_ID);
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("hire_misconfigured");
   });
 });

@@ -6,6 +6,7 @@ import {
   hashHireToken,
   hireTokenPrefix,
 } from "../auth/hire-token";
+import { encryptLLMKey } from "../security/key-encryption";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -38,7 +39,7 @@ export async function handleCreateHire(
     );
   }
 
-  const llmApiKey = typeof body.llm_api_key === "string" ? body.llm_api_key : null;
+  const llmApiKeyPlain = typeof body.llm_api_key === "string" ? body.llm_api_key : null;
   const llmBaseUrl = typeof body.llm_base_url === "string" ? body.llm_base_url : null;
   const llmModel = typeof body.llm_model === "string" ? body.llm_model : null;
 
@@ -58,9 +59,10 @@ export async function handleCreateHire(
   const tokenHash = await hashHireToken(token);
   const tokenPrefix = hireTokenPrefix(token);
 
-  // TODO(#223): encrypt llm_api_key with libsodium / pgcrypto sym_encrypt before
-  // insert. Stored as plaintext for now — column name kept as-is to avoid a
-  // second migration when #223 lands.
+  // AES-256-GCM at rest; decrypted per-invocation inside handleAgentRespond.
+  const llmApiKeyEncrypted =
+    llmApiKeyPlain !== null ? encryptLLMKey(llmApiKeyPlain) : null;
+
   const { rows } = await pool.query(
     `INSERT INTO agent_hires (
        agent_id, hiring_builder_id, hire_token_hash, hire_token_prefix,
@@ -68,7 +70,7 @@ export async function handleCreateHire(
      )
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, created_at, expires_at`,
-    [agentId, auth.builderId, tokenHash, tokenPrefix, llmApiKey, llmBaseUrl, llmModel, expiresAt]
+    [agentId, auth.builderId, tokenHash, tokenPrefix, llmApiKeyEncrypted, llmBaseUrl, llmModel, expiresAt]
   );
 
   const row = rows[0];
