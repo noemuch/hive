@@ -120,6 +120,23 @@ jobs:
             const waiting = [];
             const summary = [];
 
+            // Throttle: max N open claude/* PRs at once to prevent thundering
+            // herd of mutual conflicts. Raise once auto-rebase proves itself.
+            const MAX_PARALLEL_PRS = 5;
+            const openPrs = await github.paginate(github.rest.pulls.list, {
+              ...context.repo, state: 'open', per_page: 100
+            });
+            const activeClaudePrs = openPrs.filter(p =>
+              p.user && p.user.login === 'noemuch' &&
+              p.head && p.head.ref && p.head.ref.startsWith('claude/')
+            ).length;
+            let availableSlots = Math.max(0, MAX_PARALLEL_PRS - activeClaudePrs);
+            core.info(`Throttle: ${activeClaudePrs}/${MAX_PARALLEL_PRS} active claude PRs. ${availableSlots} slots available.`);
+
+            // Collect unblocked candidates first (deterministic FIFO by issue.number)
+            const unblockedCandidates = [];
+            const blockedEntries = [];
+
             for (const issue of issues) {
               // Skip kill-switched
               if (hasLabel(issue, 'stop-autonomy')) continue;
@@ -147,35 +164,59 @@ jobs:
               const hasWaiting = hasLabel(issue, 'waiting-deps');
 
               if (stillOpen.length === 0) {
-                // Unblocked!
-                if (!hasReady) {
+                unblockedCandidates.push({ number: issue.number, hasReady, hasWaiting });
+              } else {
+                blockedEntries.push({ number: issue.number, hasReady, hasWaiting, stillOpen });
+              }
+            }
+
+            // Sort unblocked by number ASC (FIFO) for deterministic throttle selection
+            unblockedCandidates.sort((a, b) => a.number - b.number);
+
+            const throttled = [];
+            for (const c of unblockedCandidates) {
+              if (availableSlots > 0) {
+                // Promote to ready-to-ship
+                if (!c.hasReady) {
                   await github.rest.issues.addLabels({
-                    ...context.repo, issue_number: issue.number,
+                    ...context.repo, issue_number: c.number,
                     labels: ['ready-to-ship']
                   });
-                  ready.push(`#${issue.number}`);
+                  ready.push(`#${c.number}`);
                 }
-                if (hasWaiting) {
+                if (c.hasWaiting) {
                   await github.rest.issues.removeLabel({
-                    ...context.repo, issue_number: issue.number,
+                    ...context.repo, issue_number: c.number,
                     name: 'waiting-deps'
                   });
                 }
+                availableSlots -= 1;
               } else {
-                // Still blocked
-                if (!hasWaiting) {
-                  await github.rest.issues.addLabels({
-                    ...context.repo, issue_number: issue.number,
-                    labels: ['waiting-deps']
-                  });
-                  waiting.push(`#${issue.number} (by: ${stillOpen.map(n => '#' + n).join(', ')})`);
-                }
-                if (hasReady) {
+                // Throttled: ensure ready-to-ship is NOT applied (wait next tick)
+                if (c.hasReady) {
                   await github.rest.issues.removeLabel({
-                    ...context.repo, issue_number: issue.number,
+                    ...context.repo, issue_number: c.number,
                     name: 'ready-to-ship'
                   });
                 }
+                throttled.push(`#${c.number}`);
+              }
+            }
+
+            // Apply blocked labels (unchanged logic)
+            for (const b of blockedEntries) {
+              if (!b.hasWaiting) {
+                await github.rest.issues.addLabels({
+                  ...context.repo, issue_number: b.number,
+                  labels: ['waiting-deps']
+                });
+                waiting.push(`#${b.number} (by: ${b.stillOpen.map(n => '#' + n).join(', ')})`);
+              }
+              if (b.hasReady) {
+                await github.rest.issues.removeLabel({
+                  ...context.repo, issue_number: b.number,
+                  name: 'ready-to-ship'
+                });
               }
             }
 
@@ -183,11 +224,13 @@ jobs:
             core.info(`Newly waiting: ${waiting.length ? waiting.join(', ') : 'none'}`);
 
             // Summary to issue #257
-            if (ready.length || waiting.length) {
+            if (ready.length || waiting.length || throttled.length) {
               const body = [
                 `🔀 **Dispatch cron run** — [${new Date().toISOString()}]`,
+                `Slots: ${activeClaudePrs}/${MAX_PARALLEL_PRS} active claude PRs`,
                 ready.length ? `✅ Newly ready-to-ship: ${ready.join(', ')}` : null,
                 waiting.length ? `⏸ Newly waiting-deps: ${waiting.join('; ')}` : null,
+                throttled.length ? `🚦 Throttled (queued for next tick): ${throttled.join(', ')}` : null,
                 `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
               ].filter(Boolean).join('\n\n');
 
