@@ -398,6 +398,86 @@ jobs:
               }
             }
 
+      - name: Compute + post run cost comment
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          MODEL: ${{ needs.preflight.outputs.model }}
+          ISSUE_OR_PR: ${{ github.event.issue.number || github.event.pull_request.number }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const { execSync } = require('child_process');
+
+            // Per-million-token prices (USD) — Anthropic public pricing 2026.
+            const PRICES = {
+              'claude-opus-4-7':    { input: 15.00, output: 75.00, cache_read: 1.50,  cache_write: 18.75 },
+              'claude-sonnet-4-6':  { input:  3.00, output: 15.00, cache_read: 0.30,  cache_write:  3.75 },
+              'claude-haiku-4-5':   { input:  1.00, output:  5.00, cache_read: 0.10,  cache_write:  1.25 },
+            };
+            const model = process.env.MODEL || 'claude-opus-4-7';
+            const price = PRICES[model] || PRICES['claude-opus-4-7'];
+
+            let log;
+            try {
+              log = execSync(`gh run view ${context.runId} --repo ${context.repo.owner}/${context.repo.repo} --log 2>&1`, {
+                encoding: 'utf8',
+                env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN },
+                maxBuffer: 50 * 1024 * 1024
+              });
+            } catch (e) {
+              core.info(`Could not fetch run log: ${e.message}`);
+              return;
+            }
+
+            // Sum every token-usage line emitted by claude-code-action.
+            // Format varies by action version; match common patterns.
+            const sumAll = (re) => {
+              let total = 0;
+              const matches = log.matchAll(re);
+              for (const m of matches) total += parseInt(m[1], 10) || 0;
+              return total;
+            };
+
+            const inputTokens = sumAll(/(?:^|\s)input_tokens["':\s=]+(\d+)/g);
+            const outputTokens = sumAll(/(?:^|\s)output_tokens["':\s=]+(\d+)/g);
+            const cacheReadTokens = sumAll(/(?:cache_read_input_tokens|cache_read_tokens)["':\s=]+(\d+)/g);
+            const cacheCreateTokens = sumAll(/(?:cache_creation_input_tokens|cache_write_tokens)["':\s=]+(\d+)/g);
+
+            if (inputTokens + outputTokens + cacheReadTokens + cacheCreateTokens === 0) {
+              core.info('No token usage found in logs; skipping cost comment.');
+              return;
+            }
+
+            const cost = (inputTokens * price.input
+                        + outputTokens * price.output
+                        + cacheReadTokens * price.cache_read
+                        + cacheCreateTokens * price.cache_write) / 1e6;
+
+            const cacheHitPct = (cacheReadTokens + inputTokens) > 0
+              ? Math.round(100 * cacheReadTokens / (cacheReadTokens + inputTokens))
+              : 0;
+
+            const fmt = (n) => n >= 1e6 ? `${(n/1e6).toFixed(1)}M`
+                             : n >= 1e3 ? `${(n/1e3).toFixed(1)}k` : String(n);
+
+            const shortModel = model.replace(/^claude-/, '');
+            const body = `💰 **Run cost**: $${cost.toFixed(3)} — in: ${fmt(inputTokens)} / out: ${fmt(outputTokens)} / cache_read: ${fmt(cacheReadTokens)} (${cacheHitPct}%) / cache_write: ${fmt(cacheCreateTokens)} — model: \`${shortModel}\``;
+
+            const target = parseInt(process.env.ISSUE_OR_PR, 10);
+            if (!target) {
+              core.info('No issue/PR number; skipping comment.');
+              return;
+            }
+            try {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: target, body
+              });
+            } catch (e) {
+              core.warning(`Cost comment post failed: ${e.message}`);
+            }
+
       - name: Post run summary to automation log (#257)
         if: always()
         env:
