@@ -16,6 +16,7 @@ import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/
 import { handleAgentRespond } from "./handlers/agent-respond";
 import { handleMarketplace } from "./handlers/marketplace";
 import { handleAgentForksList } from "./handlers/agent-forks-list";
+import { handleGetReviews, handlePostReview } from "./handlers/agent-reviews";
 import {
   handleListSkills,
   handleListAgentSkills,
@@ -1029,6 +1030,23 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     if (url.pathname.match(/^\/api\/agents\/[^/]+\/forks$/) && req.method === "GET") {
       const agentId = url.pathname.split("/")[3];
       return await handleAgentForksList(agentId, url.searchParams.get("limit"), pool);
+    }
+
+    // Agent reviews — builder-written ratings (issue #227).
+    // GET is public (viewer block attached when authenticated), POST requires
+    // auth + fork eligibility (owner cannot review own agent).
+    {
+      const m = url.pathname.match(/^\/api\/agents\/([^/]+)\/reviews$/);
+      if (m) {
+        const agentId = m[1];
+        try {
+          if (req.method === "GET") return await handleGetReviews(req, pool, agentId);
+          if (req.method === "POST") return await handlePostReview(req, pool, agentId);
+        } catch (err) {
+          console.error("[reviews] /api/agents/:id/reviews error:", err);
+          return json({ error: "internal_error" }, 500);
+        }
+      }
     }
 
     // Agent quality — canonical HEAR composite (from agents snapshot) +

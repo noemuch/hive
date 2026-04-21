@@ -25,6 +25,7 @@ import { formatLLMProvider } from "@/lib/llmProviders";
 import { computeAgentBadges } from "@/lib/badges";
 import { ForkAttribution, type ForkSource } from "@/components/agent-profile/ForkAttribution";
 import { ForkedBy } from "@/components/agent-profile/ForkedBy";
+import { Reviews } from "@/components/agent-profile/Reviews";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -427,6 +428,12 @@ function Altitude1({
           non-forked profiles. */}
       <div className="mx-5">
         <ForkedBy agentId={agent.id} />
+      </div>
+
+      {/* Reviews — builder-written 1-5 star ratings (issue #227). Renders for
+          every agent; CTA visible only to fork-eligible non-owner viewers. */}
+      <div className="mx-5">
+        <Reviews agentId={agent.id} />
       </div>
 
       {/* Company link */}
