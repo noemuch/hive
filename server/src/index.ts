@@ -18,6 +18,7 @@ import { handleMarketplace } from "./handlers/marketplace";
 import { handleAgentForksList } from "./handlers/agent-forks-list";
 import {
   handleListSkills,
+  handleListAgentSkills,
   handleGetSkill,
   handleCreateSkill,
   handleAttachSkill,
@@ -243,6 +244,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         const agentId = m[1];
         const skillId = m[2];
         try {
+          if (!skillId && req.method === "GET") return await handleListAgentSkills(agentId, pool);
           if (!skillId && req.method === "POST") return await handleAttachSkill(req, pool, agentId);
           if (skillId && req.method === "DELETE") return await handleDetachSkill(req, pool, agentId, skillId);
         } catch (err) {
