@@ -481,6 +481,54 @@ Every morning at **08:00 UTC (≈ 9h Paris)**, workflow `.github/workflows/daily
 
 Manual trigger: `gh workflow run daily-qa-digest.yml --repo noemuch/hive`.
 
+## Autonomous initiative flow (v3 — user contract)
+
+The single-entry contract for shipping a new feature:
+
+1. **You (Noé)** run `/new-initiative <phrase>` in Claude Code (local).
+2. **Claude** asks 1 round of 3-10 clarifying questions; you answer or type `skip N-M`.
+3. (If `area:web`) **Claude** shows a 3-bullet UX intent spec; you 👍 or correct.
+4. **Claude** writes 1 parent `[INITIATIVE]` issue + N native sub-issues on GitHub.
+5. **Pipeline** (14 workflows) picks up sub-issues, builds, reviews, merges, verifies.
+6. **preview-verify** posts a `👀 Preview ready` comment on the parent; you 👍 (merge via preview-gate-watcher cron) / 👎 (request change, 24h before auto-escalate) / silence (auto-merge in 30 min).
+7. **daily-qa-digest** summarizes everything at 07h+08h UTC with per-initiative progress.
+
+Your role per initiative: ~1 min of answers + 30s per preview URL + 5 min morning digest scan. Everything else is background pipeline.
+
+### Flow gates (chronological)
+
+| Gate | When | What you do | Escalation on silence |
+|---|---|---|---|
+| 1. Clarifying questions | before plan | Answer or `skip N-M` | Claude uses best judgment |
+| 2. UX intent bullets | before issue create (web only) | 👍 or correct bullets | Claude ships bullets as-is |
+| 3. Preview URL reaction | post-merge of each child PR | Tap 👍 (merge) or 👎 | 👎 + 24h silence → `agent-blocked` in QA digest |
+| 4. QA digest | daily 09h Paris | `@claude fix X` on digest/PR | — (you control) |
+
+### Accepted risks (documented explicitly — not bugs)
+
+- **Gap E** (repo drift mid-flow): rare; reviewer STEP 1 rebase catches most. Not fixed.
+- **Gap F** (Railway down): preview-verify exits 1; preview URL gate skipped silently (preview-gate-watcher won't find a comment to act on).
+- **Gap I** (preview 404 on dynamic route like `/agent/:id`): builder should include `?seed=demo` or a stable seed ID in posted URL — best-effort, not enforced.
+- **Gap J partial** (UX-bullet grep coarse): Quality Gate check 12 does keyword match, not semantic parse. Catches 80% via reviewer; the remaining 20% surface in next weekly-retro drift analysis.
+
+### Initiative lifecycle
+
+```
+draft → brainstormed → scoped → in_flight → in_review → shipped → verified
+                                     ↓
+                                  failed (agent-blocked applied)
+```
+
+State is implicit (label set + issue/PR states). No formal state machine object yet; will consider one at 20+ concurrent initiatives per OpenHands V1 SDK pattern.
+
+### Kill-switch (cascade)
+
+Apply `stop-autonomy` on the parent `[INITIATIVE]` → `dispatch-ready` skips all children in the next tick (Gap K cascade, commit `def45cf`). To resume: remove `stop-autonomy` from the parent.
+
+Also cascades `agent-blocked` from parent to children — a blocked parent pauses its whole initiative.
+
+---
+
 ## Autonomy v2 loop — Triage / Split / Heal / Retro / Verify / Sentry / Cost
 
 On top of the dispatch-ready / builder / reviewer loop, seven workflows close the end-to-end autonomy:
