@@ -383,6 +383,14 @@ Rationale: prevents thundering herd of mutually-conflicting PRs. Conservative 5 
 
 Skips PRs that are: labelled `stop-autonomy` / `agent-blocked` / `autofix-iter-*`, or whose HEAD was committed in the last 5 min (avoids racing active builders).
 
+### Reviewer nudge
+
+`.github/workflows/reviewer-nudge.yml` runs every 30 min. review.yml only fires on `pull_request` events (open/synchronize/reopened) — a PR that went DIRTY between reviewer runs stays DIRTY forever without new pushes. The nudge finds every `claude/*` PR that is DIRTY AND has no reviewer run in the last 60 min, then pushes an empty commit via the git REST API authenticated as `NOEMUCH_PAT` owner (`@noemuch`). The push fires `synchronize`, which wakes review.yml → STEP 1.5 runs.
+
+Why `NOEMUCH_PAT` and not `GITHUB_TOKEN`: pushes using the default `GITHUB_TOKEN` don't chain-fire downstream workflows (GitHub anti-loop safeguard). PAT pushes do.
+
+Skips same conditions as proactive-rebase plus "reviewer ran <60min ago" to avoid thrashing.
+
 ### Autonomous conflict resolution (reviewer STEP 1.5)
 
 When reviewer sees `mergeStateStatus = DIRTY` (or a rebase in STEP 1 produces conflicts), it enters STEP 1.5:

@@ -1,0 +1,155 @@
+name: Reviewer Nudge — Re-fire reviewer on stuck DIRTY PRs
+
+# Every 30 min. When a claude/* PR is DIRTY (merge conflict) and no
+# reviewer has fired on it in the last 60 min, push an empty commit to
+# the PR branch — this fires `pull_request: synchronize`, which wakes up
+# review.yml which runs STEP 1.5 (autonomous conflict resolution).
+#
+# Why this is required: review.yml fires on pull_request events only.
+# A DIRTY PR without new pushes stays DIRTY forever. Proactive-rebase
+# only handles BEHIND (not DIRTY), since GitHub's update-branch API
+# refuses to rebase a conflicted branch. The nudge is the sole path
+# that lets STEP 1.5 run on a PR that went DIRTY between reviewer runs.
+#
+# Push authored via git REST API with NOEMUCH_PAT — this ensures the
+# event is attributed to @noemuch and fires downstream workflows
+# (GITHUB_TOKEN pushes don't chain-fire; PAT pushes do).
+#
+# Skip conditions:
+#   - PR labelled stop-autonomy / agent-blocked / autofix-iter-*
+#   - mergeStateStatus is not DIRTY (nothing to nudge)
+#   - A reviewer run fired on this branch within the last 60 min
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: reviewer-nudge
+  cancel-in-progress: false
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Nudge stuck DIRTY claude/* PRs
+        uses: actions/github-script@v7
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const openPrs = await github.paginate(github.rest.pulls.list, {
+              ...context.repo, state: 'open', per_page: 100
+            });
+
+            const candidates = openPrs.filter(p =>
+              p.user && p.user.login === 'noemuch' &&
+              p.head && p.head.ref && p.head.ref.startsWith('claude/')
+            );
+
+            const oneHourAgo = Date.now() - 60 * 60 * 1000;
+            const nudged = [];
+            const skipped = [];
+            const failed = [];
+
+            for (const pr of candidates) {
+              const labels = (pr.labels || []).map(l => l.name);
+              if (labels.includes('stop-autonomy') || labels.includes('agent-blocked')) {
+                skipped.push(`#${pr.number} (labeled)`);
+                continue;
+              }
+              if (labels.some(n => n.startsWith('autofix-iter-'))) {
+                skipped.push(`#${pr.number} (autofix in flight)`);
+                continue;
+              }
+
+              // Only nudge DIRTY (BEHIND handled by proactive-rebase, CLEAN needs no help)
+              let mergeState;
+              try {
+                const gql = await github.graphql(`
+                  query($o:String!, $r:String!, $n:Int!) {
+                    repository(owner:$o, name:$r) {
+                      pullRequest(number:$n) { mergeStateStatus }
+                    }
+                  }
+                `, { o: context.repo.owner, r: context.repo.repo, n: pr.number });
+                mergeState = gql.repository.pullRequest.mergeStateStatus;
+              } catch (e) {
+                core.warning(`mergeState #${pr.number}: ${e.message}`);
+                continue;
+              }
+              if (mergeState !== 'DIRTY') {
+                skipped.push(`#${pr.number} (${mergeState})`);
+                continue;
+              }
+
+              // Skip if a reviewer ran on this branch within the last 60 min
+              try {
+                const { data: runsData } = await github.rest.actions.listWorkflowRunsForRepo({
+                  ...context.repo,
+                  branch: pr.head.ref,
+                  per_page: 10
+                });
+                const recentReviewerRuns = (runsData.workflow_runs || []).filter(r =>
+                  r.name === 'Claude Code — Autonomous Reviewer' &&
+                  new Date(r.created_at).getTime() > oneHourAgo
+                );
+                if (recentReviewerRuns.length > 0) {
+                  skipped.push(`#${pr.number} (reviewer ran <60min ago)`);
+                  continue;
+                }
+              } catch (e) {
+                core.warning(`runs lookup #${pr.number}: ${e.message}`);
+              }
+
+              // Push empty commit via REST API — authored as NOEMUCH_PAT owner (@noemuch)
+              try {
+                const { data: refData } = await github.rest.git.getRef({
+                  ...context.repo, ref: `heads/${pr.head.ref}`
+                });
+                const parentSha = refData.object.sha;
+                const { data: parentCommit } = await github.rest.git.getCommit({
+                  ...context.repo, commit_sha: parentSha
+                });
+                const { data: newCommit } = await github.rest.git.createCommit({
+                  ...context.repo,
+                  message: 'chore: reviewer-nudge — re-trigger reviewer on DIRTY PR',
+                  tree: parentCommit.tree.sha,
+                  parents: [parentSha]
+                });
+                await github.rest.git.updateRef({
+                  ...context.repo,
+                  ref: `heads/${pr.head.ref}`,
+                  sha: newCommit.sha
+                });
+                nudged.push(`#${pr.number}`);
+              } catch (e) {
+                failed.push(`#${pr.number}: ${String(e.message).slice(0, 120)}`);
+              }
+            }
+
+            core.info(`Nudged: ${nudged.join(', ') || 'none'}`);
+            core.info(`Skipped: ${skipped.length}`);
+            core.info(`Failed: ${failed.join(' | ') || 'none'}`);
+
+            core.setOutput('nudged_count', nudged.length);
+            core.setOutput('failed_count', failed.length);
+
+            if (nudged.length || failed.length) {
+              const body = [
+                `👋 **Reviewer nudge** — [${new Date().toISOString()}]`,
+                nudged.length ? `✅ Nudged (empty commit → synchronize → STEP 1.5): ${nudged.join(', ')}` : null,
+                failed.length ? `⚠️ Failed: ${failed.join(' · ')}` : null,
+                `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              ].filter(Boolean).join('\n\n');
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: 257, body
+              });
+            }
