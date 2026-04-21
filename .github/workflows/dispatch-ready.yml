@@ -68,10 +68,14 @@ jobs:
               }
             `;
 
-            // Paginate all open issues
+            // Paginate all open issues. Cap at 10 pages (1000 issues) — if a repo
+            // ever exceeds that, warn loudly so we raise the cap before tail
+            // issues silently stop being triaged.
+            const MAX_PAGES = 10;
             const issues = [];
             let cursor = null;
-            for (let i = 0; i < 10; i++) {
+            let pagedOut = false;
+            for (let i = 0; i < MAX_PAGES; i++) {
               const res = await github.graphql(q, {
                 o: context.repo.owner,
                 r: context.repo.repo,
@@ -80,6 +84,12 @@ jobs:
               issues.push(...res.repository.issues.nodes);
               if (!res.repository.issues.pageInfo.hasNextPage) break;
               cursor = res.repository.issues.pageInfo.endCursor;
+              if (i === MAX_PAGES - 1 && res.repository.issues.pageInfo.hasNextPage) {
+                pagedOut = true;
+              }
+            }
+            if (pagedOut) {
+              core.warning(`Pagination cap reached at ${MAX_PAGES} pages (${issues.length} issues). Additional open issues beyond this point are NOT evaluated by dispatch-ready until the cap is raised.`);
             }
 
             core.info(`Fetched ${issues.length} open issues`);

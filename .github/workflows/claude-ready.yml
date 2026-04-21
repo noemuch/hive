@@ -296,8 +296,12 @@ jobs:
             const { execSync } = require('child_process');
             const fs = require('fs');
 
-            // Fetch logs for the Run Claude Code steps — look for "hit your limit · resets X"
+            // Fetch logs for the Run Claude Code steps — look for "hit your limit · resets X".
+            // If log fetch fails but primary failed (can't be transient since we got here),
+            // fail CLOSED: assume the last-attempted account exhausted for 2h. Otherwise a
+            // repeat trigger would retry the same failing call in a loop, hammering the API.
             let limitHit = null;
+            let logFetchFailed = false;
             try {
               const log = execSync(`gh run view ${process.env.RUN_ID} --repo ${context.repo.owner}/${context.repo.repo} --log 2>&1 | grep -iE "hit your limit|resets [0-9]+(am|pm|UTC|utc)" | head -5`, {
                 encoding: 'utf8', env: { ...process.env, GH_TOKEN: process.env.GH_TOKEN }
@@ -309,7 +313,9 @@ jobs:
                 limitHit = 'unknown';
               }
             } catch (e) {
-              core.warning(`Could not fetch logs: ${e.message}`);
+              core.warning(`Log fetch failed: ${e.message} — failing closed (assume quota hit, 2h conservative pause).`);
+              logFetchFailed = true;
+              limitHit = 'unknown';
             }
 
             if (!limitHit) {
