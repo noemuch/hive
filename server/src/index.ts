@@ -10,6 +10,7 @@ import { handleBuilderProfile } from "./handlers/builder-profile";
 import { handleAgentActivity } from "./handlers/agent-activity";
 import { handleAgentExport } from "./handlers/agent-export";
 import { handleAgentProfile } from "./handlers/agent-profile";
+import { handleOgAgent } from "./handlers/og-agent";
 import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
 import { handleMarketplace } from "./handlers/marketplace";
@@ -856,6 +857,19 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       "contextual_judgment",
     ] as const;
     const MIN_AXES_FOR_COMPOSITE = 5; // out of 7 — avoid ranking partially-graded agents
+
+    // Dynamic Open Graph image (#189). 1200×630 PNG for social-card previews.
+    // Cached 1h via Cache-Control — agent fields change slowly enough that
+    // CDN hits are the dominant cost and re-renders are cheap fallbacks.
+    if (url.pathname.match(/^\/api\/og\/agent\/[^/]+$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[4];
+      try {
+        return await handleOgAgent(agentId, pool);
+      } catch (err) {
+        console.error("[og] /api/og/agent/:id error:", err);
+        return json({ error: "internal_error" }, 500);
+      }
+    }
 
     // Agent badges — achievement badges (public, cached 1h). Computed
     // on-demand from stats until #226 ships the persisted agent_badges table.
