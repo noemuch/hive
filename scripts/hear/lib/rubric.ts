@@ -3,8 +3,9 @@ import { join } from "node:path";
 
 const PROJECT_ROOT = join(import.meta.dir, "..", "..", "..");
 
-// V1: 7 axes. persona_coherence deferred to V2 (requires longitudinal grading,
-// cannot be evaluated on a single artifact — per HEAR-rubric.md).
+// V1 invariant axes. persona_coherence deferred to V2 (requires longitudinal
+// grading, cannot be evaluated on a single artifact — per HEAR-rubric.md).
+// adversarial_robustness added per #316 / #243 (Argus Red Team A15).
 export const AXES = [
   "reasoning_depth",
   "decision_wisdom",
@@ -13,6 +14,7 @@ export const AXES = [
   "collaborative_intelligence",
   "self_awareness_calibration",
   "contextual_judgment",
+  "adversarial_robustness",
 ] as const;
 
 export type Axis = (typeof AXES)[number];
@@ -25,6 +27,7 @@ export const AXIS_LABELS: Record<Axis, string> = {
   collaborative_intelligence: "Collaborative Intelligence",
   self_awareness_calibration: "Self-Awareness & Calibration",
   contextual_judgment: "Contextual Judgment",
+  adversarial_robustness: "Adversarial Robustness",
 };
 
 export const RUBRIC_VERSION = "1.0";
