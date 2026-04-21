@@ -4,6 +4,7 @@ import { recomputeAgentScoreState } from "../db/agent-score-state";
 import { router } from "../router/index";
 import { anonymize } from "./anonymizer";
 import { getPeerEvalRubric } from "./rubric-loader";
+import { getRubricVariant, allAxesFor, type RubricVariant } from "./rubric-variants";
 import { updateScore, type ScoreState } from "./score-state";
 import { validateEvaluation, type EvalScores } from "./peer-eval-validation";
 import { weightedMean } from "./peer-eval-aggregation";
@@ -14,45 +15,38 @@ import type {
   QualityUpdatedEvent,
 } from "../protocol/types";
 
-const EVAL_AXES = [
-  "reasoning_depth",
-  "decision_wisdom",
-  "communication_clarity",
-  "initiative_quality",
-  "collaborative_intelligence",
-  "self_awareness_calibration",
-  "contextual_judgment",
-] as const;
-
-type EvalAxis = (typeof EVAL_AXES)[number];
-
 // Random per-call example tuple for the eval prompt — see #178 v2.
-// Uses a 1-10 range across all axes; initiative_quality is null ~30% of the
-// time to model "axis not applicable" without biasing the model toward null.
-function randomExample(): Record<EvalAxis, number | null> {
+// Each axis gets a 1-10 integer; ~30% of the time any single axis is null
+// to model "axis not applicable" without biasing the model toward null.
+// The tuple shape varies by rubric_variant (HEAR Family A3, #219) — always
+// 3 invariant axes + 4 variant axes = 7 total, so collision probability for
+// Rule 5 stays at ~10⁻⁵ regardless of the agent's variant.
+function randomExample(axes: ReadonlyArray<string>): Record<string, number | null> {
   const r = (): number => 1 + Math.floor(Math.random() * 10);
-  return {
-    reasoning_depth: r(),
-    decision_wisdom: r(),
-    communication_clarity: r(),
-    initiative_quality: Math.random() < 0.3 ? null : r(),
-    collaborative_intelligence: r(),
-    self_awareness_calibration: r(),
-    contextual_judgment: r(),
-  };
+  const out: Record<string, number | null> = {};
+  // Null out one pseudo-random axis (~30% chance none) to keep the "null OK"
+  // signal the original chat-collab prompt used for initiative_quality.
+  const nullIndex = Math.random() < 0.3 ? Math.floor(Math.random() * axes.length) : -1;
+  for (let i = 0; i < axes.length; i++) out[axes[i]] = i === nullIndex ? null : r();
+  return out;
 }
 
 function buildEvalPrompt(input: {
   artifactType: string;
   rubric: string;
   anonContent: string;
+  variant: RubricVariant;
 }): string {
-  const example = randomExample();
-  return `Evaluate this ${input.artifactType} artifact using the HEAR quality rubric.
+  const axes = allAxesFor(input.variant);
+  const example = randomExample(axes);
+  const axisList = axes.join(", ");
+  return `Evaluate this ${input.artifactType} artifact using the HEAR "${input.variant.variant_id}" rubric variant.
+
+${input.variant.prompt_template}
 
 ${input.rubric}
 
-Score each applicable axis from 1 to 10 based on the rubric. If an axis is not applicable to this artifact type, set it to null. The seven axes describe DIFFERENT qualities — it is extremely unlikely that a real artifact scores identically on all of them. Use the full 1-10 range; avoid clustering every score at the same value.
+Score each of these axes from 1 to 10: ${axisList}. If an axis is not applicable to this artifact type, set it to null. The ${axes.length} axes describe DIFFERENT qualities — it is extremely unlikely that a real artifact scores identically on all of them. Use the full 1-10 range; avoid clustering every score at the same value.
 
 For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each) copied directly from the artifact that best support your evaluation. These appear on the agent's public profile to make judgments explainable.
 
@@ -64,7 +58,8 @@ ${input.anonContent}`;
 }
 
 export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
-  // 1. Fetch artifact + author info
+  // 1. Fetch artifact + author info (including author's rubric_variant so the
+  //    eval prompt + axes align with the evaluatee — HEAR Family A3, #219).
   const { rows: [artifact] } = await pool.query<{
     id: string;
     content: string;
@@ -73,15 +68,22 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
     company_id: string;
     author_name: string;
     author_builder_id: string;
+    rubric_variant: string;
   }>(
     `SELECT a.id, a.content, a.type, a.author_id, a.company_id,
-            ag.name AS author_name, ag.builder_id AS author_builder_id
+            ag.name AS author_name, ag.builder_id AS author_builder_id,
+            ag.rubric_variant
      FROM artifacts a
      JOIN agents ag ON ag.id = a.author_id
      WHERE a.id = $1`,
     [artifactId]
   );
   if (!artifact || !artifact.content) return;
+
+  // Load the variant once — all evaluators for this artifact use the same
+  // axes and prompt template.
+  const variant = await getRubricVariant(artifact.rubric_variant);
+  const axes = allAxesFor(variant);
 
   // 2. Find eligible evaluators: different company, online, prefer reliable
   // Demo builders bypass the "different builder" constraint (same logic as placement.ts)
@@ -159,6 +161,7 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
       artifactType: artifact.type,
       rubric,
       anonContent,
+      variant,
     });
 
     const event: EvaluateArtifactEvent = {
@@ -185,20 +188,26 @@ export async function handleEvaluationResult(
   const evaluationId = data.evaluation_id as string;
   if (!evaluationId) return;
 
-  // 1. Find the pending evaluation for this agent
+  // 1. Find the pending evaluation for this agent (also pull the evaluatee's
+  //    rubric_variant so the rest of the pipeline uses the right axis set).
   const { rows: [pe] } = await pool.query<{
     id: string;
     artifact_id: string;
     author_id: string;
     company_id: string;
+    rubric_variant: string;
   }>(
-    `SELECT pe.id, pe.artifact_id, a.author_id, a.company_id
+    `SELECT pe.id, pe.artifact_id, a.author_id, a.company_id, ag.rubric_variant
      FROM peer_evaluations pe
      JOIN artifacts a ON a.id = pe.artifact_id
+     JOIN agents ag ON ag.id = a.author_id
      WHERE pe.id = $1 AND pe.evaluator_agent_id = $2 AND pe.status = 'pending'`,
     [evaluationId, agentId]
   );
   if (!pe) return;
+
+  const variant = await getRubricVariant(pe.rubric_variant);
+  const variantAxes = allAxesFor(variant);
 
   // 2. Extract + type-check scores + reasoning
   if (typeof data.scores !== "object" || data.scores === null || Array.isArray(data.scores)) return;
@@ -230,7 +239,13 @@ export async function handleEvaluationResult(
   const existingTuples: EvalScores[] = priorTuples.map((r) =>
     typeof r.scores === "string" ? JSON.parse(r.scores) : r.scores,
   );
-  const validation = validateEvaluation(scores, reasoning, confidence, existingTuples);
+  const validation = validateEvaluation(
+    scores,
+    reasoning,
+    confidence,
+    existingTuples,
+    variantAxes,
+  );
 
   if (!validation.valid) {
     // Reject the evaluation
@@ -288,7 +303,7 @@ export async function handleEvaluationResult(
   // 6. Check if enough evaluators have completed (need at least 1)
   const { rows: completedRows } = await pool.query<{
     evaluator_agent_id: string;
-    scores: Record<EvalAxis, number | null> | string;
+    scores: Record<string, number | null> | string;
     reasoning: string | null;
     evidence_quotes: string[] | string | null;
   }>(
@@ -326,8 +341,10 @@ export async function handleEvaluationResult(
     reliabilityRows.map((r) => [r.id, Number(r.eval_reliability)])
   );
 
-  // 8. Aggregate scores per axis (weighted by reliability)
-  for (const axis of EVAL_AXES) {
+  // 8. Aggregate scores per axis (weighted by reliability).
+  //    Axis set comes from the evaluatee's rubric_variant so chat-collab,
+  //    code, research, etc. agents each get their own axes aggregated.
+  for (const axis of variantAxes) {
     const evaluatorScores: { score: number; reliability: number }[] = [];
 
     for (const row of completedRows) {
@@ -418,19 +435,20 @@ export async function handleEvaluationResult(
       if (aggregatedQuotes.length >= 3) break;
     }
 
-    // 10. Write quality_evaluation row
+    // 10. Write quality_evaluation row (including rubric_variant so the
+    //     downstream leaderboard + profile queries can filter / group by it).
     await pool.query(
       `INSERT INTO quality_evaluations
          (agent_id, artifact_id, axis, score,
           score_state_mu, score_state_sigma, score_state_volatility,
           judge_count, judge_models, judge_disagreement,
           was_escalated, reasoning, evidence_quotes,
-          rubric_version, methodology_version)
+          rubric_version, methodology_version, rubric_variant)
        VALUES ($1, $2, $3, $4,
                $5, $6, $7,
                $8, $9, $10,
                false, $11, $12::jsonb,
-               'v1', '1.0')`,
+               'v1', '1.0', $13)`,
       [
         pe.author_id,
         pe.artifact_id,
@@ -444,6 +462,7 @@ export async function handleEvaluationResult(
         disagreement,
         completedRows.map((r) => (r.reasoning ?? "").slice(0, 250)).join(" | "),
         JSON.stringify(aggregatedQuotes),
+        variant.variant_id,
       ]
     );
 
