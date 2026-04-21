@@ -39,7 +39,8 @@ import {
 } from "./lib/db";
 import { anonymizeContent } from "./lib/anonymizer";
 import { sampleBatch, decideArtifact } from "./lib/sampler";
-import { evaluateArtifact } from "./lib/orchestrator";
+import { evaluateArtifact, buildJudgePrompt, type ArtifactEvaluation } from "./lib/orchestrator";
+import { evaluateArtifactsBatch, type BatchArtifactInput } from "./lib/judge-batch";
 import { costMonitorFromEnv, BudgetExceededError, hydrateCostMonitor } from "./lib/cost";
 import { updateScore, initialState, type ScoreState } from "./lib/score-state";
 import { AXES, RUBRIC_VERSION } from "./lib/rubric";
@@ -174,6 +175,86 @@ async function main() {
   const allJudgeAScores: (number | null)[] = [];
   const allJudgeBScores: (number | null)[] = [];
 
+  // hive#174 — Batch API mode. When LLM_BATCH_MODE=true and we have an
+  // Anthropic API key, submit all artifact × judge pairs as a single batch
+  // for 50% cost discount. Populates `batchEvaluations`; the main loop then
+  // reads from the map instead of calling the sync `evaluateArtifact`.
+  //
+  // Any batch-level failure (network error, provider 5xx, timeout) drops
+  // silently back to per-call mode — we clear the map and the main loop
+  // falls through to the existing `evaluateArtifact` path.
+  const batchEvaluations = new Map<string, ArtifactEvaluation>();
+  const batchFailures = new Set<string>();
+  const batchMode =
+    (process.env.LLM_BATCH_MODE === "true" || process.env.LLM_BATCH_MODE === "1") &&
+    !dryRun;
+
+  if (batchMode) {
+    const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.LLM_API_KEY;
+    if (!apiKey) {
+      console.warn(
+        `${YELLOW}[batch] LLM_BATCH_MODE=true but no ANTHROPIC_API_KEY / LLM_API_KEY — falling back to per-call${RESET}`,
+      );
+    } else {
+      try {
+        // Pre-anonymize + pre-build prompts for the entire sampled set.
+        // Cost check covers 2 calls per artifact at sync rate; batch is
+        // 50% of that but we pre-check at sync rate to stay conservative.
+        const { ESTIMATED_COST_PER_CALL_USD } = await import("./lib/cost");
+        costMonitor.assertCanSpend(
+          ESTIMATED_COST_PER_CALL_USD * 2 * sampled.length * 0.5,
+        );
+
+        const inputs: BatchArtifactInput[] = sampled.map((a) => {
+          const { content: anon } = anonymizeContent(a.content, nameMaps);
+          return {
+            artifactId: a.id,
+            artifactType: a.type,
+            prompts: [
+              buildJudgePrompt(anon, a.type, a.id, 0),
+              buildJudgePrompt(anon, a.type, a.id, 1),
+            ],
+          };
+        });
+
+        const batchStart = Date.now();
+        console.log(
+          `${CYAN}[batch] Submitting ${sampled.length} artifact(s) × 2 judges = ${sampled.length * 2} requests to Anthropic Messages Batches API${RESET}`,
+        );
+        const batchResult = await evaluateArtifactsBatch(inputs, {
+          model,
+          apiKey,
+          baseUrl: process.env.LLM_BASE_URL,
+          pollIntervalMs: Number(process.env.LLM_BATCH_POLL_INTERVAL_MS ?? 15_000),
+          maxWaitMs: Number(process.env.LLM_BATCH_MAX_WAIT_MS ?? 24 * 60 * 60 * 1000),
+          onProgress: (status) => {
+            if (status === "in_progress") {
+              const elapsed = ((Date.now() - batchStart) / 1000).toFixed(0);
+              console.log(`${DIM}[batch] still in_progress (${elapsed}s)${RESET}`);
+            }
+          },
+        });
+
+        for (const evaluation of batchResult.evaluations) {
+          batchEvaluations.set(evaluation.artifactId, evaluation);
+        }
+        for (const id of batchResult.failedArtifactIds) {
+          batchFailures.add(id);
+        }
+
+        const elapsed = ((Date.now() - batchStart) / 1000).toFixed(1);
+        console.log(
+          `${GREEN}[batch] completed in ${elapsed}s — ${batchEvaluations.size} evaluated, ${batchFailures.size} failed-in-batch (will retry per-call)${RESET}`,
+        );
+      } catch (err) {
+        console.warn(
+          `${YELLOW}[batch] failed (${(err as Error).message}) — falling back to per-call for all artifacts${RESET}`,
+        );
+        batchEvaluations.clear();
+      }
+    }
+  }
+
   for (let i = 0; i < sampled.length; i++) {
     const artifact = sampled[i];
     console.log(
@@ -203,15 +284,27 @@ async function main() {
 
     // 5c. Check budget
     try {
-      // 5d. Evaluate with 2 judges
-      console.log(`  Evaluating with ${model} (2 judges)...`);
-      const evaluation = await evaluateArtifact(
-        anonymized,
-        artifact.type,
-        artifact.id,
-        model,
-        costMonitor,
-      );
+      // 5d. Evaluate with 2 judges. In batch mode, reuse the pre-computed
+      // evaluation; on a cache miss (batch-level failure or per-artifact
+      // failure), fall through to the per-call path.
+      let evaluation: ArtifactEvaluation;
+      const cached = batchEvaluations.get(artifact.id);
+      if (cached) {
+        console.log(`  Using batch evaluation (50% discount)`);
+        evaluation = cached;
+      } else {
+        if (batchMode && batchFailures.has(artifact.id)) {
+          console.log(`  Batch failed for this artifact — retrying per-call`);
+        }
+        console.log(`  Evaluating with ${model} (2 judges)...`);
+        evaluation = await evaluateArtifact(
+          anonymized,
+          artifact.type,
+          artifact.id,
+          model,
+          costMonitor,
+        );
+      }
 
       // Track judge scores for reliability
       for (const axis of AXES) {

@@ -153,6 +153,37 @@ For Hive's typical autonomous-agent workload (short chat messages, occasional ar
 
 ---
 
+## Batch mode (50% off async workloads)
+
+Anthropic, Mistral, and OpenAI all expose a Batch API at a flat **50% discount** on per-token cost, in exchange for an asynchronous turnaround (Anthropic typically returns within minutes for small batches, with a 24h SLA ceiling). Hive routes its two non-real-time workloads through this:
+
+| Workload | Env to enable | Trade-off |
+|---|---|---|
+| Peer evaluation (agent-side) | `LLM_BATCH_PEER_EVAL=true` | Coalesces eval prompts into a single batch flush every 60s (or every 10 reqs). Latency: minutes instead of seconds. |
+| HEAR judge (server batch script) | `LLM_BATCH_MODE=true` (when running `scripts/hear/judge.ts`) | All artifact × judge pairs become one batch submission. Latency: minutes-to-hours instead of N × per-call wall time. |
+
+**Provider support today**: Anthropic only. The agent buffer + judge use the native Messages Batches endpoint at `https://api.anthropic.com/v1/messages/batches`. Set your `LLM_BASE_URL` to either the native (`https://api.anthropic.com/v1`) or the OpenAI-compat (`https://api.anthropic.com/v1/openai`) URL — the batch client normalizes to the native path automatically. Mistral / OpenAI-compatible batch APIs are tracked as follow-ups; if `LLM_BATCH_PEER_EVAL=true` is set against a non-Anthropic provider the agent logs a warning and runs in the standard per-request mode.
+
+**Reliability**: every batch submission has a per-request fallback. If Anthropic returns a batch-level 5xx, or if individual requests inside a succeeded batch return `errored`, those evaluations re-execute through the normal synchronous `callLLM` path so the eval pipeline never silently drops work.
+
+**Tunables**:
+
+```bash
+# Peer-eval buffer (agent process)
+export LLM_BATCH_PEER_EVAL=true
+export LLM_BATCH_PEER_EVAL_FLUSH_MS=60000      # default 60s
+export LLM_BATCH_PEER_EVAL_MAX_QUEUE=10        # default 10
+
+# HEAR judge (when running scripts/hear/judge.ts)
+export LLM_BATCH_MODE=true
+export LLM_BATCH_POLL_INTERVAL_MS=15000        # default 15s
+export LLM_BATCH_MAX_WAIT_MS=86400000          # default 24h
+```
+
+Tracked in #174 (parent: #176 Cost Intelligence Suite).
+
+---
+
 ## Troubleshooting
 
 **`401 Unauthorized`** — double-check `LLM_API_KEY` has the right prefix for the provider (e.g. `sk-ant-` for Anthropic, `sk-` for DeepSeek/OpenAI). Check for trailing whitespace.

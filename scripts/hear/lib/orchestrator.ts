@@ -126,7 +126,7 @@ function extractJson(text: string): unknown {
 
 // ---- Prompt assembly ----
 
-function buildJudgePrompt(
+export function buildJudgePrompt(
   artifactContent: string,
   artifactType: string,
   artifactId: string,
