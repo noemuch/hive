@@ -21,6 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   Check,
   ChevronLeft,
   ChevronRight,
@@ -30,9 +36,11 @@ import {
   Loader2,
   Rocket,
   ScrollText,
+  Terminal,
 } from "lucide-react";
 import { getToken } from "@/providers/auth-provider";
 import { ReputationInheritancePreview } from "./ReputationInheritancePreview";
+import { HireApiTab } from "./HireApiTab";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -266,15 +274,15 @@ export function UseAgentWizard({
     URL.revokeObjectURL(url);
   }
 
-  const stepTitle = [
-    "How do you want to use this agent?",
+  const forkStepTitle = [
+    "How do you want to fork it?",
     "Configure your fork",
     "Export your config",
     "Reputation inheritance",
     mode === "fork" ? "Your fork is ready" : "Download complete",
   ][step - 1];
 
-  const stepDescription = [
+  const forkStepDescription = [
     `Fork ${agent.name}'s personality to jump-start your own agent, or just grab the config.`,
     `Pick a name and LLM provider for your fork of ${agent.name}.`,
     "Download the generated team config, or copy it to your clipboard.",
@@ -290,83 +298,124 @@ export function UseAgentWizard({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg" showCloseButton={!forking}>
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <GitFork className="size-3.5" aria-hidden="true" />
-            </span>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Step {step} of {totalSteps}
-            </p>
-          </div>
-          <DialogTitle>{stepTitle}</DialogTitle>
-          <DialogDescription>{stepDescription}</DialogDescription>
+          <DialogTitle>Use this agent</DialogTitle>
+          <DialogDescription>
+            Hire {agent.name} via API with a token, or fork the personality to
+            run your own.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-[260px]">
-          {step === 1 && (
-            <StepMode mode={mode} onChange={setMode} />
-          )}
+        <Tabs defaultValue="api" className="mt-1">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="api" className="gap-1.5">
+              <Terminal className="size-3.5" aria-hidden="true" />
+              API hire
+            </TabsTrigger>
+            <TabsTrigger value="fork" className="gap-1.5">
+              <GitFork className="size-3.5" aria-hidden="true" />
+              Fork
+            </TabsTrigger>
+          </TabsList>
 
-          {step === 2 && (
-            <StepConfigure
-              forkName={forkName}
-              onForkNameChange={setForkName}
-              presetId={presetId}
-              onPresetChange={setPresetId}
-            />
-          )}
+          <TabsContent value="api" className="mt-4">
+            <HireApiTab agent={{ id: agent.id, name: agent.name }} />
+          </TabsContent>
 
-          {step === 3 && (
-            <StepExport
-              configSource={configSource}
-              copied={copied}
-              onCopy={handleCopy}
-              onDownload={handleDownload}
-            />
-          )}
+          <TabsContent value="fork" className="mt-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <GitFork className="size-3.5" aria-hidden="true" />
+              </span>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Step {step} of {totalSteps}
+              </p>
+            </div>
+            <p className="mt-1.5 text-base font-semibold leading-tight">
+              {forkStepTitle}
+            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {forkStepDescription}
+            </p>
 
-          {step === 4 && (
-            <StepReputation parentName={agent.name} parentMu={agent.score_state_mu} />
-          )}
+            <div className="mt-4 min-h-[260px]">
+              {step === 1 && <StepMode mode={mode} onChange={setMode} />}
 
-          {step === 5 && (
-            <StepAttribution
-              agent={agent}
-              forkName={forkName}
-              mode={mode}
-              forkResult={forkResult}
-            />
-          )}
-        </div>
+              {step === 2 && (
+                <StepConfigure
+                  forkName={forkName}
+                  onForkNameChange={setForkName}
+                  presetId={presetId}
+                  onPresetChange={setPresetId}
+                />
+              )}
 
-        <div className="flex items-center justify-between gap-2 border-t pt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBack}
-            disabled={step === 1 || forking}
-            className="gap-1.5"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-            Back
-          </Button>
-          {step < totalSteps ? (
-            <Button
-              size="sm"
-              onClick={handleNext}
-              disabled={forking || (step === 2 && safeAgentName(forkName).length < 2)}
-              className="gap-1.5"
-            >
-              {forking && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
-              {step === 4 && mode === "fork" && !forkResult ? "Create fork" : "Next"}
-              {!forking && <ChevronRight className="size-4" aria-hidden="true" />}
-            </Button>
-          ) : (
-            <Button size="sm" onClick={() => handleOpenChange(false)}>
-              Done
-            </Button>
-          )}
-        </div>
+              {step === 3 && (
+                <StepExport
+                  configSource={configSource}
+                  copied={copied}
+                  onCopy={handleCopy}
+                  onDownload={handleDownload}
+                />
+              )}
+
+              {step === 4 && (
+                <StepReputation
+                  parentName={agent.name}
+                  parentMu={agent.score_state_mu}
+                />
+              )}
+
+              {step === 5 && (
+                <StepAttribution
+                  agent={agent}
+                  forkName={forkName}
+                  mode={mode}
+                  forkResult={forkResult}
+                />
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-2 border-t pt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBack}
+                disabled={step === 1 || forking}
+                className="gap-1.5"
+              >
+                <ChevronLeft className="size-4" aria-hidden="true" />
+                Back
+              </Button>
+              {step < totalSteps ? (
+                <Button
+                  size="sm"
+                  onClick={handleNext}
+                  disabled={
+                    forking || (step === 2 && safeAgentName(forkName).length < 2)
+                  }
+                  className="gap-1.5"
+                >
+                  {forking && (
+                    <Loader2
+                      className="size-3.5 animate-spin"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {step === 4 && mode === "fork" && !forkResult
+                    ? "Create fork"
+                    : "Next"}
+                  {!forking && (
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  )}
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => handleOpenChange(false)}>
+                  Done
+                </Button>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
