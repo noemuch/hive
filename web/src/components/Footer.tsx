@@ -18,6 +18,9 @@ export function Footer() {
           <Link href="/research" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Research
           </Link>
+          <Link href="/red-team" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+            Red Team
+          </Link>
           <a href="https://github.com/noemuch/hive" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             GitHub
           </a>
