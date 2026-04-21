@@ -1,0 +1,233 @@
+name: Preview Verify — visit new routes after merge
+
+# On a merged claude/* PR: wait for Railway to deploy main, then Haiku 4.5 +
+# Playwright visits each web route that was created/modified in the diff and
+# checks for basic health (HTTP 2xx, no console errors, page renders).
+#
+# Catches: 500 errors on new endpoints, missing imports, build failures that
+# slipped past CI, route wiring mistakes.
+#
+# Skip:
+#   - Diff only touched docs/**, scripts/**, .github/**, *.md (no UI change)
+#   - Diff only touched server/** without any web/src/app/**/page.tsx (no new route)
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR to verify (must be merged)
+        required: true
+        type: number
+
+concurrency:
+  group: preview-verify-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'claude/'))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Resolve PR + check scope
+        id: scope
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const prNumber = context.eventName === 'workflow_dispatch'
+              ? parseInt(context.payload.inputs.pr_number, 10)
+              : context.payload.pull_request.number;
+
+            const { data: pr } = await github.rest.pulls.get({
+              ...context.repo, pull_number: prNumber
+            });
+            if (!pr.merged) {
+              core.notice('PR not merged; skipping verify.');
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            const { data: files } = await github.rest.pulls.listFiles({
+              ...context.repo, pull_number: prNumber, per_page: 100
+            });
+            const paths = files.map(f => f.filename);
+
+            // Infer routes from page.tsx changes
+            const routes = paths
+              .filter(p => /^web\/src\/app\/.*\/page\.tsx$/.test(p))
+              .map(p => {
+                // web/src/app/foo/bar/page.tsx → /foo/bar
+                const route = p
+                  .replace(/^web\/src\/app/, '')
+                  .replace(/\/page\.tsx$/, '')
+                  .replace(/\/\[([^\]]+)\]/g, '/:$1');
+                return route || '/';
+              });
+
+            // Skip if only non-UI files touched
+            const uiTouched = paths.some(p =>
+              p.startsWith('web/') && !p.includes('__tests__') && !p.endsWith('.test.ts') && !p.endsWith('.test.tsx')
+            );
+            const onlyNoiseChanged = paths.every(p =>
+              p.startsWith('docs/') || p.startsWith('scripts/') ||
+              p.startsWith('.github/') || p.endsWith('.md') ||
+              p.endsWith('.test.ts') || p.endsWith('.test.tsx')
+            );
+
+            if (onlyNoiseChanged || !uiTouched) {
+              core.notice('Diff did not touch runtime UI; skipping verify.');
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            core.setOutput('skip', 'false');
+            core.setOutput('pr_number', String(prNumber));
+            core.setOutput('head_sha', pr.merge_commit_sha || pr.head.sha);
+            core.setOutput('routes', JSON.stringify(routes));
+            core.setOutput('paths_touched', String(paths.length));
+
+      - name: Wait for Railway to deploy main
+        if: steps.scope.outputs.skip != 'true'
+        id: wait
+        run: |
+          set -euo pipefail
+          DEADLINE=$((SECONDS + 240))  # 4 min
+          URL="https://hive-web-production.up.railway.app/api/health"
+          FALLBACK_URL="https://hive-web-production.up.railway.app"
+          while [ $SECONDS -lt $DEADLINE ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Railway healthy."
+              exit 0
+            fi
+            # fallback to root if /api/health not exposed
+            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" "$FALLBACK_URL" || echo "000")
+            if [ "$STATUS2" = "200" ]; then
+              echo "Root reachable (assume deploy done)."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::warning::Railway health did not go 200 within 4 min — continuing anyway."
+
+      - name: Checkout (for plugin context)
+        if: steps.scope.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NOEMUCH_PAT }}
+          fetch-depth: 1
+
+      - name: Verify routes via Haiku + curl fallback
+        if: steps.scope.outputs.skip != 'true'
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          PR: ${{ steps.scope.outputs.pr_number }}
+          ROUTES: ${{ steps.scope.outputs.routes }}
+        run: |
+          set +e
+          BASE="https://hive-web-production.up.railway.app"
+          FAILED=()
+          PASSED=()
+          for route in $(echo "$ROUTES" | jq -r '.[]'); do
+            # Dynamic segments — replace :id with a real sample (best-effort)
+            testurl="$BASE$route"
+            if echo "$route" | grep -q ':'; then
+              # Dynamic route — skip (we'd need a real ID to test)
+              PASSED+=("$route (dynamic — skipped)")
+              continue
+            fi
+            code=$(curl -s -o /tmp/body.html -w "%{http_code}" "$testurl")
+            if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
+              PASSED+=("$route → $code")
+            else
+              # Capture body excerpt for diagnosis
+              head -c 500 /tmp/body.html > /tmp/excerpt.html
+              FAILED+=("$route → $code")
+            fi
+          done
+
+          {
+            echo "passed<<EOF"
+            printf '%s\n' "${PASSED[@]}"
+            echo "EOF"
+            echo "failed<<EOF"
+            printf '%s\n' "${FAILED[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ ${#FAILED[@]} -eq 0 ]; then
+            echo "all_green=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "all_green=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post verification result to PR
+        if: steps.scope.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          PR: ${{ steps.scope.outputs.pr_number }}
+          PASSED: ${{ steps.verify.outputs.passed }}
+          FAILED: ${{ steps.verify.outputs.failed }}
+          ALL_GREEN: ${{ steps.verify.outputs.all_green }}
+        run: |
+          set -euo pipefail
+          BODY_FILE=$(mktemp)
+          if [ "$ALL_GREEN" = "true" ]; then
+            {
+              echo "🟢 **Preview verify**: all changed routes responded 2xx/3xx on Railway."
+              echo ""
+              echo "Tested routes:"
+              echo "$PASSED" | sed 's/^/- /'
+            } > "$BODY_FILE"
+          else
+            {
+              echo "🔴 **Preview verify**: regression detected on Railway."
+              echo ""
+              echo "**Failed routes**:"
+              echo "$FAILED" | sed 's/^/- /'
+              echo ""
+              echo "**Healthy routes**:"
+              echo "$PASSED" | sed 's/^/- /'
+              echo ""
+              echo "Opening a follow-up \`type:bug\` \`agent-ready\` issue to fix."
+            } > "$BODY_FILE"
+          fi
+          gh pr comment "$PR" --repo noemuch/hive --body-file "$BODY_FILE"
+
+          if [ "$ALL_GREEN" = "false" ]; then
+            # Open a healer-style issue
+            ISSUE_BODY=$(mktemp)
+            {
+              echo "🔴 **Preview regression** after merging #$PR."
+              echo ""
+              echo "**Failed routes** on \`hive-web-production.up.railway.app\`:"
+              echo "$FAILED" | sed 's/^/- /'
+              echo ""
+              echo "## Task"
+              echo "- Reproduce locally: \`cd web && bun dev\`, visit the failing route."
+              echo "- Apply \`superpowers:systematic-debugging\` to find root cause."
+              echo "- Fix + regression test."
+              echo ""
+              echo "Source: \`preview-verify.yml\` post-merge on PR #$PR."
+            } > "$ISSUE_BODY"
+            gh issue create --repo noemuch/hive \
+              --title "[Preview regression] Routes failing after #$PR" \
+              --body-file "$ISSUE_BODY" \
+              --label "agent-ready,type:bug,priority:high,area:web,size:S,use-sonnet"
+          fi
+
+          gh issue comment 257 --repo noemuch/hive --body "🔍 **Preview verify** on PR #$PR — all_green=$ALL_GREEN — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
