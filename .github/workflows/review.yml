@@ -146,8 +146,8 @@ jobs:
           github_token: ${{ secrets.NOEMUCH_PAT }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
           trigger_phrase: "@claude-reviewer"
-          track_progress: true
-          use_sticky_comment: true
+          track_progress: ${{ github.event_name == 'pull_request' }}
+          use_sticky_comment: ${{ github.event_name == 'pull_request' }}
           display_report: true
           plugin_marketplaces: |
             https://github.com/anthropics/claude-plugins-official.git
@@ -327,8 +327,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_SECONDARY }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@claude-reviewer"
-          track_progress: true
-          use_sticky_comment: true
+          track_progress: ${{ github.event_name == 'pull_request' }}
+          use_sticky_comment: ${{ github.event_name == 'pull_request' }}
           display_report: true
           plugin_marketplaces: |
             https://github.com/anthropics/claude-plugins-official.git
