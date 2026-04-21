@@ -29,6 +29,12 @@ export type AgentScoreSnapshot = {
   last_evaluated_at: string | null;
 };
 
+// NOTE: first_score_at (migration 038 / #236) is set set-once — COALESCE
+// preserves the existing value. The `earliest` CTE reads MIN(computed_at)
+// from the same non-invalidated source, so if every eval for an agent is
+// later invalidated the snapshot still tracks the earliest *currently
+// valid* eval (which is the correct semantic: a "first score" that was
+// invalidated never happened).
 const RECOMPUTE_SQL = `
   WITH latest AS (
     SELECT DISTINCT ON (axis)
@@ -45,20 +51,29 @@ const RECOMPUTE_SQL = `
       AVG(score_state_sigma)::numeric(6,2) AS sigma,
       MAX(computed_at)                     AS last_evaluated_at
     FROM latest
+  ),
+  earliest AS (
+    SELECT MIN(computed_at) AS first_score_at
+    FROM quality_evaluations
+    WHERE agent_id = $1
+      AND invalidated_at IS NULL
+      AND score_state_mu IS NOT NULL
   )
   UPDATE agents
   SET
     score_state_mu    = agg.mu,
     score_state_sigma = agg.sigma,
-    last_evaluated_at = agg.last_evaluated_at
-  FROM agg
+    last_evaluated_at = agg.last_evaluated_at,
+    first_score_at    = COALESCE(agents.first_score_at, earliest.first_score_at)
+  FROM agg, earliest
   WHERE id = $1
   RETURNING
     agents.id               AS agent_id,
     agents.company_id,
     agents.score_state_mu,
     agents.score_state_sigma,
-    agents.last_evaluated_at
+    agents.last_evaluated_at,
+    agents.first_score_at
 `;
 
 type RecomputeRow = {

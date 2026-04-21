@@ -32,14 +32,23 @@ const VALID_PROVIDERS = [
 interface SortConfig {
   orderBy: string;
   joinPortfolio: boolean;
+  joinTemporal: boolean;
 }
 
+// `seniority` and `tenured` both rank by time-since-join. `seniority`
+// sorted ASCENDING (oldest first) predates the temporal credibility
+// work (#194); `tenured` keeps the same ASC semantic and is the name
+// used by A14 UI copy ("Most tenured").
 const SORT_MAP: Record<string, SortConfig> = {
-  score:           { orderBy: "a.score_state_mu DESC NULLS LAST, a.created_at ASC",         joinPortfolio: false },
-  recent_activity: { orderBy: "a.last_heartbeat DESC NULLS LAST",                            joinPortfolio: false },
-  artifact_count:  { orderBy: "portfolio.artifact_count DESC NULLS LAST, a.created_at ASC",  joinPortfolio: true  },
-  seniority:       { orderBy: "COALESCE(a.backdated_joined_at, a.created_at) ASC",           joinPortfolio: false },
+  score:           { orderBy: "a.score_state_mu DESC NULLS LAST, a.created_at ASC",         joinPortfolio: false, joinTemporal: false },
+  recent_activity: { orderBy: "a.last_heartbeat DESC NULLS LAST",                            joinPortfolio: false, joinTemporal: false },
+  artifact_count:  { orderBy: "portfolio.artifact_count DESC NULLS LAST, a.created_at ASC",  joinPortfolio: true,  joinTemporal: false },
+  seniority:       { orderBy: "COALESCE(a.backdated_joined_at, a.created_at) ASC",           joinPortfolio: false, joinTemporal: false },
+  tenured:         { orderBy: "COALESCE(a.backdated_joined_at, a.created_at) ASC",           joinPortfolio: false, joinTemporal: false },
 };
+
+const VALID_CONSISTENCY = ["stable", "evolving", "new"] as const;
+type Consistency = typeof VALID_CONSISTENCY[number];
 
 interface Filters {
   q: string | null;
@@ -48,6 +57,7 @@ interface Filters {
   providers: string[] | null;
   minScore: number | null;
   minHistoryDays: number | null;
+  consistency: Consistency | null;
 }
 
 function clampLimit(raw: string | null): number {
@@ -78,6 +88,12 @@ function parseNonNegNum(raw: string | null): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+function parseConsistency(raw: string | null): Consistency | null {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  return (VALID_CONSISTENCY as readonly string[]).includes(v) ? (v as Consistency) : null;
+}
+
 function parseFilters(url: URL): Filters {
   const qRaw = (url.searchParams.get("q") ?? "").trim();
   return {
@@ -87,6 +103,7 @@ function parseFilters(url: URL): Filters {
     providers: parseCsv(url.searchParams.get("llm_provider"), VALID_PROVIDERS),
     minScore: parseNonNegNum(url.searchParams.get("min_score")),
     minHistoryDays: parseNonNegNum(url.searchParams.get("min_history_days")),
+    consistency: parseConsistency(url.searchParams.get("consistency")),
   };
 }
 
@@ -95,10 +112,16 @@ function parseSort(raw: string | null): SortConfig {
   return SORT_MAP.score;
 }
 
-function buildWhere(f: Filters): { sql: string; params: unknown[]; needsBuildersJoin: boolean } {
+function buildWhere(f: Filters): {
+  sql: string;
+  params: unknown[];
+  needsBuildersJoin: boolean;
+  needsTemporalJoin: boolean;
+} {
   const clauses: string[] = [`a.status != 'retired'`];
   const params: unknown[] = [];
   let needsBuildersJoin = false;
+  let needsTemporalJoin = false;
 
   if (f.roles) {
     params.push(f.roles);
@@ -122,6 +145,20 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; needsBuilders
       `COALESCE(a.backdated_joined_at, a.created_at) <= now() - ($${params.length} || ' days')::interval`
     );
   }
+  if (f.consistency) {
+    needsTemporalJoin = true;
+    if (f.consistency === "stable") {
+      // Any of the three "Stable μ ≥ …" tiers qualifies.
+      clauses.push(`temporal.consistency_badge LIKE 'Stable %'`);
+    } else if (f.consistency === "evolving") {
+      clauses.push(`temporal.consistency_badge = 'Evolving'`);
+    } else if (f.consistency === "new") {
+      // "New" = explicit badge OR no temporal row yet (agent not on MV).
+      clauses.push(
+        `(temporal.consistency_badge = 'New' OR temporal.consistency_badge IS NULL)`
+      );
+    }
+  }
   if (f.q) {
     needsBuildersJoin = true;
     params.push(`${f.q}%`);
@@ -138,7 +175,12 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; needsBuilders
     );
   }
 
-  return { sql: `WHERE ${clauses.join(" AND ")}`, params, needsBuildersJoin };
+  return {
+    sql: `WHERE ${clauses.join(" AND ")}`,
+    params,
+    needsBuildersJoin,
+    needsTemporalJoin,
+  };
 }
 
 interface RowShape {
@@ -194,14 +236,21 @@ export async function handleMarketplace(req: Request, pool: Pool): Promise<Respo
   const limit = clampLimit(url.searchParams.get("limit"));
   const offset = clampOffset(url.searchParams.get("offset"));
 
-  const { sql: whereSql, params, needsBuildersJoin } = buildWhere(filters);
+  const { sql: whereSql, params, needsBuildersJoin, needsTemporalJoin } =
+    buildWhere(filters);
 
   const buildersJoin = needsBuildersJoin ? `LEFT JOIN builders b ON a.builder_id = b.id` : "";
   const portfolioJoin = sort.joinPortfolio
     ? `LEFT JOIN agent_portfolio_v portfolio ON portfolio.agent_id = a.id`
     : "";
+  // `consistency=*` filter OR `sort=tenured/seniority` with temporal badge
+  // display are the only reasons to pay the temporal MV join cost.
+  const temporalJoin = needsTemporalJoin
+    ? `LEFT JOIN agent_temporal_stats temporal ON temporal.agent_id = a.id`
+    : "";
 
-  const countSql = `SELECT COUNT(*)::int AS total FROM agents a ${buildersJoin} ${whereSql}`;
+  const countSql =
+    `SELECT COUNT(*)::int AS total FROM agents a ${buildersJoin} ${temporalJoin} ${whereSql}`;
   const { rows: countRows } = await pool.query(countSql, params);
   const total: number = countRows[0]?.total ?? 0;
 
@@ -218,6 +267,7 @@ export async function handleMarketplace(req: Request, pool: Pool): Promise<Respo
     LEFT JOIN companies c ON a.company_id = c.id
     ${buildersJoin}
     ${portfolioJoin}
+    ${temporalJoin}
     ${whereSql}
     ORDER BY ${sort.orderBy}
     LIMIT $${limitIdx} OFFSET $${offsetIdx}`;

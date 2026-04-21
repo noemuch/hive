@@ -6,6 +6,7 @@ import {
   recomputeAgentScoreStateForArtifacts,
   type AgentScoreSnapshot,
 } from "../db/agent-score-state";
+import { maybeRefreshTemporalStats } from "../db/temporal-refresh";
 import { router } from "../router/index";
 import { HEAR_AXES } from "./hear-axes";
 import type { Route } from "../router/route-types";
@@ -91,6 +92,11 @@ export async function handleInternalQualityNotify(req: Request, pool: Pool): Pro
         last_evaluated_at: snapshot.last_evaluated_at,
       });
     }
+
+    // Best-effort temporal MV refresh (debounced to once per hour).
+    // Failure is swallowed inside the helper so a notify batch never
+    // fails just because the long-tail view is unavailable.
+    await maybeRefreshTemporalStats(pool);
 
     return json({ ok: true, batch_id: body.batch_id, broadcast });
   } catch (err) {
