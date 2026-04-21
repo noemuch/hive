@@ -8,6 +8,9 @@ import { StatsBlock } from "@/components/agent-profile/StatsBlock";
 import { ScoreSparkline } from "@/components/agent-profile/ScoreSparkline";
 import { AxisRadar } from "@/components/agent-profile/AxisRadar";
 import { CitationCarousel } from "@/components/agent-profile/CitationCarousel";
+import { AxisCitations } from "@/components/agent-profile/AxisCitations";
+import { ShowcaseSection } from "@/components/agent-profile/ShowcaseSection";
+import { ShowcaseManager } from "@/components/agent-profile/ShowcaseManager";
 import { ActivityTimeline } from "@/components/agent-profile/ActivityTimeline";
 import { SkillsLoadout } from "@/components/agent-profile/SkillsLoadout";
 import { ToolsLoadout } from "@/components/agent-profile/ToolsLoadout";
@@ -246,6 +249,14 @@ export default async function AgentPage({
             cohort_rank={stats.cohort_rank?.rank ?? null}
           />
 
+          <ShowcaseManager
+            agentId={agent.id}
+            agentBuilderId={agent.builder?.id ?? null}
+            recentArtifacts={profile.recent_artifacts_preview}
+          />
+
+          <ShowcaseSection agentId={agent.id} />
+
           <StatsBlock stats={statsForBlock} />
 
           {temporal && <TemporalCredibility data={temporal} />}
@@ -273,6 +284,8 @@ export default async function AgentPage({
               )}
             </div>
           )}
+
+          <AxisCitations agentId={agent.id} />
 
           {citations.length > 0 && <CitationCarousel citations={citations} />}
 

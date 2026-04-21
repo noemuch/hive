@@ -1,6 +1,6 @@
 /**
  * Quality gate for peer evaluation responses.
- * Five deterministic rules — no ML, no LLM.
+ * Seven deterministic rules — no ML, no LLM.
  *
  * Rules 1-4 are intra-evaluation (length, range, uniformity).
  * Rule 5 is cross-evaluator: rejects evaluations whose score tuple is
@@ -16,14 +16,47 @@
  * Rule 6 (new in HEAR Family A3 / #219): reject evaluations containing
  * axes not declared in the evaluatee's rubric_variant. Protects the
  * evaluation from accidental cross-variant score contamination.
+ *
+ * Rule 7 (new in A5 / #234): when `evidenceQuotes` is supplied as the new
+ * per-axis object shape, every non-null axis in `scores` must have >=1
+ * quote, and every quote must be <=200 chars. The legacy flat
+ * `string[]` shape (pre-A5) bypasses Rule 7 — retained so old evaluators
+ * and old rows keep validating. See peer-eval-validation flow in
+ * server/src/engine/peer-evaluation.ts.
  */
 
 export type EvalScores = Record<string, number | null>;
+
+/**
+ * Accepted shapes for evidence_quotes:
+ *   (a) Legacy (pre-A5): `string[]` — flat array, up to 3 verbatim snippets.
+ *   (b) New per-axis:    `Record<axis, string[]>` — one bucket per HEAR axis.
+ * Callers that don't care about Rule 7 can pass `undefined`.
+ */
+export type EvidenceQuotes = string[] | Record<string, string[]>;
+
+export const MAX_QUOTE_CHARS = 200;
 
 export type ValidationResult = {
   valid: boolean;
   reason: string;
 };
+
+/**
+ * Type guard: is this the new per-axis object shape (not a flat array,
+ * not null, an object)? Arrays are `typeof === "object"` in JS, so the
+ * explicit `Array.isArray` check comes first.
+ */
+export function isPerAxisEvidence(
+  quotes: EvidenceQuotes | undefined | null
+): quotes is Record<string, string[]> {
+  return (
+    quotes !== null &&
+    quotes !== undefined &&
+    !Array.isArray(quotes) &&
+    typeof quotes === "object"
+  );
+}
 
 function tupleKey(scores: EvalScores): string {
   // Stable serialization — sorted keys, explicit nulls — so copies are caught
@@ -39,6 +72,7 @@ export function validateEvaluation(
   _confidence: number,
   existingTuples: ReadonlyArray<EvalScores> = [],
   allowedAxes: ReadonlyArray<string> | null = null,
+  evidenceQuotes: EvidenceQuotes | undefined | null = undefined,
 ): ValidationResult {
   // Rule 6: reject axes not belonging to the declared variant.
   // Run before the other rules so callers get a precise error.
@@ -93,6 +127,37 @@ export function validateEvaluation(
           valid: false,
           reason: "identical scores to another evaluator on the same artifact (collusion-suspected)",
         };
+      }
+    }
+  }
+
+  // Rule 7: Per-axis evidence coverage. Only engages when the caller hands
+  // us the new per-axis object shape. Legacy flat `string[]` or missing
+  // quotes short-circuit to valid — preserves backward compat with the
+  // pre-A5 (#234) protocol.
+  if (isPerAxisEvidence(evidenceQuotes)) {
+    for (const axis of Object.keys(scores)) {
+      if (scores[axis] === null || scores[axis] === undefined) continue;
+      const quotes = evidenceQuotes[axis];
+      if (!Array.isArray(quotes) || quotes.length === 0) {
+        return {
+          valid: false,
+          reason: `missing evidence quote for scored axis "${axis}"`,
+        };
+      }
+      for (const q of quotes) {
+        if (typeof q !== "string" || q.trim().length === 0) {
+          return {
+            valid: false,
+            reason: `empty evidence quote for axis "${axis}"`,
+          };
+        }
+        if (q.length > MAX_QUOTE_CHARS) {
+          return {
+            valid: false,
+            reason: `evidence quote for axis "${axis}" exceeds ${MAX_QUOTE_CHARS} chars`,
+          };
+        }
       }
     }
   }

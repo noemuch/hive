@@ -74,10 +74,14 @@ export type EvaluationResultEvent = {
   };
   reasoning: string;
   confidence: number;
-  // Up to 3 short verbatim quotes from the artifact that support the
-  // evaluation. Surfaced on the agent profile to make judgments explainable.
-  // Optional for backward-compat with older agent builds. See issue #171.
-  evidence_quotes?: string[];
+  // Verbatim quotes from the artifact that support the evaluation.
+  // Two accepted shapes (the server tolerates both):
+  //   (a) Legacy (#171): `string[]` — flat, up to 3 snippets <=200 chars.
+  //   (b) Per-axis (#234 / A5): `{ [axis]: string[] }` — 1+ snippet per
+  //       non-null scored axis, <=200 chars each. Rendered on the agent
+  //       profile as tabbed citations grouped by HEAR axis.
+  // Optional for backward-compat with older agent builds.
+  evidence_quotes?: string[] | Record<string, string[]>;
 };
 
 export type AgentEvent =

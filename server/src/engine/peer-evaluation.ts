@@ -6,7 +6,12 @@ import { anonymize } from "./anonymizer";
 import { getPeerEvalRubric } from "./rubric-loader";
 import { getRubricVariant, allAxesFor, type RubricVariant } from "./rubric-variants";
 import { updateScore, type ScoreState } from "./score-state";
-import { validateEvaluation, type EvalScores } from "./peer-eval-validation";
+import {
+  validateEvaluation,
+  type EvalScores,
+  type EvidenceQuotes,
+  MAX_QUOTE_CHARS,
+} from "./peer-eval-validation";
 import { weightedMean } from "./peer-eval-aggregation";
 import { recordFirstEvent } from "../analytics/events";
 import type {
@@ -40,6 +45,13 @@ function buildEvalPrompt(input: {
   const axes = allAxesFor(input.variant);
   const example = randomExample(axes);
   const axisList = axes.join(", ");
+  // Example per-axis evidence: one placeholder quote per axis so the LLM
+  // sees the required shape. Concrete quotes are expected to come from the
+  // artefact content.
+  const exampleEvidence: Record<string, string[]> = {};
+  for (const axis of axes) {
+    exampleEvidence[axis] = [`verbatim snippet supporting ${axis}`];
+  }
   return `Evaluate this ${input.artifactType} artifact using the HEAR "${input.variant.variant_id}" rubric variant.
 
 ${input.variant.prompt_template}
@@ -48,13 +60,52 @@ ${input.rubric}
 
 Score each of these axes from 1 to 10: ${axisList}. If an axis is not applicable to this artifact type, set it to null. The ${axes.length} axes describe DIFFERENT qualities — it is extremely unlikely that a real artifact scores identically on all of them. Use the full 1-10 range; avoid clustering every score at the same value.
 
-For evidence_quotes, include up to 3 short VERBATIM snippets (<= 120 chars each) copied directly from the artifact that best support your evaluation. These appear on the agent's public profile to make judgments explainable.
+For evidence_quotes, provide an OBJECT keyed by axis. For every axis you scored (non-null), include 1-3 short VERBATIM snippets (<= 200 chars each) copied directly from the artifact that best support the score on THAT specific axis. Do not include an axis whose score is null. These appear on the agent's public profile as per-axis citations so the judgment is explainable.
 
-Respond with ONLY a JSON object of this shape. The number values shown below are RANDOM placeholders generated for this request — they are NOT the answer. Replace each with your own independent 1-10 judgment per axis based on the artifact:
-${JSON.stringify({ scores: example, reasoning: "2-sentence justification citing specific aspects of the artifact", confidence: 7, evidence_quotes: ["verbatim snippet 1", "verbatim snippet 2"] })}
+Respond with ONLY a JSON object of this shape. The number values shown below are RANDOM placeholders generated for this request — they are NOT the answer. Replace each with your own independent 1-10 judgment per axis based on the artifact, and replace the evidence_quotes placeholders with verbatim excerpts from the artifact:
+${JSON.stringify({ scores: example, reasoning: "2-sentence justification citing specific aspects of the artifact", confidence: 7, evidence_quotes: exampleEvidence })}
 
 ARTIFACT TO EVALUATE:
 ${input.anonContent}`;
+}
+
+/**
+ * Normalize + defensively sanitize evidence quotes from a (possibly
+ * untrusted) LLM response. Supports both:
+ *   (a) legacy `string[]` — capped at 3 entries, 200 chars each
+ *   (b) new per-axis `{axis: string[]}` — capped at 5 quotes per axis,
+ *       200 chars each (the quality gate Rule 7 enforces >=1 quote per
+ *       non-null scored axis; capping here prevents a single evaluator
+ *       from flooding one axis with dozens of quotes).
+ *
+ * Returns an empty array when the input shape is not recognized.
+ */
+function sanitizeEvidenceQuotes(raw: unknown): EvidenceQuotes {
+  const trim = (s: string): string => {
+    const t = s.trim();
+    return t.length > MAX_QUOTE_CHARS ? t.slice(0, MAX_QUOTE_CHARS) : t;
+  };
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((q): q is string => typeof q === "string")
+      .map(trim)
+      .filter((q) => q.length > 0)
+      .slice(0, 3);
+  }
+  if (raw !== null && typeof raw === "object") {
+    const out: Record<string, string[]> = {};
+    for (const [axis, quotes] of Object.entries(raw as Record<string, unknown>)) {
+      if (!Array.isArray(quotes)) continue;
+      const filtered = quotes
+        .filter((q): q is string => typeof q === "string")
+        .map(trim)
+        .filter((q) => q.length > 0)
+        .slice(0, 5);
+      if (filtered.length > 0) out[axis] = filtered;
+    }
+    return out;
+  }
+  return [];
 }
 
 export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
@@ -215,15 +266,12 @@ export async function handleEvaluationResult(
   const scores = data.scores as Record<string, number | null>;
   const reasoning = data.reasoning;
   const confidence = typeof data.confidence === "number" ? data.confidence : 5;
-  // Evidence quotes are optional; sanitize defensively (max 3, 200 chars each).
-  const evidenceQuotes: string[] = Array.isArray(data.evidence_quotes)
-    ? (data.evidence_quotes as unknown[])
-        .filter((q): q is string => typeof q === "string")
-        .map((q) => q.trim())
-        .filter((q) => q.length > 0)
-        .slice(0, 3)
-        .map((q) => (q.length > 200 ? q.slice(0, 200) : q))
-    : [];
+  // Evidence quotes accept BOTH legacy flat `string[]` and the A5 per-axis
+  // object `{axis: string[]}`. Sanitize (trim, drop empty, cap 200 chars)
+  // regardless of shape.
+  const evidenceQuotes: EvidenceQuotes = sanitizeEvidenceQuotes(
+    data.evidence_quotes
+  );
 
   // 3. Quality gate — validate before accepting.
   //    Fetch already-completed siblings' tuples on this artifact so the
@@ -245,6 +293,7 @@ export async function handleEvaluationResult(
     confidence,
     existingTuples,
     variantAxes,
+    evidenceQuotes,
   );
 
   if (!validation.valid) {
@@ -411,18 +460,26 @@ export async function handleEvaluationResult(
     const newState = updateScore(prior, avgScore, { peerEval: true });
     const delta = newState.mu - (prior?.mu ?? newState.mu);
 
-    // Aggregate evidence_quotes across evaluators: flatten + dedupe +
-    // keep top 3. Both `string[]` (already parsed by pg) and `string`
-    // (raw jsonb text) shapes can show up depending on driver state.
+    // Aggregate evidence_quotes across evaluators for THIS axis: flatten +
+    // dedupe + keep top 3. Accepts both jsonb shapes on the peer_evaluations
+    // row — the new per-axis object (A5 / #234), where we pick the bucket
+    // matching the current loop axis, and the legacy flat `string[]`
+    // (pre-A5), where we fall back to all quotes regardless of axis so old
+    // rows still produce citations.
     const aggregatedQuotes: string[] = [];
     const seen = new Set<string>();
     for (const row of completedRows) {
-      const raw = row.evidence_quotes;
+      const raw: unknown = row.evidence_quotes;
+      let parsed: unknown = raw;
+      if (typeof raw === "string") {
+        try { parsed = JSON.parse(raw); } catch { parsed = null; }
+      }
       let quotes: unknown[] = [];
-      if (Array.isArray(raw)) quotes = raw;
-      else if (typeof raw === "string") {
-        try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) quotes = parsed; }
-        catch { quotes = []; }
+      if (Array.isArray(parsed)) {
+        quotes = parsed;
+      } else if (parsed !== null && typeof parsed === "object") {
+        const bucket = (parsed as Record<string, unknown>)[axis];
+        if (Array.isArray(bucket)) quotes = bucket;
       }
       for (const q of quotes) {
         if (typeof q !== "string") continue;
