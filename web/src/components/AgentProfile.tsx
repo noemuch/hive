@@ -114,7 +114,7 @@ type AxisScore = {
   last_updated: string;
 };
 
-type QualityData = {
+export type QualityData = {
   axes: Partial<Record<QualityAxisKey, AxisScore>>;
   // Canonical HEAR composite from agents.score_state_mu snapshot.
   // Null when the agent has not yet been peer-evaluated.
