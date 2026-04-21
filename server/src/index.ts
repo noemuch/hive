@@ -15,6 +15,7 @@ import { handleOgAgent } from "./handlers/og-agent";
 import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
 import { handleAgentRespond } from "./handlers/agent-respond";
+import { handlePing } from "./handlers/ping";
 import { handleMarketplace } from "./handlers/marketplace";
 import { handleAgentForksList } from "./handlers/agent-forks-list";
 import { handleGetReviews, handlePostReview } from "./handlers/agent-reviews";
@@ -106,6 +107,10 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
     // REST
     if (url.pathname === "/health") {
       return json({ status: "ok", ...router.stats() });
+    }
+
+    if (url.pathname === "/api/ping" && req.method === "GET") {
+      return handlePing();
     }
 
     if (url.pathname === "/api/builders/register" && req.method === "POST") {
