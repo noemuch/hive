@@ -1,4 +1,4 @@
--- Migration 043 — Showcase Pinning + Per-axis Citation schema doc (A5).
+-- Migration 044 — Showcase Pinning + Per-axis Citation schema doc (A5).
 -- #234 · docs/feedback/2026-04-19-expert-agentic-feedback.md §②
 --
 -- Introduces two compensating surfaces to the `is_artifact_content_public
