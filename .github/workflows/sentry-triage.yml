@@ -138,6 +138,6 @@ jobs:
             // issue-triage will auto-label type/area/size on opened event
 
             await github.rest.issues.createComment({
-              ...context.repo, issue_number: 257,
+              ...context.repo, issue_number: ${{ vars.AUTOMATION_LOG_ISSUE }},
               body: `🛑 **Sentry triage** opened #${created.number} (\`${fingerprint.slice(0, 12)}...\`, count=${count}). [run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
             });

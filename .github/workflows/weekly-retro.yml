@@ -165,7 +165,7 @@ jobs:
             Post to #257 a summary of retro findings:
 
             ```bash
-            gh issue comment 257 --repo noemuch/hive --body "🔄 **Weekly retro** (run ${{ github.run_id }}): opened N issues: #A, #B, #C. Patterns: <one-line each>."
+            gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🔄 **Weekly retro** (run ${{ github.run_id }}): opened N issues: #A, #B, #C. Patterns: <one-line each>."
             ```
 
             GO. Max 40 turns. Be judicious — quality over quantity.
@@ -198,4 +198,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
         run: |
-          gh issue comment 257 --repo noemuch/hive --body "🔄 **Weekly retro run** — skip=\`${{ steps.quota_check.outputs.skip }}\` — primary=\`${{ steps.retro.outcome }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🔄 **Weekly retro run** — skip=\`${{ steps.quota_check.outputs.skip }}\` — primary=\`${{ steps.retro.outcome }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

@@ -531,4 +531,4 @@ jobs:
           PR="${{ needs.preflight.outputs.pr_number }}"
           ITER="${{ needs.preflight.outputs.iter }}"
           OUTCOME="${{ steps.primary.outcome }}"
-          gh issue comment 257 --repo noemuch/hive --body "🔍 **Reviewer run** for PR #${PR} — iter \`${ITER}/3\` — primary: \`${OUTCOME}\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — event: \`${{ github.event_name }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🔍 **Reviewer run** for PR #${PR} — iter \`${ITER}/3\` — primary: \`${OUTCOME}\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — event: \`${{ github.event_name }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

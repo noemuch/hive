@@ -143,6 +143,6 @@ jobs:
 
             // Log to #257
             await github.rest.issues.createComment({
-              ...context.repo, issue_number: 257,
+              ...context.repo, issue_number: ${{ vars.AUTOMATION_LOG_ISSUE }},
               body: `🩺 **Main healer** opened #${created.number} for CI failure at \`${headShaShort}\`. Builder will pick it up via throttle. [run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
             });

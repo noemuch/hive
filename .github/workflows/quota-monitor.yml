@@ -126,4 +126,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
         run: |
-          gh issue comment 257 --repo noemuch/hive --body "🔋 **Quota monitor** — ${{ steps.eval.outputs.changes || 'no change' }} · unblocked: ${{ steps.eval.outputs.unblocked || 'none' }} · [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🔋 **Quota monitor** — ${{ steps.eval.outputs.changes || 'no change' }} · unblocked: ${{ steps.eval.outputs.unblocked || 'none' }} · [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

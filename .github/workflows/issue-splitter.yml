@@ -166,4 +166,4 @@ jobs:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
           ISSUE: ${{ steps.gate.outputs.issue_number }}
         run: |
-          gh issue comment 257 --repo noemuch/hive --body "🔀 **Splitter run** on #${ISSUE} — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🔀 **Splitter run** on #${ISSUE} — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

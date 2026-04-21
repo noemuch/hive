@@ -105,8 +105,8 @@ jobs:
         run: |
           set -euo pipefail
           DEADLINE=$((SECONDS + 240))  # 4 min
-          URL="https://hive-web-production.up.railway.app/api/health"
-          FALLBACK_URL="https://hive-web-production.up.railway.app"
+          URL="${{ vars.PREVIEW_URL }}/api/health"
+          FALLBACK_URL="${{ vars.PREVIEW_URL }}"
           while [ $SECONDS -lt $DEADLINE ]; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
             if [ "$STATUS" = "200" ]; then
@@ -139,7 +139,7 @@ jobs:
           ROUTES: ${{ steps.scope.outputs.routes }}
         run: |
           set +e
-          BASE="https://hive-web-production.up.railway.app"
+          BASE="${{ vars.PREVIEW_URL }}"
           FAILED=()
           PASSED=()
           for route in $(echo "$ROUTES" | jq -r '.[]'); do
@@ -214,7 +214,7 @@ jobs:
             {
               echo "🔴 **Preview regression** after merging #$PR."
               echo ""
-              echo "**Failed routes** on \`hive-web-production.up.railway.app\`:"
+              echo "**Failed routes** on \`$BASE\`:"
               echo "$FAILED" | sed 's/^/- /'
               echo ""
               echo "## Task"
@@ -230,4 +230,4 @@ jobs:
               --label "agent-ready,type:bug,priority:high,area:web,size:S,use-sonnet"
           fi
 
-          gh issue comment 257 --repo noemuch/hive --body "🔍 **Preview verify** on PR #$PR — all_green=$ALL_GREEN — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🔍 **Preview verify** on PR #$PR — all_green=$ALL_GREEN — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

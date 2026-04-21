@@ -123,7 +123,7 @@ jobs:
             gh pr list --repo noemuch/hive --state merged --search "merged:>=$YESTERDAY" --json number,title,mergedAt,files,body --limit 50
 
             # For each PR, infer user-facing impact from touched files:
-            #   - web/src/app/<route>/page.tsx → URL https://hive-web-production.up.railway.app/<route>
+            #   - web/src/app/<route>/page.tsx → URL ${{ vars.PREVIEW_URL }}/<route>
             #   - web/src/components/... → UI component change
             #   - server/src/routes/... → new API (usually not directly testable visually)
             #   - docs/**, scripts/** → internal, skip in "visual QA"
@@ -159,7 +159,7 @@ jobs:
 
             ### 📄 Nouvelles pages (user-facing)
             - ✨ **<Page Title>** (#PR) — <description 1 ligne>
-              👉 Test : https://hive-web-production.up.railway.app/<route>
+              👉 Test : ${{ vars.PREVIEW_URL }}/<route>
 
             ### 🎨 Améliorations visuelles
             - 🔧 **<Area>** — <what changed>
@@ -260,4 +260,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
         run: |
-          gh issue comment 257 --repo noemuch/hive --body "📋 **QA Digest run** — quota_check_skip=\`${{ steps.quota_check.outputs.skip }}\` — primary=\`${{ steps.digest.outcome }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "📋 **QA Digest run** — quota_check_skip=\`${{ steps.quota_check.outputs.skip }}\` — primary=\`${{ steps.digest.outcome }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true

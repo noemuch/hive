@@ -135,6 +135,6 @@ jobs:
                 `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
               ].filter(Boolean).join('\n\n');
               await github.rest.issues.createComment({
-                ...context.repo, issue_number: 257, body
+                ...context.repo, issue_number: ${{ vars.AUTOMATION_LOG_ISSUE }}, body
               });
             }

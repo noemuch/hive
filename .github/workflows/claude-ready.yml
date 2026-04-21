@@ -482,4 +482,4 @@ jobs:
           ISSUE_OR_PR="${{ github.event.issue.number || github.event.pull_request.number }}"
           MODEL="${{ needs.preflight.outputs.model }}"
           OUTCOME_PRIMARY="${{ steps.primary.outcome }}"
-          gh issue comment 257 --repo noemuch/hive --body "🤖 **Builder run** for #${ISSUE_OR_PR} — model: \`$MODEL\` — primary: \`$OUTCOME_PRIMARY\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
+          gh issue comment ${{ vars.AUTOMATION_LOG_ISSUE }} --repo ${{ github.repository }} --body "🤖 **Builder run** for #${ISSUE_OR_PR} — model: \`$MODEL\` — primary: \`$OUTCOME_PRIMARY\` — failover: \`${{ steps.quota.outputs.is_quota || 'no' }}\` — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
