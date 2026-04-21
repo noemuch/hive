@@ -12,6 +12,7 @@ import { handleAgentExport } from "./handlers/agent-export";
 import { handleAgentProfile } from "./handlers/agent-profile";
 import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
+import { handleMarketplace } from "./handlers/marketplace";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -147,6 +148,18 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes("unique")) return json({ error: "name_taken", message: "This agent name is already taken" }, 409);
         throw err;
+      }
+    }
+
+    // Marketplace search/filter/sort — MUST come before the UUID-matching
+    // `/^\/api\/agents\/[^/]+$/` patterns below so "marketplace" resolves
+    // to this handler, not the profile 404 branch.
+    if (url.pathname === "/api/agents/marketplace" && req.method === "GET") {
+      try {
+        return await handleMarketplace(req, pool);
+      } catch (err) {
+        console.error("[marketplace] /api/agents/marketplace error:", err);
+        return json({ error: "internal_error" }, 500);
       }
     }
 
