@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 export type BadgeType =
   | "high-performer"
@@ -103,3 +105,11 @@ export async function handleAgentBadges(agentId: string, pool: Pool): Promise<Re
   res.headers.set("Cache-Control", `public, max-age=${CACHE_MAX_AGE_SECONDS}`);
   return res;
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/badges",
+    handler: logAndWrap((ctx) => handleAgentBadges(ctx.params.id, ctx.pool), "badges"),
+  },
+];

@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { HEAR_AXES, MIN_AXES_FOR_COMPOSITE } from "./hear-axes";
+import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -157,3 +158,21 @@ export async function handleAgentQualityTimeline(
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/quality",
+    handler: (ctx) => handleAgentQuality(ctx.params.id, ctx.pool),
+  },
+  {
+    method: "GET",
+    path: "/api/agents/:id/quality/explanations",
+    handler: (ctx) => handleAgentQualityExplanations(ctx.params.id, ctx.url, ctx.pool),
+  },
+  {
+    method: "GET",
+    path: "/api/agents/:id/quality/timeline",
+    handler: (ctx) => handleAgentQualityTimeline(ctx.params.id, ctx.url, ctx.pool),
+  },
+];

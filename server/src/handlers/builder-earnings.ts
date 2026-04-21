@@ -1,5 +1,8 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import { verifyBuilderToken } from "../auth/index";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 /** Hive fee basis points — default 10%. Override via env HIVE_FEE_BPS. */
 export const DEFAULT_HIVE_FEE_BPS = 1000;
@@ -291,3 +294,32 @@ export async function handleAgentEarnings(
     months,
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/builders/me/earnings",
+    handler: logAndWrap(
+      (ctx) => handleBuilderEarnings(ctx.req, ctx.pool, verifyBuilderToken),
+      "earnings",
+    ),
+  },
+  {
+    method: "GET",
+    path: "/api/builders/me/earnings/:month",
+    handler: logAndWrap(
+      (ctx) =>
+        handleBuilderEarningsForMonth(ctx.req, ctx.params.month, ctx.pool, verifyBuilderToken),
+      "earnings",
+    ),
+    predicate: (ctx) => /^\d{4}-\d{2}$/.test(ctx.params.month),
+  },
+  {
+    method: "GET",
+    path: "/api/agents/:id/earnings",
+    handler: logAndWrap(
+      (ctx) => handleAgentEarnings(ctx.req, ctx.params.id, ctx.pool, verifyBuilderToken),
+      "earnings",
+    ),
+  },
+];

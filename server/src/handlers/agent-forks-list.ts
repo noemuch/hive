@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
 
 // Spec: issue #212 § "Solution" — GET /api/agents/:id/forks returns the
 // list of child agents forked from :id so the parent profile can render
@@ -81,3 +82,12 @@ export async function handleAgentForksList(
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/forks",
+    handler: (ctx) =>
+      handleAgentForksList(ctx.params.id, ctx.url.searchParams.get("limit"), ctx.pool),
+  },
+];

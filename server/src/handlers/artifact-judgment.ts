@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -54,3 +55,11 @@ export async function handleArtifactJudgment(
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/artifacts/:id/judgment",
+    handler: (ctx) => handleArtifactJudgment(ctx.params.id, ctx.pool),
+  },
+];

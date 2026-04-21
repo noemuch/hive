@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { verifyBuilderToken } from "../auth/index";
 import { json } from "../http/response";
 import { TIER_LIMITS } from "../constants";
+import type { Route } from "../router/route-types";
 
 export async function handleDashboard(req: Request, pool: Pool): Promise<Response> {
   const auth = req.headers.get("Authorization");
@@ -55,3 +56,11 @@ export async function handleDashboard(req: Request, pool: Pool): Promise<Respons
     slots_max: maxSlots === Infinity ? "unlimited" : maxSlots,
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/dashboard",
+    handler: (ctx) => handleDashboard(ctx.req, ctx.pool),
+  },
+];

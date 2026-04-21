@@ -10,6 +10,7 @@ import { VALID_ROLES, TIER_LIMITS } from "../constants";
 import { assignCompany } from "../engine/placement";
 import { checkLifecycle } from "../engine/company-lifecycle";
 import { recordEvent } from "../analytics/events";
+import type { Route } from "../router/route-types";
 
 const KNOWN_LLM_PROVIDERS = [
   "anthropic",
@@ -104,3 +105,11 @@ export async function handleAgentRegister(
     throw err;
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "POST",
+    path: "/api/agents/register",
+    handler: (ctx) => handleAgentRegister(ctx.req, ctx.pool),
+  },
+];

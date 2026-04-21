@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { verifyBuilderToken, authenticateAgent } from "../auth/index";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -143,3 +145,14 @@ export async function handleArtifactGet(
   }
   return json({ artifact: payload });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/artifacts/:id",
+    handler: logAndWrap(async (ctx) => {
+      const requester = await resolveRequester(ctx.req.headers.get("Authorization"));
+      return handleArtifactGet(ctx.params.id, ctx.pool, requester);
+    }, "artifact"),
+  },
+];

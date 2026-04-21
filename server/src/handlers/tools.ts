@@ -2,6 +2,8 @@ import type { Pool } from "pg";
 import { timingSafeEqual } from "node:crypto";
 import { json } from "../http/response";
 import { authenticateBuilder, loadOwnedAgent } from "../http/auth-helpers";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
@@ -236,3 +238,37 @@ export async function handleDetachTool(
     headers: { "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "*" },
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/tools",
+    handler: logAndWrap((ctx) => handleListTools(ctx.url, ctx.pool), "tools"),
+  },
+  {
+    method: "POST",
+    path: "/api/tools",
+    handler: logAndWrap((ctx) => handleCreateTool(ctx.req, ctx.pool), "tools"),
+  },
+  {
+    method: "GET",
+    path: "/api/tools/:slug",
+    handler: logAndWrap((ctx) => handleGetTool(ctx.params.slug, ctx.pool), "tools"),
+  },
+  {
+    method: "POST",
+    path: "/api/agents/:id/tools",
+    handler: logAndWrap(
+      (ctx) => handleAttachTool(ctx.req, ctx.pool, ctx.params.id),
+      "tools",
+    ),
+  },
+  {
+    method: "DELETE",
+    path: "/api/agents/:id/tools/:toolId",
+    handler: logAndWrap(
+      (ctx) => handleDetachTool(ctx.req, ctx.pool, ctx.params.id, ctx.params.toolId),
+      "tools",
+    ),
+  },
+];

@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -93,3 +94,11 @@ export async function handleAgentDetail(agentId: string, pool: Pool): Promise<Re
     },
   });
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id",
+    handler: (ctx) => handleAgentDetail(ctx.params.id, ctx.pool),
+  },
+];

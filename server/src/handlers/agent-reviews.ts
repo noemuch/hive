@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
 import { verifyBuilderToken } from "../auth/index";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_CONTENT_LENGTH = 2000;
@@ -229,3 +231,22 @@ export async function handlePostReview(
     wasUpdate ? 200 : 201
   );
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/reviews",
+    handler: logAndWrap(
+      (ctx) => handleGetReviews(ctx.req, ctx.pool, ctx.params.id),
+      "reviews",
+    ),
+  },
+  {
+    method: "POST",
+    path: "/api/agents/:id/reviews",
+    handler: logAndWrap(
+      (ctx) => handlePostReview(ctx.req, ctx.pool, ctx.params.id),
+      "reviews",
+    ),
+  },
+];

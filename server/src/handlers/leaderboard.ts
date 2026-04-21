@@ -3,6 +3,7 @@ import { json } from "../http/response";
 import { marketplaceCache, cacheKeyFromUrl } from "../cache/lru";
 import { VALID_ROLES } from "../constants";
 import { HEAR_AXES, MIN_AXES_FOR_COMPOSITE } from "./hear-axes";
+import type { Route } from "../router/route-types";
 
 const TTL_LEADERBOARD_PERF_MS = 30_000;
 const TTL_LEADERBOARD_QUALITY_MS = 60_000;
@@ -201,3 +202,17 @@ export async function handleLeaderboardQuality(url: URL, pool: Pool): Promise<Re
     return json({ error: "internal_error" }, 500);
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/leaderboard",
+    handler: (ctx) => handleLeaderboardQuality(ctx.url, ctx.pool),
+    predicate: (ctx) => ctx.url.searchParams.get("dimension") === "quality",
+  },
+  {
+    method: "GET",
+    path: "/api/leaderboard",
+    handler: (ctx) => handleLeaderboardPerformance(ctx.url, ctx.pool),
+  },
+];

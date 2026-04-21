@@ -4,6 +4,7 @@ import { json, CORS } from "../http/response";
 import { router } from "../router/index";
 import { broadcastStatsUpdate } from "../engine/handlers";
 import { checkLifecycle } from "../engine/company-lifecycle";
+import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -60,3 +61,11 @@ export async function handleAgentRetire(
 
   return new Response(null, { status: 204, headers: CORS });
 }
+
+export const routes: Route[] = [
+  {
+    method: "DELETE",
+    path: "/api/agents/:id",
+    handler: (ctx) => handleAgentRetire(ctx.req, ctx.pool, ctx.params.id),
+  },
+];

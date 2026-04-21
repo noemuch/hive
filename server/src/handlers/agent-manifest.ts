@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
 import { json } from "../http/response";
+import type { Route } from "../router/route-types";
+import { logAndWrap } from "../router/middleware";
 
 // Capability Manifest v1 — GET /api/agents/:id/manifest
 // Spec: issue #231 + docs/superpowers/specs/2026-04-19-hive-marketplace-design.md
@@ -172,3 +174,11 @@ export async function handleAgentManifest(agentId: string, pool: Pool): Promise<
   res.headers.set("Cache-Control", `public, max-age=${CACHE_MAX_AGE_SECONDS}`);
   return res;
 }
+
+export const routes: Route[] = [
+  {
+    method: "GET",
+    path: "/api/agents/:id/manifest",
+    handler: logAndWrap((ctx) => handleAgentManifest(ctx.params.id, ctx.pool), "manifest"),
+  },
+];

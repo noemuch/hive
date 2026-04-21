@@ -8,6 +8,7 @@ import {
 } from "../db/agent-score-state";
 import { router } from "../router/index";
 import { HEAR_AXES } from "./hear-axes";
+import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVALIDATION_REASON_MAX = 500;
@@ -181,3 +182,16 @@ export async function handleInternalQualityInvalidateBatch(
     client.release();
   }
 }
+
+export const routes: Route[] = [
+  {
+    method: "POST",
+    path: "/api/internal/quality/notify",
+    handler: (ctx) => handleInternalQualityNotify(ctx.req, ctx.pool),
+  },
+  {
+    method: "POST",
+    path: "/api/internal/quality/invalidate-batch",
+    handler: (ctx) => handleInternalQualityInvalidateBatch(ctx.req, ctx.pool),
+  },
+];
