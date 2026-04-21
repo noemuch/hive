@@ -1,0 +1,170 @@
+name: Issue Splitter — decompose XL issues into atomic children
+
+# Triggered when issue-triage (or a human) applies `needs-split`. Sonnet 4.6 +
+# superpowers:writing-plans reads the issue and decomposes into 2-6 atomic
+# children via GitHub native sub-issues API. Each child inherits `agent-ready`
+# so it flows through dispatch-ready normally. Parent becomes `epic`.
+#
+# Pattern: ROMA (Recursive Open Meta-Agent) — splits at file/endpoint/component
+# boundaries. Dep edges `Depends on: #N` expressed in child bodies when order
+# matters (e.g. DB migration before API before UI).
+#
+# Skip:
+#   - Issue has stop-autonomy / agent-blocked / split-done (already handled)
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue to split
+        required: true
+        type: number
+
+concurrency:
+  group: issue-splitter-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  split:
+    # Only fire on `needs-split` label (GH fires labeled for every label add)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'needs-split')
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Skip filter
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const issueNumber = context.eventName === 'workflow_dispatch'
+              ? parseInt(context.payload.inputs.issue_number, 10)
+              : context.payload.issue.number;
+            const { data: issue } = await github.rest.issues.get({
+              ...context.repo, issue_number: issueNumber
+            });
+            const labels = (issue.labels || []).map(l => typeof l === 'string' ? l : l.name);
+            const skipLabels = ['stop-autonomy', 'agent-blocked', 'split-done'];
+            if (skipLabels.some(l => labels.includes(l))) {
+              core.notice(`Skipping split for #${issueNumber}`);
+              core.setOutput('skip', 'true');
+              return;
+            }
+            core.setOutput('skip', 'false');
+            core.setOutput('issue_number', String(issueNumber));
+
+      - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NOEMUCH_PAT }}
+          fetch-depth: 1
+
+      - name: Decompose via Sonnet 4.6 + superpowers
+        if: steps.gate.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.NOEMUCH_PAT }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_OAUTH_PRIMARY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@splitter-bot"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            superpowers@claude-plugins-official
+          prompt: |
+            You are the **issue splitter** for Hive. Decompose issue #${{ steps.gate.outputs.issue_number }} into 2-6 atomic children.
+
+            ## Reading
+
+            ```bash
+            /superpowers
+            cat CLAUDE.md | head -100
+            gh issue view ${{ steps.gate.outputs.issue_number }} --repo noemuch/hive --json title,body,labels
+            ```
+
+            ## Decomposition rules (apply superpowers:writing-plans)
+
+            1. **Atomic child** = one mergeable PR = one clear responsibility (single file area OR single endpoint OR single component).
+            2. **Natural cleave points**:
+               - DB migration → server handler → UI component (sequential)
+               - server endpoint A / endpoint B / endpoint C (parallel)
+               - UI page / UI tests / docs (parallel after code)
+            3. **Dep graph**: express in each child's body with `Depends on: #<parent>` (always) + `Depends on: #<sibling>` if strict order required.
+            4. **Titles**: prefix each child with a step indicator: `[1/N] <scope>`, `[2/N] <scope>`, etc.
+            5. **Labels on children**: inherit `agent-ready`, add inherited `priority:*` + `source:*` if present on parent, add `type:*` + `area:*` (reuse parent's triage) + appropriate `size:*` (usually S or M post-split).
+            6. **Do NOT create more than 6 children**. If scope truly needs more, create 5 + 1 "[overflow] <rest>" parent-ish child that can itself be split later.
+            7. **Do NOT split if scope is already atomic** — remove `needs-split`, comment "Scope not decomposable — proceed as single PR.", exit.
+
+            ## Create sub-issues (GitHub native)
+
+            ```bash
+            # For each child, after computing TITLE and BODY:
+            CHILD_NUM=$(gh issue create --repo noemuch/hive --title "$TITLE" \
+              --body "$BODY" \
+              --label "agent-ready,<type>,<area>,<size>" \
+              --json number --jq '.number')
+
+            # Link as sub-issue of parent (GraphQL, native sub-issues API):
+            gh api graphql -f query='
+              mutation($parent: ID!, $child: ID!) {
+                addSubIssue(input: {issueId: $parent, subIssueId: $child}) {
+                  issue { number }
+                }
+              }
+            ' -F parent="<parent_global_id>" -F child="<child_global_id>"
+            ```
+
+            Get `parent_global_id` / `child_global_id` via:
+            ```bash
+            gh api graphql -f query='{
+              repository(owner:"noemuch", name:"hive") {
+                issue(number: N) { id }
+              }
+            }' --jq '.data.repository.issue.id'
+            ```
+
+            ## Finalize parent
+
+            ```bash
+            gh issue edit ${{ steps.gate.outputs.issue_number }} \
+              --repo noemuch/hive \
+              --add-label "epic,split-done" \
+              --remove-label "needs-split"
+
+            # Append child list to parent body
+            CURRENT_BODY=$(gh issue view ${{ steps.gate.outputs.issue_number }} --repo noemuch/hive --json body --jq .body)
+            NEW_BODY=$'\n\n---\n\n## Split children (auto-generated)\n- [ ] #childN1\n- [ ] #childN2\n...'
+            gh issue edit ${{ steps.gate.outputs.issue_number }} --repo noemuch/hive \
+              --body "$CURRENT_BODY$NEW_BODY"
+
+            gh issue comment ${{ steps.gate.outputs.issue_number }} --repo noemuch/hive --body "🔀 **Split into N atomic children**: #c1, #c2, ... Dep graph expressed via sub-issues + body refs. Parent now epic."
+            ```
+
+            ## Safety budget
+
+            Max 6 children. Max 25 turns. If you can't identify natural cleave points cleanly → don't split, remove `needs-split`, comment explaining.
+
+            GO.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 30
+            --dangerously-skip-permissions
+
+      - name: Log to #257
+        if: always() && steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          ISSUE: ${{ steps.gate.outputs.issue_number }}
+        run: |
+          gh issue comment 257 --repo noemuch/hive --body "🔀 **Splitter run** on #${ISSUE} — [run](https://github.com/noemuch/hive/actions/runs/${{ github.run_id }})" || true
