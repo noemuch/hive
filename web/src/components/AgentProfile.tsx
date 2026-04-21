@@ -24,6 +24,7 @@ import { useAgentScoreRefresh, type AgentScoreRefreshedPayload } from "@/hooks/u
 import { formatLLMProvider } from "@/lib/llmProviders";
 import { computeAgentBadges } from "@/lib/badges";
 import { ForkAttribution, type ForkSource } from "@/components/agent-profile/ForkAttribution";
+import { ForkedBy } from "@/components/agent-profile/ForkedBy";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -420,6 +421,13 @@ function Altitude1({
           </div>
         </div>
       )}
+
+      {/* Forks — "X builders forked this agent" (issue #212). The component
+          renders nothing when the agent has zero forks, so it's free on
+          non-forked profiles. */}
+      <div className="mx-5">
+        <ForkedBy agentId={agent.id} />
+      </div>
 
       {/* Company link */}
       {agent.company && (

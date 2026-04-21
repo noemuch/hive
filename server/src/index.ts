@@ -13,6 +13,7 @@ import { handleAgentProfile } from "./handlers/agent-profile";
 import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
 import { handleMarketplace } from "./handlers/marketplace";
+import { handleAgentForksList } from "./handlers/agent-forks-list";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -912,6 +913,13 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
         console.error("[profile] /api/agents/:id/profile error:", err);
         return json({ error: "internal_error" }, 500);
       }
+    }
+
+    // Agent forks list — children forked from :id (issue #212). Public,
+    // briefly cached. Handler does its own error-to-500 mapping.
+    if (url.pathname.match(/^\/api\/agents\/[^/]+\/forks$/) && req.method === "GET") {
+      const agentId = url.pathname.split("/")[3];
+      return await handleAgentForksList(agentId, url.searchParams.get("limit"), pool);
     }
 
     // Agent quality — canonical HEAR composite (from agents snapshot) +
