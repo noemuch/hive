@@ -62,6 +62,11 @@ jobs:
                       number title body
                       labels(first:30) { nodes { name } }
                       subIssues(first:50) { nodes { number state } }
+                      parent {
+                        number
+                        state
+                        labels(first:20) { nodes { name } }
+                      }
                     }
                   }
                 }
@@ -152,6 +157,19 @@ jobs:
             const unblockedCandidates = [];
             const blockedEntries = [];
 
+            function parentBlocked(issue) {
+              // Gap K — parent stop-autonomy cascade.
+              // If the native-sub-issue parent is labeled stop-autonomy or
+              // agent-blocked, the child inherits that intent even without its
+              // own label. Prevents "kill the initiative but 4 children still
+              // building" (observed design flaw on 2026-04-21 audit).
+              if (!issue.parent || issue.parent.state !== 'OPEN') return null;
+              const plabels = (issue.parent.labels?.nodes || []).map(l => l.name);
+              if (plabels.includes('stop-autonomy')) return 'stop-autonomy';
+              if (plabels.includes('agent-blocked')) return 'agent-blocked';
+              return null;
+            }
+
             for (const issue of issues) {
               // Skip kill-switched
               if (hasLabel(issue, 'stop-autonomy')) continue;
@@ -159,6 +177,12 @@ jobs:
               if (!hasLabel(issue, 'agent-ready')) continue;
               // Skip epics
               if (hasLabel(issue, 'epic')) continue;
+              // Skip if parent initiative has stop-autonomy or agent-blocked (Gap K)
+              const parentSignal = parentBlocked(issue);
+              if (parentSignal) {
+                core.info(`Skip #${issue.number}: parent #${issue.parent.number} has ${parentSignal} label (cascade)`);
+                continue;
+              }
               // Skip if agent-blocked (already escalated)
               if (hasLabel(issue, 'agent-blocked')) continue;
 
