@@ -341,16 +341,42 @@ jobs:
                 });
                 stuckEscalated.push(`#${issue.number}`);
               } else {
-                // Retry: remove + re-add ready-to-ship to emit a fresh labeled event
+                // Retry: re-fire a clean `labeled` event for ready-to-ship.
+                //
+                // IMPORTANT: add retry-N FIRST, wait, then remove + re-add
+                // ready-to-ship LAST. Observed bug (2026-04-21 on #315):
+                // adding ['ready-to-ship', 'retry-N'] in one call emits two
+                // webhooks in quick succession; the builder that fires on
+                // the ready-to-ship event gets cancelled by concurrency
+                // handling of the retry-N event (even with
+                // cancel-in-progress: false, queued runs can be cancelled
+                // when new ones land in the same group within the webhook
+                // propagation window).
+                //
+                // Sequencing ensures the final ready-to-ship labeled event
+                // is the last one in the group, so the builder triggered
+                // by it runs unopposed.
+                try {
+                  await github.rest.issues.addLabels({
+                    ...context.repo, issue_number: issue.number,
+                    labels: [`retry-${currentRetry + 1}`]
+                  });
+                } catch (e) { /* label may exist if replayed */ }
+
+                await new Promise(r => setTimeout(r, 3000)); // let webhook drain
+
                 try {
                   await github.rest.issues.removeLabel({
                     ...context.repo, issue_number: issue.number,
                     name: 'ready-to-ship'
                   });
                 } catch (e) { /* already removed */ }
+
+                await new Promise(r => setTimeout(r, 2000)); // let unlabeled webhook drain
+
                 await github.rest.issues.addLabels({
                   ...context.repo, issue_number: issue.number,
-                  labels: ['ready-to-ship', `retry-${currentRetry + 1}`]
+                  labels: ['ready-to-ship']
                 });
                 stuckRetried.push(`#${issue.number} (retry ${currentRetry + 1}/${MAX_RETRIES})`);
               }
