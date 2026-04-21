@@ -238,14 +238,137 @@ jobs:
             core.info(`Newly ready: ${ready.length ? ready.join(', ') : 'none'}`);
             core.info(`Newly waiting: ${waiting.length ? waiting.join(', ') : 'none'}`);
 
-            // Summary to issue #257
-            if (ready.length || waiting.length || throttled.length) {
+            // =================================================================
+            // Self-healing sweep: retry stuck issues.
+            //
+            // "Stuck" = ready-to-ship applied > 20 min ago + NO open claude/*
+            // PR for the issue. This happens when the builder fails mid-run
+            // (prompt error, quota+failover both exhausted, etc.) and leaves
+            // an orphan branch without a PR. Without this sweep, the issue
+            // waits for a human to manually re-kick it.
+            //
+            // Mechanic: remove + re-add the `ready-to-ship` label to emit a
+            // fresh `issues.labeled` event that re-fires the builder. A label
+            // counter (`retry-1`, `retry-2`, `retry-3`) caps retries at 3;
+            // beyond that → `agent-blocked` + escalate to @noemuch.
+            // =================================================================
+            const STUCK_THRESHOLD_MS = 20 * 60 * 1000;
+            const MAX_RETRIES = 3;
+            const nowMs = Date.now();
+            const stuckRetried = [];
+            const stuckEscalated = [];
+
+            for (const issue of issues) {
+              if (!hasLabel(issue, 'ready-to-ship')) continue;
+              if (hasLabel(issue, 'stop-autonomy') || hasLabel(issue, 'agent-blocked')) continue;
+
+              // Check for open PR with head claude/issue-<N>-*
+              const prs = await github.paginate(github.rest.pulls.list, {
+                ...context.repo,
+                state: 'open',
+                head: `${context.repo.owner}:claude/issue-${issue.number}`,
+                per_page: 10
+              }).catch(() => []);
+              if (prs.length > 0) continue;
+
+              // Also accept PRs whose head matches the pattern more loosely
+              // (some builders use branch names without strict prefix).
+              // The list.pulls head filter is exact; so also scan openPrs (already
+              // fetched) for branches that START with claude/issue-<N>-
+              const looserMatch = openPrs.find(p =>
+                p.head && p.head.ref &&
+                p.head.ref.startsWith(`claude/issue-${issue.number}-`)
+              );
+              if (looserMatch) continue;
+
+              // When was ready-to-ship last applied?
+              let lastAppliedMs = null;
+              try {
+                const events = await github.paginate(github.rest.issues.listEvents, {
+                  ...context.repo, issue_number: issue.number, per_page: 100
+                });
+                const readyLabelEvents = events.filter(e =>
+                  e.event === 'labeled' && e.label && e.label.name === 'ready-to-ship'
+                );
+                if (readyLabelEvents.length > 0) {
+                  lastAppliedMs = new Date(readyLabelEvents[readyLabelEvents.length - 1].created_at).getTime();
+                }
+              } catch (e) {
+                core.warning(`Could not fetch events for #${issue.number}: ${e.message}`);
+                continue;
+              }
+
+              if (!lastAppliedMs || (nowMs - lastAppliedMs) < STUCK_THRESHOLD_MS) {
+                continue; // fresh — give the builder more time
+              }
+
+              // Check for active builder runs on this issue before retrying (don't
+              // double-fire if a build is still running after >20 min — e.g. a
+              // size:L scope legitimately takes 25 min).
+              const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                ...context.repo,
+                per_page: 20,
+                status: 'in_progress'
+              }).then(r => r.data.workflow_runs).catch(() => []);
+              const activeBuild = runs.find(r =>
+                r.name && r.name.includes('Builder') &&
+                r.display_title && r.display_title.includes(`#${issue.number}`) || (r.head_branch && r.head_branch.includes(`issue-${issue.number}`))
+              );
+              if (activeBuild) continue;
+
+              // Count prior retries via retry-N labels
+              const retryLabels = issue.labels.nodes
+                .filter(l => /^retry-\d+$/.test(l.name))
+                .map(l => parseInt(l.name.replace('retry-', ''), 10))
+                .filter(n => !isNaN(n));
+              const currentRetry = retryLabels.length > 0 ? Math.max(...retryLabels) : 0;
+
+              if (currentRetry >= MAX_RETRIES) {
+                // Escalate — builder has failed MAX_RETRIES times in a row
+                await github.rest.issues.addLabels({
+                  ...context.repo, issue_number: issue.number,
+                  labels: ['agent-blocked']
+                });
+                try {
+                  await github.rest.issues.removeLabel({
+                    ...context.repo, issue_number: issue.number,
+                    name: 'ready-to-ship'
+                  });
+                } catch (e) { /* already removed */ }
+                await github.rest.issues.createComment({
+                  ...context.repo, issue_number: issue.number,
+                  body: `🔴 **Stuck after ${MAX_RETRIES} builder retries** — no PR produced across ${MAX_RETRIES} attempts. Likely root cause: both OAuth accounts exhausted, a systemic prompt failure, or a bug the builder can't self-recover from. \`agent-blocked\` applied; @noemuch please investigate via the run log history.`
+                });
+                stuckEscalated.push(`#${issue.number}`);
+              } else {
+                // Retry: remove + re-add ready-to-ship to emit a fresh labeled event
+                try {
+                  await github.rest.issues.removeLabel({
+                    ...context.repo, issue_number: issue.number,
+                    name: 'ready-to-ship'
+                  });
+                } catch (e) { /* already removed */ }
+                await github.rest.issues.addLabels({
+                  ...context.repo, issue_number: issue.number,
+                  labels: ['ready-to-ship', `retry-${currentRetry + 1}`]
+                });
+                stuckRetried.push(`#${issue.number} (retry ${currentRetry + 1}/${MAX_RETRIES})`);
+              }
+            }
+
+            if (stuckRetried.length) core.info(`Stuck retries fired: ${stuckRetried.join(', ')}`);
+            if (stuckEscalated.length) core.warning(`Stuck escalations (max retries): ${stuckEscalated.join(', ')}`);
+
+            // Summary to automation log
+            if (ready.length || waiting.length || throttled.length || stuckRetried.length || stuckEscalated.length) {
               const body = [
                 `🔀 **Dispatch cron run** — [${new Date().toISOString()}]`,
                 `Slots: ${activeClaudePrs}/${MAX_PARALLEL_PRS} active claude PRs`,
                 ready.length ? `✅ Newly ready-to-ship: ${ready.join(', ')}` : null,
                 waiting.length ? `⏸ Newly waiting-deps: ${waiting.join('; ')}` : null,
                 throttled.length ? `🚦 Throttled (queued for next tick): ${throttled.join(', ')}` : null,
+                stuckRetried.length ? `🔄 Stuck retried: ${stuckRetried.join(', ')}` : null,
+                stuckEscalated.length ? `⛔ Stuck escalated (max retries): ${stuckEscalated.join(', ')}` : null,
                 `[run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
               ].filter(Boolean).join('\n\n');
 
