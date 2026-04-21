@@ -15,6 +15,20 @@ import { loadCollection } from "./handlers/collections";
 import { handleCreateHire, handleListHires, handleRevokeHire } from "./handlers/agent-hires";
 import { handleMarketplace } from "./handlers/marketplace";
 import { handleAgentForksList } from "./handlers/agent-forks-list";
+import {
+  handleListSkills,
+  handleGetSkill,
+  handleCreateSkill,
+  handleAttachSkill,
+  handleDetachSkill,
+} from "./handlers/skills";
+import {
+  handleListTools,
+  handleGetTool,
+  handleCreateTool,
+  handleAttachTool,
+  handleDetachTool,
+} from "./handlers/tools";
 import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
@@ -185,6 +199,70 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           }
         } catch (err) {
           console.error("[hires] /api/agents/:id/hires error:", err);
+          return json({ error: "internal_error" }, 500);
+        }
+      }
+    }
+
+    // Skills registry + per-agent attachments (issue #215).
+    // Placed BEFORE the generic `DELETE /api/agents/:id` retire route so
+    // the more-specific `:id/skills` path wins.
+    if (url.pathname === "/api/skills" && req.method === "GET") {
+      try { return await handleListSkills(url, pool); }
+      catch (err) { console.error("[skills] GET /api/skills error:", err); return json({ error: "internal_error" }, 500); }
+    }
+    if (url.pathname === "/api/skills" && req.method === "POST") {
+      try { return await handleCreateSkill(req, pool); }
+      catch (err) { console.error("[skills] POST /api/skills error:", err); return json({ error: "internal_error" }, 500); }
+    }
+    {
+      const m = url.pathname.match(/^\/api\/skills\/([^/]+)$/);
+      if (m && req.method === "GET") {
+        try { return await handleGetSkill(m[1], pool); }
+        catch (err) { console.error("[skills] GET /api/skills/:slug error:", err); return json({ error: "internal_error" }, 500); }
+      }
+    }
+    {
+      const m = url.pathname.match(/^\/api\/agents\/([^/]+)\/skills(?:\/([^/]+))?$/);
+      if (m) {
+        const agentId = m[1];
+        const skillId = m[2];
+        try {
+          if (!skillId && req.method === "POST") return await handleAttachSkill(req, pool, agentId);
+          if (skillId && req.method === "DELETE") return await handleDetachSkill(req, pool, agentId, skillId);
+        } catch (err) {
+          console.error("[skills] /api/agents/:id/skills error:", err);
+          return json({ error: "internal_error" }, 500);
+        }
+      }
+    }
+
+    // Tools registry + per-agent attachments (issue #215).
+    if (url.pathname === "/api/tools" && req.method === "GET") {
+      try { return await handleListTools(url, pool); }
+      catch (err) { console.error("[tools] GET /api/tools error:", err); return json({ error: "internal_error" }, 500); }
+    }
+    if (url.pathname === "/api/tools" && req.method === "POST") {
+      try { return await handleCreateTool(req, pool); }
+      catch (err) { console.error("[tools] POST /api/tools error:", err); return json({ error: "internal_error" }, 500); }
+    }
+    {
+      const m = url.pathname.match(/^\/api\/tools\/([^/]+)$/);
+      if (m && req.method === "GET") {
+        try { return await handleGetTool(m[1], pool); }
+        catch (err) { console.error("[tools] GET /api/tools/:slug error:", err); return json({ error: "internal_error" }, 500); }
+      }
+    }
+    {
+      const m = url.pathname.match(/^\/api\/agents\/([^/]+)\/tools(?:\/([^/]+))?$/);
+      if (m) {
+        const agentId = m[1];
+        const toolId = m[2];
+        try {
+          if (!toolId && req.method === "POST") return await handleAttachTool(req, pool, agentId);
+          if (toolId && req.method === "DELETE") return await handleDetachTool(req, pool, agentId, toolId);
+        } catch (err) {
+          console.error("[tools] /api/agents/:id/tools error:", err);
           return json({ error: "internal_error" }, 500);
         }
       }
