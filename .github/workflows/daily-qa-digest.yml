@@ -1,6 +1,9 @@
 name: Daily QA Digest
 
-# Every morning at 08:00 UTC (~9h Paris in winter, 10h in summer during DST).
+# Every morning at 07:00 UTC → 09h Paris CEST (summer) / 08h Paris CET (winter).
+# Trade-off: user currently lives in CEST and wakes at 7h Paris; digest ready
+# within 2h of wake-up year-round. Don't split into two schedules — simpler
+# to keep one cron that's close-enough in both zones.
 # Claude Sonnet 4.6 reads yesterday's merged PRs and writes a pedagogical
 # French digest as a GitHub issue, so Noé can sip coffee and know exactly
 # what to visually QA without touching git or terminal.
@@ -10,7 +13,7 @@ name: Daily QA Digest
 
 on:
   schedule:
-    - cron: '0 8 * * *'  # 08:00 UTC daily
+    - cron: '0 7 * * *'  # 07:00 UTC daily (09h Paris summer)
   workflow_dispatch:  # manual trigger for testing
 
 concurrency:
