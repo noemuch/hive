@@ -85,7 +85,12 @@ jobs:
                 core.warning(`mergeState #${pr.number}: ${e.message}`);
                 continue;
               }
-              if (mergeState !== 'DIRTY') {
+              // Nudge DIRTY (confirmed conflict) AND UNKNOWN (GitHub hasn't
+              // computed merge state yet — often DIRTY after a cross-merge).
+              // The reviewer re-evaluates state in STEP 0, so a false-positive
+              // nudge is cheap (reviewer exits fast); a false-negative leaves
+              // the PR stuck forever.
+              if (mergeState !== 'DIRTY' && mergeState !== 'UNKNOWN') {
                 skipped.push(`#${pr.number} (${mergeState})`);
                 continue;
               }
