@@ -51,20 +51,29 @@ jobs:
         id: quota_check
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
           script: |
-            const https = require('https');
-            // Fetch quota-state.json from main
-            const res = await fetch('https://raw.githubusercontent.com/noemuch/hive/main/.github/quota-state.json');
-            if (!res.ok) {
-              core.info('quota-state.json unreachable; proceeding anyway');
-              return 'ok';
+            // Read quota-state.json via API (authoritative, no CDN cache) rather
+            // than raw.githubusercontent.com (which has ~5min edge cache and can
+            // return stale state after a fresh quota-monitor commit).
+            let state;
+            try {
+              const { data } = await github.rest.repos.getContent({
+                ...context.repo,
+                path: '.github/quota-state.json',
+                ref: 'main'
+              });
+              state = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+            } catch (e) {
+              core.info(`quota-state.json unreadable (${e.message}); proceeding anyway`);
+              core.setOutput('skip', 'false');
+              return;
             }
-            const state = await res.json();
             const now = new Date();
             const primaryDead = state.primary_exhausted_until && new Date(state.primary_exhausted_until) > now;
             const secondaryDead = state.secondary_exhausted_until && new Date(state.secondary_exhausted_until) > now;
             if (primaryDead && secondaryDead) {
-              core.warning('Both quotas exhausted; skipping digest generation.');
+              core.warning(`Both quotas exhausted (primary=${state.primary_exhausted_until}, secondary=${state.secondary_exhausted_until}); skipping digest.`);
               core.setOutput('skip', 'true');
             } else {
               core.setOutput('skip', 'false');
