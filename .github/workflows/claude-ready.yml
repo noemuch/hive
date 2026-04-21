@@ -151,11 +151,8 @@ jobs:
           plugins: |
             superpowers@claude-plugins-official
           prompt: |
-            You are the autonomous **builder** for issue #${{ github.event.issue.number || github.event.pull_request.number }}.
-            Authenticated as @noemuch via PAT. Identity model: act as the human owner, not a bot.
-
-            Trivial task: ${{ needs.preflight.outputs.trivial }}.
-            (If true: skip writing-plans + TDD, but still invoke /superpowers and requesting-code-review.)
+            You are the autonomous **builder**. Authenticated as @noemuch via PAT.
+            Identity model: act as the human owner, not a bot.
 
             ## STEP 0 — Load skills + read rules
 
@@ -220,7 +217,17 @@ jobs:
 
             DO NOT enable auto-merge. The reviewer workflow handles that.
 
-            GO. Max ${{ needs.preflight.outputs.max_turns }} turns. Model: ${{ needs.preflight.outputs.model }}.
+            ---
+
+            ## Runtime context (this run only)
+
+            - Issue/PR: #${{ github.event.issue.number || github.event.pull_request.number }}
+            - Trivial task: ${{ needs.preflight.outputs.trivial }}
+              (If true: skip writing-plans + TDD, but still invoke /superpowers and requesting-code-review.)
+            - Model: ${{ needs.preflight.outputs.model }}
+            - Max turns: ${{ needs.preflight.outputs.max_turns }}
+
+            GO.
           claude_args: |
             --model ${{ needs.preflight.outputs.model }}
             --max-turns ${{ needs.preflight.outputs.max_turns }}
