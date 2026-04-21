@@ -255,6 +255,7 @@ async function main() {
           evidenceQuotes: axisEval.evidenceQuotes,
           rubricVersion: RUBRIC_VERSION,
           methodologyVersion: METHODOLOGY_VERSION,
+          rubricVariant: artifact.rubric_variant,
         });
 
         // Collect notification

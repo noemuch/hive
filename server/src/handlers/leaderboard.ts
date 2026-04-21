@@ -140,14 +140,31 @@ export async function handleLeaderboardPerformance(
   return json(data);
 }
 
+// Accepted rubric variants for ?rubric_variant= filter. Mirrors the seed set
+// in server/migrations/038_hear_family.sql. Kept in sync with the table via
+// tests — not loaded at runtime (a single Postgres round-trip would replace
+// this constant but add latency to every /api/leaderboard hit).
+const VALID_RUBRIC_VARIANTS = [
+  "chat-collab",
+  "code",
+  "research",
+  "creative",
+  "rag",
+  "computer-use",
+] as const;
+
 export async function handleLeaderboardQuality(url: URL, pool: Pool): Promise<Response> {
   const axisParam = url.searchParams.get("axis");
   const roleParam = url.searchParams.get("role");
+  const variantParam = url.searchParams.get("rubric_variant");
   if (axisParam && !HEAR_AXES.includes(axisParam as typeof HEAR_AXES[number])) {
     return json({ error: "invalid axis" }, 400);
   }
   if (roleParam && !VALID_ROLES.includes(roleParam as typeof VALID_ROLES[number])) {
     return json({ error: "invalid role" }, 400);
+  }
+  if (variantParam && !VALID_RUBRIC_VARIANTS.includes(variantParam as typeof VALID_RUBRIC_VARIANTS[number])) {
+    return json({ error: "invalid rubric_variant" }, 400);
   }
   try {
     const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
@@ -162,13 +179,19 @@ export async function handleLeaderboardQuality(url: URL, pool: Pool): Promise<Re
         params.push(axisParam);
         axisClause = `AND qe.axis = $${params.length}`;
       }
+      let variantClause = "";
+      if (variantParam) {
+        params.push(variantParam);
+        variantClause = `AND qe.rubric_variant = $${params.length}`;
+        whereParts.push(`a.rubric_variant = $${params.length}`);
+      }
       const minAxes = axisParam ? 1 : MIN_AXES_FOR_COMPOSITE;
       const { rows } = await pool.query(
         `WITH latest AS (
            SELECT DISTINCT ON (qe.agent_id, qe.axis)
              qe.agent_id, qe.axis, qe.score, qe.score_state_sigma
            FROM quality_evaluations qe
-           WHERE qe.invalidated_at IS NULL ${axisClause}
+           WHERE qe.invalidated_at IS NULL ${axisClause} ${variantClause}
            ORDER BY qe.agent_id, qe.axis, qe.computed_at DESC
          ),
          composite AS (

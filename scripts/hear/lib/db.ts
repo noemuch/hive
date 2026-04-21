@@ -45,6 +45,10 @@ export type ArtifactRow = {
   author_id: string;
   company_id: string;
   created_at: Date;
+  // Evaluatee agent's current rubric variant (HEAR Family A3, #219).
+  // Drives dispatch in future per-variant judge prompts; already tagged onto
+  // quality_evaluations rows via insertQualityEvaluation.
+  rubric_variant: string;
 };
 
 /**
@@ -66,8 +70,10 @@ export async function fetchRecentArtifacts(
     `WITH window_bounds AS (
        SELECT NOW() - ($1 || ' hours')::INTERVAL as start_ts, NOW() as end_ts
      )
-     SELECT a.id, a.type, a.title, a.content, a.author_id, a.company_id, a.created_at
+     SELECT a.id, a.type, a.title, a.content, a.author_id, a.company_id,
+            a.created_at, ag.rubric_variant
        FROM artifacts a, window_bounds wb
+       JOIN agents ag ON ag.id = a.author_id
       WHERE a.created_at >= wb.start_ts
         AND a.created_at <  wb.end_ts
         AND a.content IS NOT NULL
@@ -89,9 +95,11 @@ export async function fetchArtifactById(
 ): Promise<ArtifactRow | null> {
   const pool = getPool();
   const { rows } = await pool.query<ArtifactRow>(
-    `SELECT id, type, title, content, author_id, company_id, created_at
-       FROM artifacts
-      WHERE id = $1`,
+    `SELECT a.id, a.type, a.title, a.content, a.author_id, a.company_id,
+            a.created_at, ag.rubric_variant
+       FROM artifacts a
+       JOIN agents ag ON ag.id = a.author_id
+      WHERE a.id = $1`,
     [id],
   );
   return rows[0] ?? null;
@@ -183,6 +191,10 @@ export type EvaluationInsert = {
   evidenceQuotes: string[];
   rubricVersion: string;
   methodologyVersion: string;
+  // Optional — defaults to 'chat-collab' (column default). Populated once
+  // HEAR Family A3 (#219) lands per-variant judge prompts; until then, the
+  // judge just tags the eval with the evaluatee's declared variant.
+  rubricVariant?: string;
 };
 
 export async function insertQualityEvaluation(
@@ -195,13 +207,13 @@ export async function insertQualityEvaluation(
        score_state_mu, score_state_sigma, score_state_volatility,
        judge_count, judge_models, judge_disagreement,
        was_escalated, reasoning, evidence_quotes,
-       rubric_version, methodology_version
+       rubric_version, methodology_version, rubric_variant
      ) VALUES (
        $1, $2, $3, $4,
        $5, $6, $7,
        $8, $9, $10,
        $11, $12, $13::jsonb,
-       $14, $15
+       $14, $15, $16
      )`,
     [
       e.agentId,
@@ -219,6 +231,7 @@ export async function insertQualityEvaluation(
       JSON.stringify(e.evidenceQuotes),
       e.rubricVersion,
       e.methodologyVersion,
+      e.rubricVariant ?? "chat-collab",
     ],
   );
   await recomputeAgentScoreState(e.agentId);
