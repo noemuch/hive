@@ -1,0 +1,143 @@
+name: Sentry Triage — runtime errors → agent-ready issues
+
+# Receives Sentry webhooks via repository_dispatch (event_type: sentry.issue).
+# Dedups by fingerprint. Creates a new source:sentry + agent-ready issue OR
+# comments on existing one (occurrence counter).
+#
+# Setup (one-time, after this workflow lands):
+#   1. In Sentry: Project Settings → Integrations → GitHub → ensure repo linked.
+#   2. In Sentry: Project Settings → Alerts → new Alert → Action:
+#        "Send a notification via Webhook" → URL:
+#          https://api.github.com/repos/noemuch/hive/dispatches
+#        → Method: POST → Headers:
+#          Authorization: Bearer <SENTRY_WEBHOOK_PAT>
+#          Accept: application/vnd.github+json
+#        → Body: { "event_type": "sentry.issue", "client_payload": { ...event data... } }
+#   3. Optional: enable Sentry Seer + set SENTRY_SEER_ENABLED secret for
+#      root-cause hints in issue body.
+#
+# Until Sentry is configured this workflow is inert (no webhook = no runs).
+
+on:
+  repository_dispatch:
+    types: [sentry.issue]
+  workflow_dispatch:
+    inputs:
+      fingerprint:
+        description: Sentry fingerprint (for testing dedup)
+        required: true
+        type: string
+      title:
+        description: Error title
+        required: true
+        type: string
+      culprit:
+        description: File:line or function
+        required: true
+        type: string
+      count:
+        description: Occurrence count
+        required: false
+        type: string
+        default: "1"
+      url:
+        description: URL where error occurred
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  # Serialize by fingerprint to prevent duplicate issues on simultaneous webhooks
+  group: sentry-triage-${{ github.event.client_payload.fingerprint || inputs.fingerprint }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Dedup + create or comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const isDispatch = context.eventName === 'workflow_dispatch';
+            const payload = isDispatch ? context.payload.inputs : (context.payload.client_payload || {});
+            const fingerprint = payload.fingerprint;
+            const title = payload.title || '(no title)';
+            const culprit = payload.culprit || '(no culprit)';
+            const count = payload.count || '1';
+            const url = payload.url || '';
+            const stackTrace = payload.stack_trace || payload.stackTrace || '(no stack trace provided)';
+            const seerHint = payload.seer_hint || payload.seerHint || null;
+
+            if (!fingerprint) {
+              core.setFailed('Missing fingerprint in webhook payload — cannot dedup.');
+              return;
+            }
+
+            // Search for existing open issue with this fingerprint in body
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo, labels: 'source:sentry', state: 'open', per_page: 100
+            });
+            const dup = existing.find(i => i.body && i.body.includes(`fingerprint: \`${fingerprint}\``));
+
+            if (dup) {
+              const now = new Date().toISOString();
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: dup.number,
+                body: `🔁 **+1 occurrence** at ${now} — total count: ${count}. ${url ? `URL: ${url}` : ''}`
+              });
+              core.notice(`Deduped to existing #${dup.number}`);
+              return;
+            }
+
+            // New issue
+            const priority = parseInt(count, 10) > 50 ? 'priority:critical'
+                           : parseInt(count, 10) > 10 ? 'priority:high'
+                           : 'priority:medium';
+
+            const body = [
+              `🛑 **Production error from Sentry**`,
+              ``,
+              `**Culprit**: \`${culprit}\``,
+              `**Occurrences**: ${count}`,
+              url ? `**URL**: ${url}` : null,
+              `**Fingerprint**: \`${fingerprint}\``,
+              ``,
+              `## Stack trace`,
+              ``,
+              '```',
+              String(stackTrace).slice(0, 4000),
+              '```',
+              ``,
+              seerHint ? `## Sentry Seer hint\n\n${seerHint}\n` : null,
+              `## Task`,
+              ``,
+              `- Reproduce the error (check the URL if relevant, or write a failing test that triggers the stack path).`,
+              `- Apply \`superpowers:systematic-debugging\` to find root cause.`,
+              `- Fix + add regression test.`,
+              ``,
+              `Source: \`sentry-triage.yml\` run ${context.runId}. Reopening this issue or commenting "+1" = same fingerprint recurred.`
+            ].filter(Boolean).join('\n');
+
+            const { data: created } = await github.rest.issues.create({
+              ...context.repo,
+              title: `[Sentry] ${title.slice(0, 80)}`,
+              body,
+              labels: ['agent-ready', 'source:sentry', priority, 'type:bug']
+            });
+
+            core.notice(`Opened Sentry issue #${created.number}`);
+            // issue-triage will auto-label type/area/size on opened event
+
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: 257,
+              body: `🛑 **Sentry triage** opened #${created.number} (\`${fingerprint.slice(0, 12)}...\`, count=${count}). [run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+            });
