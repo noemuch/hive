@@ -1,0 +1,355 @@
+# @hive-protocol: protocol-path-guard
+# ^ Pragma above identifies this file as a closure anchor per NORTHSTAR §2.1 #7.
+#   Role "protocol-path-guard" must appear in PROTOCOL_PATHS.sig.pragma_roles[].
+
+name: Protocol Path Guard — §9.3 layer #1 (closure + env/dep/global scans)
+
+# The master enforcement workflow of the §9.3 defense stack. Runs on every PR
+# and does the following, in order:
+#
+#   Layer #1 (NORTHSTAR §9.3 #1) — closure computation + routing
+#     a. Anchor files list (CLOSURE_ANCHORS env below).
+#     b. Import closure via ts-morph AST walk of anchor TS files. Dynamic
+#        import()/require()/eval/new Function/vm.*/Module._load/Reflect.get
+#        on process-like BLOCK.
+#     c. Schema closure — migrations touching a constitutional table
+#        (CONSTITUTIONAL_TABLES below) route to §5 RFC.
+#     d. Workflow closure — anchor workflows are scanned for `uses:` without
+#        40-hex SHA pin.
+#     e. Build closure — package.json / bun.lockb / tsconfig*.json / etc.
+#        listed in BUILD_CLOSURE_GLOBS below (future use; informational now).
+#     f. Test closure — grep for `@hive-protocol-test:` pragma occurrences.
+#     g. Content-addressed tag — `@hive-protocol:` pragmas, NFKC-normalised
+#        + TR39-lite confusables-folded, validated against pragma_roles[].
+#
+#   Layer #5 (task numbering) — env-var prohibition
+#     For each protocol TS file in PR diff, AST-scan for: `process.env`,
+#     `globalThis.process`, `Reflect.get(process, ...)`, dynamic member
+#     access on process, `fs.readFile*("/proc/*environ")`, `child_process.*`,
+#     `Deno.env`, `Bun.env`. Any match BLOCKS (post-genesis) or warns
+#     (pre-genesis, until PROTOCOL_PATHS.sig is signed in).
+#
+#   Layer #6 (task numbering) — dep prohibition
+#     For each protocol TS file in PR diff, AST-scan imports. Only allow:
+#     node:*, bun:*, `pg`, `@noble/hashes/*`, and closure-internal relative
+#     imports. Any other import BLOCKS.
+#
+#   Layer #7 (task numbering) — global-API prohibition
+#     For each protocol TS file in PR diff, AST-scan for: fetch,
+#     XMLHttpRequest, WebSocket, setTimeout, setInterval, setImmediate,
+#     child_process, worker_threads, cluster, net, tls, http, https,
+#     crypto.subtle, crypto.createSign, Bun.spawn, Bun.serve, fs.readFile*.
+#     Also verifies module-level bindings are `export const` only (no
+#     `let`/`var`). Any match BLOCKS.
+#
+# Output contract:
+#   The AST scanner (`scripts/protocol-path-guard/check.ts`) prints a single
+#   JSON object to stdout with shape { blocked, touchesClosure, reasons[],
+#   warnings[], closure[], stats }. This workflow parses that JSON, applies
+#   labels, posts a diagnostic comment, and exits 1 on block.
+#
+# Pre-genesis grace: when `docs/kb/PROTOCOL_PATHS.sig` is absent (genesis
+# ceremony has not yet run), "forbidden" patterns that are already present
+# in the reference implementation (verify-paths-sig.ts uses process.env
+# legitimately) are downgraded to WARNINGS so nothing can merge until the
+# sig is in place. Post-genesis: strict mode (BLOCK). This switch is
+# controlled by the `--pre-genesis` flag passed to the scanner.
+#
+# Auth: NOEMUCH_PAT. Post-genesis, switch to HPA-scoped Steward tokens.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: protocol-path-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # Hard-coded closure anchors — MUST stay in sync with NORTHSTAR §2.1
+      # "Anchor files" list and meta-guard.yml `anchors=(...)` array.
+      CLOSURE_ANCHORS: >-
+        docs/kb/NORTHSTAR.md,
+        docs/kb/HARD-FORK-PROCEDURE.md,
+        docs/kb/FOUNDERS_KEYS.md,
+        docs/kb/STEWARDS_KEYS.md,
+        docs/kb/ENTITY_BYLAWS.md,
+        docs/kb/RATCHET_FROZEN.json,
+        docs/kb/PROTOCOL_PATHS.sig,
+        docs/kb/APP_PERMISSIONS.json,
+        docs/kb/MIRRORS.md,
+        docs/kb/AUDITOR_POOL.md,
+        docs/kb/CALIBRATION_AUDIT.md,
+        docs/kb/RFC_MANIFESTS,
+        server/src/db/agent-score-state.ts,
+        server/src/engine/peer-evaluation.ts,
+        server/src/protocol/verify-paths-sig.ts,
+        server/src/__tests__/protocol-invariants.test.ts,
+        .github/workflows/review.yml,
+        .github/workflows/dispatch-ready.yml,
+        .github/workflows/ratchet-phase-transition.yml,
+        .github/workflows/ratify-rfc.yml,
+        .github/workflows/protocol-path-guard.yml,
+        .github/workflows/meta-guard.yml,
+        .github/workflows/watchdog.yml,
+        CODEOWNERS
+
+      # Constitutional database tables (NORTHSTAR §3.7). Any migration whose
+      # SQL tokenises to one of these names routes to §5 RFC.
+      CONSTITUTIONAL_TABLES: >-
+        agents,
+        peer_evaluations,
+        quality_evaluations,
+        bureaux,
+        agent_rotations,
+        rfc_votes,
+        sponsor_correlation_graph
+
+      # Allowed `@hive-protocol:` pragma roles. Must track
+      # PROTOCOL_PATHS.sig.pragma_roles[] post-genesis.
+      PRAGMA_ROLE_ALLOWLIST: >-
+        verify-paths-sig,
+        meta-guard,
+        watchdog,
+        protocol-path-guard,
+        protocol-path-guard-check,
+        protocol-invariants,
+        agent-score-state,
+        peer-evaluation,
+        ratchet-phase-transition,
+        ratify-rfc,
+        review,
+        dispatch-ready,
+        codeowners,
+        northstar,
+        hard-fork-procedure,
+        founders-keys,
+        stewards-keys,
+        entity-bylaws,
+        ratchet-frozen,
+        app-permissions,
+        mirrors,
+        auditor-pool,
+        calibration-audit
+
+    steps:
+      - name: Checkout HEAD + fetch base
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9cf7b2c7b7e15f1  # v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          # ts-morph is already pinned in server/package.json. Install the
+          # workspace so the scanner can resolve it.
+          bun install --frozen-lockfile
+
+      - name: Determine PR file list + pre-genesis mode
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_SHA" || true
+
+          # All files changed in the PR (added + modified + renamed).
+          pr_files=$(git diff --name-only "$BASE_SHA".."$HEAD_SHA" | paste -sd, -)
+          echo "pr_files=$pr_files" >> "$GITHUB_OUTPUT"
+
+          if [ -f "docs/kb/PROTOCOL_PATHS.sig" ]; then
+            echo "pre_genesis=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PROTOCOL_PATHS.sig present — strict mode."
+          else
+            echo "pre_genesis=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::PROTOCOL_PATHS.sig absent — pre-genesis grace mode. Forbidden-pattern hits downgrade to warnings."
+          fi
+
+      - name: Run AST scanner (closure + env/dep/global/pragma)
+        id: scan
+        env:
+          ANCHORS: ${{ env.CLOSURE_ANCHORS }}
+          TABLES: ${{ env.CONSTITUTIONAL_TABLES }}
+          ROLES: ${{ env.PRAGMA_ROLE_ALLOWLIST }}
+          PR_FILES: ${{ steps.diff.outputs.pr_files }}
+          PRE_GENESIS: ${{ steps.diff.outputs.pre_genesis }}
+        run: |
+          set -euo pipefail
+
+          # Normalise the env lists (strip whitespace + newlines from the
+          # multi-line YAML `>-` folded scalar).
+          anchors=$(echo "$ANCHORS" | tr -d ' \n')
+          tables=$(echo "$TABLES" | tr -d ' \n')
+          roles=$(echo "$ROLES" | tr -d ' \n')
+
+          out="$RUNNER_TEMP/path-guard.json"
+          set +e
+          bun scripts/protocol-path-guard/check.ts \
+            --repo-root="$GITHUB_WORKSPACE" \
+            --pre-genesis="$PRE_GENESIS" \
+            --pr-files="$PR_FILES" \
+            --anchors="$anchors" \
+            --tables="$tables" \
+            --roles="$roles" \
+            > "$out"
+          scan_exit=$?
+          set -e
+
+          # Persist for downstream step.
+          cp "$out" "$RUNNER_TEMP/path-guard.json"
+
+          # Extract minimal summary into GITHUB_OUTPUT.
+          blocked=$(jq -r '.blocked' "$out")
+          touches=$(jq -r '.touchesClosure' "$out")
+          reason_count=$(jq -r '.reasons | length' "$out")
+          warning_count=$(jq -r '.warnings | length' "$out")
+          closure_size=$(jq -r '.closure | length' "$out")
+
+          echo "blocked=$blocked"           >> "$GITHUB_OUTPUT"
+          echo "touches=$touches"           >> "$GITHUB_OUTPUT"
+          echo "reason_count=$reason_count" >> "$GITHUB_OUTPUT"
+          echo "warning_count=$warning_count" >> "$GITHUB_OUTPUT"
+          echo "closure_size=$closure_size" >> "$GITHUB_OUTPUT"
+
+          echo "::notice::path-guard: blocked=$blocked touches_closure=$touches reasons=$reason_count warnings=$warning_count closure_size=$closure_size (scanner_exit=$scan_exit)"
+
+          # Pretty-print for log visibility.
+          jq '.' "$out" || cat "$out"
+
+      - name: Apply labels + comment (touches-closure or blocked)
+        if: always() && (steps.scan.outputs.touches == 'true' || steps.scan.outputs.blocked == 'true')
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        env:
+          BLOCKED: ${{ steps.scan.outputs.blocked }}
+          TOUCHES: ${{ steps.scan.outputs.touches }}
+          REASON_COUNT: ${{ steps.scan.outputs.reason_count }}
+          WARNING_COUNT: ${{ steps.scan.outputs.warning_count }}
+          CLOSURE_SIZE: ${{ steps.scan.outputs.closure_size }}
+          PRE_GENESIS: ${{ steps.diff.outputs.pre_genesis }}
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+
+            const pr = context.payload.pull_request.number;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const blocked = process.env.BLOCKED === 'true';
+            const touches = process.env.TOUCHES === 'true';
+            const preGenesis = process.env.PRE_GENESIS === 'true';
+
+            // Read scanner JSON.
+            let result = { reasons: [], warnings: [], closure: [], stats: {} };
+            try {
+              const p = path.join(process.env.RUNNER_TEMP, 'path-guard.json');
+              result = JSON.parse(fs.readFileSync(p, 'utf8'));
+            } catch (e) {
+              core.warning(`Failed to parse path-guard.json: ${e.message}`);
+            }
+
+            // --- Labels ---
+            const labels = [];
+            if (touches) labels.push('protocol-change');
+            if (blocked) labels.push('agent-blocked');
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                ...context.repo,
+                issue_number: pr,
+                labels,
+              }).catch(e => core.warning(`addLabels: ${e.message}`));
+            }
+
+            // --- Comment body ---
+            const lines = [];
+            if (blocked) {
+              lines.push(`## 🚫 Protocol Path Guard — BLOCKED (${result.reasons.length} reasons)`);
+            } else if (touches) {
+              lines.push(`## 🛡️ Protocol Path Guard — closure touched (${result.warnings.length} warnings, ${result.reasons.length} reasons)`);
+            }
+
+            lines.push('');
+            lines.push(`This PR modifies files in the NORTHSTAR §2.1 protocol closure (${result.closure.length} file(s) in closure; ${result.stats.prFilesScanned ?? '?'} file(s) in PR diff).`);
+
+            if (preGenesis) {
+              lines.push('');
+              lines.push('> **Pre-genesis grace mode active.** `PROTOCOL_PATHS.sig` is not yet committed — strict AST rules are logged as `warnings` rather than `reasons`. Once the genesis ceremony signs the sig file in, the same rules will BLOCK instead of warn.');
+            }
+
+            if (blocked) {
+              lines.push('');
+              lines.push('### Blocking findings');
+              lines.push('');
+              for (const r of result.reasons.slice(0, 50)) {
+                lines.push(`- \`${r.kind}\` · \`${r.file}${r.line ? ':' + r.line : ''}\` — ${r.detail}`);
+              }
+              if (result.reasons.length > 50) {
+                lines.push(`- ... and ${result.reasons.length - 50} more (see run log).`);
+              }
+              lines.push('');
+              lines.push('**Resolution path:** this PR modifies protocol paths (§2.1). A §5 RFC ratified by `ratify-rfc.yml` is required before merge. See NORTHSTAR §5 (RFC procedure) + §9.3 (defense stack).');
+            } else if (touches) {
+              if (result.warnings.length > 0) {
+                lines.push('');
+                lines.push('### Warnings (pre-genesis only — will BLOCK post-genesis)');
+                lines.push('');
+                for (const w of result.warnings.slice(0, 30)) {
+                  lines.push(`- \`${w.file}${w.line ? ':' + w.line : ''}\` — ${w.detail}`);
+                }
+              }
+              lines.push('');
+              lines.push('Closure-touching PRs are permitted but require a §5 RFC before merge. Add `protocol-change` reasoning to the PR body + link the RFC manifest in `docs/kb/RFC_MANIFESTS/`.');
+            }
+
+            lines.push('');
+            lines.push(`— [run](${runUrl}) · NORTHSTAR §9.3 layer #1`);
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: pr,
+              body: lines.join('\n'),
+            }).catch(e => core.warning(`createComment: ${e.message}`));
+
+      - name: Fail if blocked
+        if: steps.scan.outputs.blocked == 'true'
+        run: |
+          echo "::error title=protocol-path-guard::Scanner reported ${{ steps.scan.outputs.reason_count }} blocking reasons. See PR comment + run log."
+          exit 1
+
+      - name: Log to automation log
+        if: always() && vars.AUTOMATION_LOG_ISSUE != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const logIssue = parseInt('${{ vars.AUTOMATION_LOG_ISSUE }}', 10);
+            if (!logIssue) return;
+            const pr = context.payload.pull_request.number;
+            const status = '${{ job.status }}';
+            const blocked = '${{ steps.scan.outputs.blocked }}' === 'true';
+            const touches = '${{ steps.scan.outputs.touches }}' === 'true';
+            const emoji = status === 'success'
+              ? (touches ? '🛡️' : '🟢')
+              : '🚫';
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: logIssue,
+              body: `${emoji} **protocol-path-guard** PR #${pr} — status: \`${status}\` · blocked=\`${blocked}\` · touches=\`${touches}\` · reasons=\`${{ steps.scan.outputs.reason_count }}\` · warnings=\`${{ steps.scan.outputs.warning_count }}\` · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            });
