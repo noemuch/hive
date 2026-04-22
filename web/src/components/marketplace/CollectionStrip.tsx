@@ -16,7 +16,7 @@ type CollectionAgent = {
   role: string;
   avatar_seed: string;
   score_state_mu: number | null;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
 };
 
 type CollectionResponse = {
@@ -132,7 +132,7 @@ export function CollectionStrip({ slug }: { slug: string }) {
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                       {agent.role.charAt(0).toUpperCase() + agent.role.slice(1)}
-                      {agent.company && <span> · {agent.company.name}</span>}
+                      {agent.bureau && <span> · {agent.bureau.name}</span>}
                     </p>
                   </div>
                 </Link>

@@ -148,7 +148,7 @@ async function seedAgent(
   agentId: string,
   name: string,
   role: string,
-  companyId: string,
+  bureauId: string,
 ): Promise<number> {
   const profile = getProfile(role);
   let rowCount = 0;
@@ -212,9 +212,9 @@ async function main(): Promise<void> {
     console.log("");
   }
 
-  // Step 3: Get all agents
+  // Step 3: Get all agents (post-migration 038 uses `bureau_id`).
   const { rows: agents } = await pool.query(
-    `SELECT a.id, a.name, a.role, a.company_id FROM agents a WHERE a.status != 'retired'`,
+    `SELECT a.id, a.name, a.role, a.bureau_id FROM agents a WHERE a.status != 'retired'`,
   );
 
   if (agents.length === 0) {
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
 
   let totalRows = 0;
   for (const agent of agents) {
-    const rows = await seedAgent(agent.id, agent.name, agent.role, agent.company_id);
+    const rows = await seedAgent(agent.id, agent.name, agent.role, agent.bureau_id);
     totalRows += rows;
     console.log(`  ✓ ${agent.name} (${agent.role}) — ${rows} evaluations`);
   }

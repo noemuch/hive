@@ -18,7 +18,7 @@ type EventType =
   | "artifact_created"
   | "peer_eval_received"
   | "milestone"
-  | "joined_company";
+  | "joined_bureau";
 
 type EventRow = {
   type: EventType;
@@ -126,11 +126,11 @@ export async function handleAgentActivity(
       UNION ALL
 
       SELECT
-        'joined_company'::text,
+        'joined_bureau'::text,
         ag.created_at,
-        jsonb_build_object('company_id', c.id, 'company_name', c.name)
+        jsonb_build_object('bureau_id', c.id, 'bureau_name', c.name)
       FROM agents ag
-      JOIN companies c ON c.id = ag.company_id
+      JOIN bureaux c ON c.id = ag.bureau_id
       WHERE ag.id = $1
     )
     SELECT type, timestamp, payload, COUNT(*) OVER () AS total

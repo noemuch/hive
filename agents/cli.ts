@@ -2,14 +2,17 @@
  * Hive agents CLI — subcommand router.
  *
  * Usage:
- *   bun run agents setup     --team <name>   # one-time setup + install service
- *   bun run agents start     --team <name>
- *   bun run agents stop      --team <name>
- *   bun run agents restart   --team <name>
- *   bun run agents status    --team <name>
- *   bun run agents logs      --team <name>
- *   bun run agents uninstall --team <name>
- *   bun run agents           --team <name>   # direct launch (existing behavior)
+ *   bun run agents setup     --bureau <name>   # one-time setup + install service
+ *   bun run agents start     --bureau <name>
+ *   bun run agents stop      --bureau <name>
+ *   bun run agents restart   --bureau <name>
+ *   bun run agents status    --bureau <name>
+ *   bun run agents logs      --bureau <name>
+ *   bun run agents uninstall --bureau <name>
+ *   bun run agents           --bureau <name>   # direct launch (existing behavior)
+ *
+ * `--bureau` is canonical. The legacy `--team` flag is accepted as an alias
+ * for 90 days and prints a one-line deprecation warning when used.
  */
 
 import { resolve } from "path";
@@ -46,18 +49,24 @@ const subcommand: Subcommand | null = SUBCOMMANDS.includes(firstArg as Subcomman
   : null;
 
 const remaining = subcommand ? args.slice(1) : args;
+// `--bureau` is canonical, `--team` is a deprecated alias kept for 90 days.
+const bureauIdx = remaining.findIndex((a) => a === "--bureau");
 const teamIdx = remaining.findIndex((a) => a === "--team");
-const team = teamIdx !== -1 ? remaining[teamIdx + 1] : null;
+if (bureauIdx === -1 && teamIdx !== -1) {
+  console.warn("[deprecation] --team is deprecated; use --bureau. The old flag will keep working for 90 days.");
+}
+const bureauFlagIdx = bureauIdx !== -1 ? bureauIdx : teamIdx;
+const bureau = bureauFlagIdx !== -1 ? remaining[bureauFlagIdx + 1] : null;
 
-if (!team) {
-  console.error("Usage: bun run agents [subcommand] --team <name>");
+if (!bureau) {
+  console.error("Usage: bun run agents [subcommand] --bureau <name>");
   console.error("Subcommands: setup, start, stop, restart, status, logs, uninstall");
-  console.error("Example: bun run agents setup --team lyse");
+  console.error("Example: bun run agents setup --bureau mybureau");
   process.exit(1);
 }
 
-if (!/^[a-z0-9-]+$/.test(team)) {
-  console.error(`Invalid team name: "${team}". Only lowercase letters, numbers, and hyphens allowed.`);
+if (!/^[a-z0-9-]+$/.test(bureau)) {
+  console.error(`Invalid bureau name: "${bureau}". Only lowercase letters, numbers, and hyphens allowed.`);
   process.exit(1);
 }
 
@@ -67,7 +76,8 @@ if (!/^[a-z0-9-]+$/.test(team)) {
 
 if (!subcommand) {
   // No subcommand — route directly to launcher.ts. process.argv still contains
-  // the original args (including --team), which launcher.ts parses itself.
+  // the original args (including --bureau or the legacy --team), which
+  // launcher.ts parses itself.
   const launcherPath = resolve(import.meta.dir, "lib", "launcher.ts");
   await import(launcherPath);
   process.exit(0);
@@ -124,13 +134,13 @@ async function readSecret(promptText: string): Promise<string> {
 // Setup command
 // ---------------------------------------------------------------------------
 
-async function runSetup(team: string): Promise<void> {
+async function runSetup(bureau: string): Promise<void> {
   const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
   const projectRoot = resolve(import.meta.dir, "..");
 
   // Check existing config
-  if (configExists(team)) {
-    const answer = prompt(`~/.hive/${team}/config.json already exists. Overwrite? (y/N) `) ?? "n";
+  if (configExists(bureau)) {
+    const answer = prompt(`~/.hive/${bureau}/config.json already exists. Overwrite? (y/N) `) ?? "n";
     if (answer.toLowerCase() !== "y") {
       console.log("Aborted.");
       process.exit(0);
@@ -138,7 +148,7 @@ async function runSetup(team: string): Promise<void> {
   }
 
   // Collect credentials
-  console.log(`\nSetting up team "${team}"...\n`);
+  console.log(`\nSetting up bureau "${bureau}"...\n`);
 
   const emailDefault = process.env.HIVE_EMAIL ?? "";
   const emailInput = prompt(`Email${emailDefault ? ` [${emailDefault}]` : ""}: `) ?? "";
@@ -193,23 +203,24 @@ async function runSetup(team: string): Promise<void> {
   // Save credentials only after confirmed valid login
   // SECURITY: never store the password — only the JWT token
   const config: HiveConfig = { email, builder_token: builderToken, anthropic_api_key };
-  writeConfig(team, config);
-  console.log(`✓ Credentials saved to ~/.hive/${team}/config.json`);
+  writeConfig(bureau, config);
+  console.log(`✓ Credentials saved to ~/.hive/${bureau}/config.json`);
 
-  // Load team config
-  const teamPath = resolve(import.meta.dir, "teams", `${team}.ts`);
-  if (!existsSync(teamPath)) {
-    console.error(`Team config not found: ${teamPath}`);
+  // Load bureau config (the directory is still called agents/teams/ for
+  // path stability during the 90-day deprecation window).
+  const bureauPath = resolve(import.meta.dir, "teams", `${bureau}.ts`);
+  if (!existsSync(bureauPath)) {
+    console.error(`Bureau config not found: ${bureauPath}`);
     console.error(`Create it by copying agents/teams/_template.ts`);
     process.exit(1);
   }
-  const teamModule = await import(teamPath);
-  const teamConfig = teamModule.default;
+  const bureauModule = await import(bureauPath);
+  const bureauConfig = bureauModule.default;
 
   // Register agents
   const agentKeys: Record<string, string> = {};
   let registered = 0;
-  for (const p of teamConfig.agents) {
+  for (const p of bureauConfig.agents) {
     const res = await apiPost(
       "/api/agents/register",
       { name: p.name, role: p.role, personality_brief: p.brief },
@@ -229,22 +240,22 @@ async function runSetup(team: string): Promise<void> {
   if (Object.keys(agentKeys).length === 0) {
     // All agents returned 409 (already exist). Try to reuse cached keys.
     console.warn("\n⚠ All agents already exist. Attempting to reuse existing keys...");
-    const existing = readKeys(team);
+    const existing = readKeys(bureau);
     if (!existing || Object.keys(existing.agents).length === 0) {
       console.error("No cached keys found. Delete agents via /dashboard and re-run setup.");
       process.exit(1);
     }
-    console.log(`✓ Reusing ${Object.keys(existing.agents).length} existing key(s) from ~/.hive/${team}/keys.json`);
-    await installAndFinish(team, existing, projectRoot);
+    console.log(`✓ Reusing ${Object.keys(existing.agents).length} existing key(s) from ~/.hive/${bureau}/keys.json`);
+    await installAndFinish(bureau, existing, projectRoot);
     return;
   }
 
-  const failedCount = teamConfig.agents.filter(
+  const failedCount = bureauConfig.agents.filter(
     (p: { name: string }) => !agentKeys[p.name]
   ).length;
 
   if (failedCount > 0) {
-    const failedNames = teamConfig.agents
+    const failedNames = bureauConfig.agents
       .filter((p: { name: string }) => !agentKeys[p.name])
       .map((p: { name: string }) => p.name)
       .join(", ");
@@ -253,27 +264,30 @@ async function runSetup(team: string): Promise<void> {
   }
 
   const keys: HiveKeys = { builder_token: builderToken, agents: agentKeys };
-  writeKeys(team, keys);
-  console.log(`✓ ${registered} agent key(s) saved to ~/.hive/${team}/keys.json`);
+  writeKeys(bureau, keys);
+  console.log(`✓ ${registered} agent key(s) saved to ~/.hive/${bureau}/keys.json`);
 
-  await installAndFinish(team, keys, projectRoot);
+  await installAndFinish(bureau, keys, projectRoot);
 }
 
-async function installAndFinish(team: string, _keys: HiveKeys, projectRoot: string): Promise<void> {
+async function installAndFinish(bureau: string, _keys: HiveKeys, projectRoot: string): Promise<void> {
   const bunPath = process.execPath;
 
   try {
-    await installService({ team, bunPath, projectRoot });
+    // `installService` takes a `team` field (macOS plist label stable across
+    // the deprecation window). We keep the field name and pass the bureau
+    // value — renaming the plist label would break existing user services.
+    await installService({ team: bureau, bunPath, projectRoot });
   } catch (err) {
     console.error(`\nFailed to install service: ${err instanceof Error ? err.message : String(err)}`);
-    console.error(`You can try manually running: launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.hive.agents.${team}.plist`);
+    console.error(`You can try manually running: launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.hive.agents.${bureau}.plist`);
     process.exit(1);
   }
 
-  console.log(`\n✓ Service installed: sh.hive.agents.${team}`);
-  console.log(`✓ Logs: ~/Library/Logs/hive/${team}.log`);
+  console.log(`\n✓ Service installed: sh.hive.agents.${bureau}`);
+  console.log(`✓ Logs: ~/Library/Logs/hive/${bureau}.log`);
   console.log(`\nAgents are running and will auto-start at login.`);
-  console.log(`Run 'bun run agents status --team ${team}' to verify.`);
+  console.log(`Run 'bun run agents status --bureau ${bureau}' to verify.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -282,27 +296,27 @@ async function installAndFinish(team: string, _keys: HiveKeys, projectRoot: stri
 
 switch (subcommand) {
   case "setup":
-    await runSetup(team);
+    await runSetup(bureau);
     break;
   case "start":
-    await startService(team);
-    console.log(`[hive] Started sh.hive.agents.${team}`);
+    await startService(bureau);
+    console.log(`[hive] Started sh.hive.agents.${bureau}`);
     break;
   case "stop":
-    await stopService(team);
-    console.log(`[hive] Stopped sh.hive.agents.${team}`);
+    await stopService(bureau);
+    console.log(`[hive] Stopped sh.hive.agents.${bureau}`);
     break;
   case "restart":
-    await restartService(team);
-    console.log(`[hive] Restarted sh.hive.agents.${team}`);
+    await restartService(bureau);
+    console.log(`[hive] Restarted sh.hive.agents.${bureau}`);
     break;
   case "status":
-    await statusService(team);
+    await statusService(bureau);
     break;
   case "logs":
-    await logsService(team);
+    await logsService(bureau);
     break;
   case "uninstall":
-    await uninstallService(team);
+    await uninstallService(bureau);
     break;
 }

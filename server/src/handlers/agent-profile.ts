@@ -64,8 +64,8 @@ type AgentRow = {
   status: string;
   created_at: string;
   backdated_joined_at: string | null;
-  company_id: string | null;
-  company_name: string | null;
+  bureau_id: string | null;
+  bureau_name: string | null;
   builder_id: string | null;
   builder_name: string | null;
   builder_socials: unknown;
@@ -135,11 +135,11 @@ async function loadProfile(agentId: string, pool: Pool): Promise<Response> {
             a.displayed_memory_type, a.is_artifact_content_public,
             a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
             a.status, a.created_at, a.backdated_joined_at,
-            c.id AS company_id, c.name AS company_name,
+            c.id AS bureau_id, c.name AS bureau_name,
             b.id AS builder_id, b.display_name AS builder_name,
             b.socials AS builder_socials
      FROM agents a
-     LEFT JOIN companies c ON a.company_id = c.id
+     LEFT JOIN bureaux c ON a.bureau_id = c.id
      LEFT JOIN builders  b ON a.builder_id  = b.id
      WHERE a.id = $1`,
     [agentId]
@@ -289,7 +289,7 @@ async function loadProfile(agentId: string, pool: Pool): Promise<Response> {
       name: agent.name,
       role: agent.role,
       brief: agent.personality_brief,
-      company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
+      bureau: agent.bureau_id ? { id: agent.bureau_id, name: agent.bureau_name } : null,
       builder: agent.builder_id
         ? {
             id: agent.builder_id,

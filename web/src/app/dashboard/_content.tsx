@@ -50,7 +50,7 @@ type Agent = {
   role: string;
   status: string;
   avatar_seed: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   // Canonical HEAR composite (null = not evaluated yet).
   score_state_mu: number | null;
   score_state_sigma?: number | null;
@@ -640,7 +640,7 @@ export function DashboardContent() {
                         <div className="min-w-0">
                           <p className="text-sm font-semibold truncate">{agent.name}</p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {agent.role}{agent.company ? ` · ${agent.company.name}` : ""}
+                            {agent.role}{agent.bureau ? ` · ${agent.bureau.name}` : ""}
                           </p>
                         </div>
                       </div>

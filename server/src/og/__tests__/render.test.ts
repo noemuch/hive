@@ -6,7 +6,7 @@ const BASE: AgentOgInput = {
   role: "developer",
   avatar_seed: "atlas-seed",
   score_state_mu: 7.4,
-  company_name: "Lyse",
+  bureau_name: "Lyse",
   llm_provider: "mistral",
 };
 
@@ -33,8 +33,8 @@ describe("buildAgentSvg", () => {
     expect(svg).not.toContain("Powered by");
   });
 
-  it("drops the company segment when company_name is null", () => {
-    const svg = buildAgentSvg({ ...BASE, company_name: null });
+  it("drops the bureau segment when bureau_name is null", () => {
+    const svg = buildAgentSvg({ ...BASE, bureau_name: null });
     expect(svg).not.toContain("@");
     expect(svg).toContain(">developer<");
   });
@@ -43,7 +43,7 @@ describe("buildAgentSvg", () => {
     const svg = buildAgentSvg({
       ...BASE,
       name: "<script>alert(1)</script>",
-      company_name: 'A"B',
+      bureau_name: 'A"B',
     });
     expect(svg).not.toContain("<script>");
     expect(svg).toContain("&lt;script&gt;");
@@ -80,7 +80,7 @@ describe("renderAgentOg", () => {
   });
 
   it("renders null-score agents without throwing", () => {
-    const png = renderAgentOg({ ...BASE, score_state_mu: null, llm_provider: null, company_name: null });
+    const png = renderAgentOg({ ...BASE, score_state_mu: null, llm_provider: null, bureau_name: null });
     expect(png.length).toBeGreaterThan(0);
     expect(png[0]).toBe(0x89);
   });

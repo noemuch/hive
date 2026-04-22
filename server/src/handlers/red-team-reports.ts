@@ -8,7 +8,7 @@ import type { Route } from "../router/route-types";
  * Public endpoint that powers the /red-team transparency page. Reports
  * themselves are inline seed data (MVP; one report per quarter, starting
  * 2026-Q2 which is launch — zeros on every counter). The only live piece
- * is `argus_active`: true iff at least one Argus-company agent is currently
+ * is `argus_active`: true iff at least one Argus-bureau agent is currently
  * active (the convention for "online and heartbeating" — see
  * `engine/handlers.ts::handleHeartbeat` + `agents.status` CHECK constraint
  * in `migrations/001_init.sql`).
@@ -19,7 +19,7 @@ import type { Route } from "../router/route-types";
  */
 
 const CANARY_COUNT = 52; // matches existing canary watermarking (see scripts/hear/lib/canary.ts)
-const ARGUS_COMPANY_NAME = "Argus";
+const ARGUS_BUREAU_NAME = "Argus";
 // 'active' is the repo-wide convention for "online, heartbeating" agents.
 // 'online' is NOT a permitted value by the `agents.status` CHECK constraint.
 const ARGUS_ACTIVE_STATUS = "active";
@@ -50,10 +50,10 @@ export async function handleRedTeamReports(pool: Pool): Promise<Response> {
     const { rowCount } = await pool.query(
       `SELECT 1
        FROM agents a
-       JOIN companies c ON c.id = a.company_id
+       JOIN bureaux c ON c.id = a.bureau_id
        WHERE c.name = $1 AND a.status = $2
        LIMIT 1`,
-      [ARGUS_COMPANY_NAME, ARGUS_ACTIVE_STATUS],
+      [ARGUS_BUREAU_NAME, ARGUS_ACTIVE_STATUS],
     );
     argusActive = (rowCount ?? 0) > 0;
   } catch (err) {

@@ -3,9 +3,9 @@ import { json } from "../http/response";
 import { marketplaceCache, cacheKeyFromUrl } from "../cache/lru";
 import type { Route } from "../router/route-types";
 
-const TTL_COMPANIES_MS = 30_000;
+const TTL_BUREAUX_MS = 30_000;
 
-export async function handleCompaniesList(url: URL, pool: Pool): Promise<Response> {
+export async function handleBureauxList(url: URL, pool: Pool): Promise<Response> {
   const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
     const status = url.searchParams.get("status");
     const sort = url.searchParams.get("sort") || "founded_at";
@@ -31,11 +31,11 @@ export async function handleCompaniesList(url: URL, pool: Pool): Promise<Respons
          c.lifecycle_state as status,
          c.agent_count_cache as agent_count,
          (SELECT COUNT(*)::int FROM agents
-          WHERE company_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
+          WHERE bureau_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
          ROUND(AVG(a.score_state_mu)::numeric, 2) as avg_score_state_mu,
          (SELECT COUNT(*)::int FROM messages m
           JOIN channels ch ON m.channel_id = ch.id
-          WHERE ch.company_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
+          WHERE ch.bureau_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
          c.last_activity_at,
          c.floor_plan,
          c.founded_at,
@@ -46,19 +46,19 @@ export async function handleCompaniesList(url: URL, pool: Pool): Promise<Respons
            FROM (
              SELECT id, avatar_seed
              FROM agents a2
-             WHERE a2.company_id = c.id AND a2.status NOT IN ('retired', 'disconnected')
+             WHERE a2.bureau_id = c.id AND a2.status NOT IN ('retired', 'disconnected')
              ORDER BY a2.score_state_mu DESC NULLS LAST, a2.created_at ASC
              LIMIT 3
            ) a2
          ) as top_agents
-       FROM companies c
-       LEFT JOIN agents a ON a.company_id = c.id AND a.status NOT IN ('retired', 'disconnected')
+       FROM bureaux c
+       LEFT JOIN agents a ON a.bureau_id = c.id AND a.status NOT IN ('retired', 'disconnected')
        LEFT JOIN LATERAL (
          SELECT ag.name AS last_message_author, LEFT(m.content, 120) AS last_message_preview
          FROM messages m
          JOIN channels ch2 ON m.channel_id = ch2.id
          LEFT JOIN agents ag ON m.author_id = ag.id
-         WHERE ch2.company_id = c.id
+         WHERE ch2.bureau_id = c.id
          ORDER BY m.created_at DESC
          LIMIT 1
        ) lm ON true
@@ -67,12 +67,12 @@ export async function handleCompaniesList(url: URL, pool: Pool): Promise<Respons
        ORDER BY ${orderBy}`,
       params,
     );
-    return { companies: rows };
-  }, TTL_COMPANIES_MS);
+    return { bureaux: rows };
+  }, TTL_BUREAUX_MS);
   return json(data);
 }
 
-export async function handleCompanyDetail(companyId: string, pool: Pool): Promise<Response> {
+export async function handleBureauDetail(bureauId: string, pool: Pool): Promise<Response> {
   const { rows } = await pool.query(
     `SELECT
        c.id,
@@ -81,29 +81,29 @@ export async function handleCompanyDetail(companyId: string, pool: Pool): Promis
        c.lifecycle_state as status,
        c.agent_count_cache as agent_count,
        (SELECT COUNT(*)::int FROM agents
-        WHERE company_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
+        WHERE bureau_id = c.id AND status IN ('active', 'idle')) as active_agent_count,
        (SELECT COUNT(*)::int FROM messages m
         JOIN channels ch ON m.channel_id = ch.id
-        WHERE ch.company_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
+        WHERE ch.bureau_id = c.id AND m.created_at > now() - INTERVAL '24 hours') as messages_today,
        c.floor_plan,
        c.founded_at
-     FROM companies c
+     FROM bureaux c
      WHERE c.id = $1`,
-    [companyId],
+    [bureauId],
   );
-  if (rows.length === 0) return json({ error: "not_found", message: "Company not found" }, 404);
-  return json({ company: rows[0] });
+  if (rows.length === 0) return json({ error: "not_found", message: "Bureau not found" }, 404);
+  return json({ bureau: rows[0] });
 }
 
 export const routes: Route[] = [
   {
     method: "GET",
-    path: "/api/companies",
-    handler: (ctx) => handleCompaniesList(ctx.url, ctx.pool),
+    path: "/api/bureaux",
+    handler: (ctx) => handleBureauxList(ctx.url, ctx.pool),
   },
   {
     method: "GET",
-    path: "/api/companies/:id",
-    handler: (ctx) => handleCompanyDetail(ctx.params.id, ctx.pool),
+    path: "/api/bureaux/:id",
+    handler: (ctx) => handleBureauDetail(ctx.params.id, ctx.pool),
   },
 ];

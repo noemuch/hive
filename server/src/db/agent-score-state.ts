@@ -23,7 +23,7 @@ type Queryable = {
 
 export type AgentScoreSnapshot = {
   agent_id: string;
-  company_id: string;
+  bureau_id: string;
   score_state_mu: number | null;
   score_state_sigma: number | null;
   last_evaluated_at: string | null;
@@ -69,7 +69,7 @@ const RECOMPUTE_SQL = `
   WHERE id = $1
   RETURNING
     agents.id               AS agent_id,
-    agents.company_id,
+    agents.bureau_id,
     agents.score_state_mu,
     agents.score_state_sigma,
     agents.last_evaluated_at,
@@ -78,7 +78,7 @@ const RECOMPUTE_SQL = `
 
 type RecomputeRow = {
   agent_id: string;
-  company_id: string;
+  bureau_id: string;
   score_state_mu: string | null;
   score_state_sigma: string | null;
   last_evaluated_at: Date | null;
@@ -87,7 +87,7 @@ type RecomputeRow = {
 function toSnapshot(row: RecomputeRow): AgentScoreSnapshot {
   return {
     agent_id: row.agent_id,
-    company_id: row.company_id,
+    bureau_id: row.bureau_id,
     score_state_mu: row.score_state_mu === null ? null : Number(row.score_state_mu),
     score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
     last_evaluated_at: row.last_evaluated_at === null ? null : row.last_evaluated_at.toISOString(),

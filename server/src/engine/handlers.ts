@@ -19,7 +19,7 @@ import type {
   ArtifactReviewedEvent,
   RateLimitedEvent,
   ErrorEvent,
-  CompanyStatsUpdatedEvent,
+  BureauStatsUpdatedEvent,
 } from "../protocol/types";
 
 /** Route an authenticated agent event to its handler with rate limiting. */
@@ -35,21 +35,21 @@ export async function handleAgentEvent(
     ws.send(
       JSON.stringify({
         type: "error",
-        message: "not authenticated or not assigned to a company",
+        message: "not authenticated or not assigned to a bureau",
       } satisfies ErrorEvent)
     );
     return;
   }
 
-  // Heartbeat doesn't require company assignment
+  // Heartbeat doesn't require bureau assignment
   if (event.type === "heartbeat") {
     await handleHeartbeat(ws);
     return;
   }
 
-  // Other events require company assignment
-  if (!ws.data.companyId) {
-    ws.send(JSON.stringify({ type: "error", message: "not assigned to a company" } satisfies ErrorEvent));
+  // Other events require bureau assignment
+  if (!ws.data.bureauId) {
+    ws.send(JSON.stringify({ type: "error", message: "not assigned to a bureau" } satisfies ErrorEvent));
     return;
   }
 
@@ -108,8 +108,8 @@ async function handleSendMessage(
 
   // Find the channel
   const { rows: channels } = isPublic
-    ? await pool.query(`SELECT id, name FROM channels WHERE company_id IS NULL AND name = '#public'`)
-    : await pool.query(`SELECT id, name FROM channels WHERE company_id = $1 AND name = $2`, [ws.data.companyId, event.channel]);
+    ? await pool.query(`SELECT id, name FROM channels WHERE bureau_id IS NULL AND name = '#public'`)
+    : await pool.query(`SELECT id, name FROM channels WHERE bureau_id = $1 AND name = $2`, [ws.data.bureauId, event.channel]);
 
   if (channels.length === 0) {
     ws.send(
@@ -182,12 +182,12 @@ async function handleSendMessage(
   if (isPublic) {
     router.broadcastToAll(broadcastEvent, ws.data.agentId);
   } else {
-    router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+    router.broadcast(ws.data.bureauId!, broadcastEvent, ws.data.agentId);
   }
 
-  // Notify watch_all subscribers that this company's message count changed
-  if (ws.data.companyId) {
-    broadcastStatsUpdate(ws.data.companyId);
+  // Notify watch_all subscribers that this bureau's message count changed
+  if (ws.data.bureauId) {
+    broadcastStatsUpdate(ws.data.bureauId);
   }
 }
 
@@ -228,7 +228,7 @@ async function handleAddReaction(
     target_message_id: event.target_message_id,
   };
 
-  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  router.broadcast(ws.data.bureauId!, broadcastEvent, ws.data.agentId);
 }
 
 // ---------------------------------------------------------------------------
@@ -240,11 +240,11 @@ async function handleCreateArtifact(
   event: CreateArtifactEvent
 ): Promise<void> {
   const { rows } = await pool.query(
-    `INSERT INTO artifacts (company_id, author_id, type, title, content, media_url, media_mime)
+    `INSERT INTO artifacts (bureau_id, author_id, type, title, content, media_url, media_mime)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, status, created_at`,
     [
-      ws.data.companyId,
+      ws.data.bureauId,
       ws.data.agentId,
       event.artifact_type,
       event.title,
@@ -299,7 +299,7 @@ async function handleCreateArtifact(
     status: artifact.status,
   };
 
-  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  router.broadcast(ws.data.bureauId!, broadcastEvent, ws.data.agentId);
 
   // Trigger peer evaluation after 30s
   setTimeout(() => {
@@ -315,7 +315,7 @@ async function handleUpdateArtifact(
 ): Promise<void> {
   // Verify artifact exists and agent is the author
   const { rows: artifacts } = await pool.query(
-    `SELECT id, title, status, author_id, company_id FROM artifacts WHERE id = $1`,
+    `SELECT id, title, status, author_id, bureau_id FROM artifacts WHERE id = $1`,
     [event.artifact_id]
   );
 
@@ -366,7 +366,7 @@ async function handleUpdateArtifact(
     new_status: newStatus,
   };
 
-  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  router.broadcast(ws.data.bureauId!, broadcastEvent, ws.data.agentId);
 }
 
 async function handleReviewArtifact(
@@ -375,7 +375,7 @@ async function handleReviewArtifact(
 ): Promise<void> {
   // Verify artifact exists
   const { rows: artifacts } = await pool.query(
-    `SELECT id, title, author_id, company_id FROM artifacts WHERE id = $1`,
+    `SELECT id, title, author_id, bureau_id FROM artifacts WHERE id = $1`,
     [event.artifact_id]
   );
 
@@ -392,9 +392,9 @@ async function handleReviewArtifact(
     return;
   }
 
-  // Must be in the same company
-  if (artifact.company_id !== ws.data.companyId) {
-    ws.send(JSON.stringify({ type: "error", message: "can only review artifacts in your company" } satisfies ErrorEvent));
+  // Must be in the same bureau
+  if (artifact.bureau_id !== ws.data.bureauId) {
+    ws.send(JSON.stringify({ type: "error", message: "can only review artifacts in your bureau" } satisfies ErrorEvent));
     return;
   }
 
@@ -424,7 +424,7 @@ async function handleReviewArtifact(
     verdict: event.verdict,
   };
 
-  router.broadcast(ws.data.companyId!, broadcastEvent, ws.data.agentId);
+  router.broadcast(ws.data.bureauId!, broadcastEvent, ws.data.agentId);
 }
 
 // ---------------------------------------------------------------------------
@@ -432,10 +432,10 @@ async function handleReviewArtifact(
 // ---------------------------------------------------------------------------
 
 /**
- * Query current agent/message stats for a company and broadcast
- * a company_stats_updated event to all watch_all subscribers.
+ * Query current agent/message stats for a bureau and broadcast
+ * a bureau_stats_updated event to all watch_all subscribers.
  */
-export async function fetchCompanyStats(companyId: string): Promise<CompanyStatsUpdatedEvent | null> {
+export async function fetchBureauStats(bureauId: string): Promise<BureauStatsUpdatedEvent | null> {
   const { rows } = await pool.query<{
     agent_count: string;
     active_agent_count: string;
@@ -445,31 +445,31 @@ export async function fetchCompanyStats(companyId: string): Promise<CompanyStats
       COUNT(CASE WHEN status NOT IN ('retired','disconnected') THEN 1 END)::text AS agent_count,
       COUNT(CASE WHEN status = 'active' THEN 1 END)::text AS active_agent_count,
       (SELECT COUNT(*) FROM messages
-        WHERE author_id IN (SELECT id FROM agents WHERE company_id = $1)
+        WHERE author_id IN (SELECT id FROM agents WHERE bureau_id = $1)
         AND created_at >= CURRENT_DATE AT TIME ZONE 'UTC')::text AS messages_today
     FROM agents
-    WHERE company_id = $1`,
-    [companyId]
+    WHERE bureau_id = $1`,
+    [bureauId]
   );
   if (!rows[0]) return null;
   return {
-    type: "company_stats_updated",
-    company_id: companyId,
+    type: "bureau_stats_updated",
+    bureau_id: bureauId,
     agent_count: parseInt(rows[0].agent_count, 10),
     active_agent_count: parseInt(rows[0].active_agent_count, 10),
     messages_today: parseInt(rows[0].messages_today, 10),
-  } satisfies CompanyStatsUpdatedEvent;
+  } satisfies BureauStatsUpdatedEvent;
 }
 
-// Debounce stats broadcasts: max 1 per company per 3 seconds
+// Debounce stats broadcasts: max 1 per bureau per 3 seconds
 const statsDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-export function broadcastStatsUpdate(companyId: string): void {
-  if (statsDebounceTimers.has(companyId)) return;
-  statsDebounceTimers.set(companyId, setTimeout(async () => {
-    statsDebounceTimers.delete(companyId);
+export function broadcastStatsUpdate(bureauId: string): void {
+  if (statsDebounceTimers.has(bureauId)) return;
+  statsDebounceTimers.set(bureauId, setTimeout(async () => {
+    statsDebounceTimers.delete(bureauId);
     try {
-      const stats = await fetchCompanyStats(companyId);
+      const stats = await fetchBureauStats(bureauId);
       if (stats) router.broadcastToAllWatchers(stats);
     } catch (err) {
       console.error("[ws] debounced stats broadcast error:", err);
@@ -487,10 +487,10 @@ async function handleSync(ws: AgentSocket, event: SyncEvent): Promise<void> {
      FROM messages m
      JOIN agents a ON m.author_id = a.id
      JOIN channels ch ON m.channel_id = ch.id
-     WHERE (ch.company_id = $1 OR ch.company_id IS NULL) AND m.created_at > $2
+     WHERE (ch.bureau_id = $1 OR ch.bureau_id IS NULL) AND m.created_at > $2
      ORDER BY m.created_at ASC
      LIMIT 200`,
-    [ws.data.companyId, since]
+    [ws.data.bureauId, since]
   );
 
   // Send each missed message

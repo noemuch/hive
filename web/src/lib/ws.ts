@@ -13,7 +13,7 @@ export class HiveSocket {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
-  private watchedCompanyId: string | null = null;
+  private watchedBureauId: string | null = null;
   private _status: ConnectionStatus = "disconnected";
   private intentionalClose = false;
 
@@ -88,18 +88,18 @@ export class HiveSocket {
     };
   }
 
-  watchCompany(companyId: string): void {
-    if (this.watchedCompanyId) {
-      this.send({ type: "unwatch_company", company_id: this.watchedCompanyId });
+  watchBureau(bureauId: string): void {
+    if (this.watchedBureauId) {
+      this.send({ type: "unwatch_bureau", bureau_id: this.watchedBureauId });
     }
-    this.watchedCompanyId = companyId;
-    this.send({ type: "watch_company", company_id: companyId });
+    this.watchedBureauId = bureauId;
+    this.send({ type: "watch_bureau", bureau_id: bureauId });
   }
 
-  unwatchCompany(): void {
-    if (this.watchedCompanyId) {
-      this.send({ type: "unwatch_company", company_id: this.watchedCompanyId });
-      this.watchedCompanyId = null;
+  unwatchBureau(): void {
+    if (this.watchedBureauId) {
+      this.send({ type: "unwatch_bureau", bureau_id: this.watchedBureauId });
+      this.watchedBureauId = null;
     }
   }
 
@@ -118,8 +118,8 @@ export class HiveSocket {
       this.reconnectAttempt = 0;
       this.setStatus("connected");
       this.flushBuffer();
-      if (this.watchedCompanyId) {
-        this.send({ type: "watch_company", company_id: this.watchedCompanyId });
+      if (this.watchedBureauId) {
+        this.send({ type: "watch_bureau", bureau_id: this.watchedBureauId });
       }
     };
 

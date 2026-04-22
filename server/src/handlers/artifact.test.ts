@@ -4,9 +4,9 @@ import { handleArtifactGet, type Requester } from "./artifact";
 const ARTIFACT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const AUTHOR_AGENT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const AUTHOR_BUILDER_ID = "cccccccc-cccc-cccc-cccc-cccccccccccc";
-const AUTHOR_COMPANY_ID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+const AUTHOR_BUREAU_ID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
 const OTHER_BUILDER_ID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
-const OTHER_COMPANY_ID = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+const OTHER_BUREAU_ID = "ffffffff-ffff-ffff-ffff-ffffffffffff";
 const REQUESTER_AGENT_ID = "11111111-1111-1111-1111-111111111111";
 
 const SECRET_CONTENT = "the secret sauce recipe v2";
@@ -22,10 +22,10 @@ type FakeRow = {
   author_id: string;
   author_name: string;
   author_builder_id: string;
-  author_company_id: string | null;
+  author_bureau_id: string | null;
   author_is_artifact_content_public: boolean;
-  company_id: string;
-  company_name: string;
+  bureau_id: string;
+  bureau_name: string;
   media_url: string | null;
   media_mime: string | null;
   provenance: Record<string, unknown> | null;
@@ -44,10 +44,10 @@ function makeRow(overrides: Partial<FakeRow> = {}): FakeRow {
     author_id: AUTHOR_AGENT_ID,
     author_name: "Alice",
     author_builder_id: AUTHOR_BUILDER_ID,
-    author_company_id: AUTHOR_COMPANY_ID,
+    author_bureau_id: AUTHOR_BUREAU_ID,
     author_is_artifact_content_public: false,
-    company_id: AUTHOR_COMPANY_ID,
-    company_name: "Lyse",
+    bureau_id: AUTHOR_BUREAU_ID,
+    bureau_name: "Lyse",
     media_url: null,
     media_mime: null,
     provenance: null,
@@ -67,17 +67,17 @@ function makePool(row: FakeRow | null) {
 const ANON: Requester = { kind: "anonymous" };
 const OWNER_BUILDER: Requester = { kind: "builder", builder_id: AUTHOR_BUILDER_ID };
 const OTHER_BUILDER: Requester = { kind: "builder", builder_id: OTHER_BUILDER_ID };
-const SAME_COMPANY_AGENT: Requester = {
+const SAME_BUREAU_AGENT: Requester = {
   kind: "agent",
   agent_id: REQUESTER_AGENT_ID,
   builder_id: OTHER_BUILDER_ID,
-  company_id: AUTHOR_COMPANY_ID,
+  bureau_id: AUTHOR_BUREAU_ID,
 };
-const OTHER_COMPANY_AGENT: Requester = {
+const OTHER_BUREAU_AGENT: Requester = {
   kind: "agent",
   agent_id: REQUESTER_AGENT_ID,
   builder_id: OTHER_BUILDER_ID,
-  company_id: OTHER_COMPANY_ID,
+  bureau_id: OTHER_BUREAU_ID,
 };
 
 describe("handleArtifactGet", () => {
@@ -132,31 +132,31 @@ describe("handleArtifactGet", () => {
     expect(body.artifact.content).toBeUndefined();
   });
 
-  it("agent in same company + private returns full content", async () => {
+  it("agent in same bureau + private returns full content", async () => {
     const pool = makePool(makeRow({ author_is_artifact_content_public: false }));
-    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, SAME_COMPANY_AGENT);
+    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, SAME_BUREAU_AGENT);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifact.content).toBe(SECRET_CONTENT);
   });
 
-  it("agent in different company + private returns metadata only", async () => {
+  it("agent in different bureau + private returns metadata only", async () => {
     const pool = makePool(makeRow({ author_is_artifact_content_public: false }));
-    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, OTHER_COMPANY_AGENT);
+    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, OTHER_BUREAU_AGENT);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifact.content).toBeUndefined();
   });
 
-  it("agent in same company + public returns full content (public flag wins)", async () => {
+  it("agent in same bureau + public returns full content (public flag wins)", async () => {
     const pool = makePool(makeRow({ author_is_artifact_content_public: true }));
-    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, OTHER_COMPANY_AGENT);
+    const res = await handleArtifactGet(ARTIFACT_ID, pool as any, OTHER_BUREAU_AGENT);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.artifact.content).toBe(SECRET_CONTENT);
   });
 
-  it("metadata-only response still includes id, type, title, author, company, status, timestamps", async () => {
+  it("metadata-only response still includes id, type, title, author, bureau, status, timestamps", async () => {
     const pool = makePool(makeRow({ author_is_artifact_content_public: false }));
     const res = await handleArtifactGet(ARTIFACT_ID, pool as any, ANON);
     const body = await res.json();
@@ -166,8 +166,8 @@ describe("handleArtifactGet", () => {
     expect(art.title).toBe("Design doc");
     expect(art.author_id).toBe(AUTHOR_AGENT_ID);
     expect(art.author_name).toBe("Alice");
-    expect(art.company_id).toBe(AUTHOR_COMPANY_ID);
-    expect(art.company_name).toBe("Lyse");
+    expect(art.bureau_id).toBe(AUTHOR_BUREAU_ID);
+    expect(art.bureau_name).toBe("Lyse");
     expect(art.status).toBe("published");
     expect(art.created_at).toBeDefined();
     expect(art.updated_at).toBeDefined();

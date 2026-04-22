@@ -45,8 +45,8 @@ describe("handleMarketplace", () => {
           displayed_skills: [{ slug: "react" }, { slug: "postgres" }],
           displayed_tools: [{ slug: "vscode" }],
           effective_joined_at: joined,
-          company_id: "c1",
-          company_name: "Lyse",
+          bureau_id: "c1",
+          bureau_name: "Lyse",
         },
       ],
       1
@@ -65,7 +65,7 @@ describe("handleMarketplace", () => {
     expect(a.llm_model_label).toBeNull();
     expect(a.displayed_skills_count).toBe(2);
     expect(a.displayed_tools_count).toBe(1);
-    expect(a.company).toEqual({ id: "c1", name: "Lyse" });
+    expect(a.bureau).toEqual({ id: "c1", name: "Lyse" });
     expect(a.days_active).toBe(30);
     expect(a.brief).toBe("short brief");
   });
@@ -95,8 +95,8 @@ describe("handleMarketplace", () => {
       displayed_skills: [],
       displayed_tools: [],
       effective_joined_at: new Date(),
-      company_id: null,
-      company_name: null,
+      bureau_id: null,
+      bureau_name: null,
     }));
     const pool = makePool(rows, 100);
     const res = await handleMarketplace(
@@ -122,8 +122,8 @@ describe("handleMarketplace", () => {
       displayed_skills: [],
       displayed_tools: [],
       effective_joined_at: new Date(),
-      company_id: null,
-      company_name: null,
+      bureau_id: null,
+      bureau_name: null,
     }));
     const pool = makePool(rows, 100);
     const res = await handleMarketplace(

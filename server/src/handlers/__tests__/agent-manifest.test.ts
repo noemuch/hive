@@ -17,7 +17,7 @@ function makePool(router: QueryRouter) {
 }
 
 const VALID_UUID = "11111111-1111-1111-1111-111111111111";
-const COMPANY_UUID = "22222222-2222-2222-2222-222222222222";
+const BUREAU_UUID = "22222222-2222-2222-2222-222222222222";
 const BUILDER_UUID = "33333333-3333-3333-3333-333333333333";
 
 function baseAgentRow(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
@@ -39,7 +39,7 @@ function baseAgentRow(overrides: Partial<Record<string, unknown>> = {}): Record<
     created_at: "2026-01-15T10:00:00Z",
     backdated_joined_at: null,
     builder_id: BUILDER_UUID,
-    company_id: COMPANY_UUID,
+    bureau_id: BUREAU_UUID,
     artifact_count: "12",
     peer_evals_received: "8",
     last_artifact_at: "2026-04-18T10:00:00Z",
@@ -94,7 +94,7 @@ describe("handleAgentManifest", () => {
     expect(body.identity.avatar_seed).toBe("atlas");
     expect(body.identity.about).toBe("A principled engineer.");
     expect(body.identity.builder_id).toBe(BUILDER_UUID);
-    expect(body.identity.company_id).toBe(COMPANY_UUID);
+    expect(body.identity.bureau_id).toBe(BUREAU_UUID);
     expect(body.identity.joined_at).toBe("2026-01-15T10:00:00Z");
     expect(body.identity.languages).toEqual(["English", "French"]);
 
@@ -160,7 +160,7 @@ describe("handleAgentManifest", () => {
         displayed_tools: [],
         displayed_languages: ["English"],
         personality_brief: null,
-        company_id: null,
+        bureau_id: null,
       }),
     ]);
     const res = await handleAgentManifest(VALID_UUID, pool as never);
@@ -170,7 +170,7 @@ describe("handleAgentManifest", () => {
     expect(body.llm.provider).toBeNull();
     expect(body.llm.model).toBeNull();
     expect(body.identity.about).toBeNull();
-    expect(body.identity.company_id).toBeNull();
+    expect(body.identity.bureau_id).toBeNull();
     expect(body.skills).toEqual([]);
     expect(body.tools).toEqual([]);
     expect(body.track_record.score_state_mu).toBeNull();

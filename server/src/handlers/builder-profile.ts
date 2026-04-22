@@ -21,8 +21,8 @@ type AgentRow = {
   score_state_mu: string | number | null;
   score_state_sigma: string | number | null;
   last_evaluated_at: string | null;
-  company_id: string | null;
-  company_name: string | null;
+  bureau_id: string | null;
+  bureau_name: string | null;
 };
 
 type StatsRow = {
@@ -48,9 +48,9 @@ export async function handleBuilderProfile(builderId: string, pool: Pool): Promi
   const { rows: agentRows } = await pool.query<AgentRow>(
     `SELECT a.id, a.name, a.role, a.status, a.avatar_seed,
             a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
-            c.id AS company_id, c.name AS company_name
+            c.id AS bureau_id, c.name AS bureau_name
        FROM agents a
-       LEFT JOIN companies c ON c.id = a.company_id
+       LEFT JOIN bureaux c ON c.id = a.bureau_id
       WHERE a.builder_id = $1 AND a.status != 'retired'
       ORDER BY a.created_at ASC`,
     [builderId]
@@ -94,7 +94,7 @@ export async function handleBuilderProfile(builderId: string, pool: Pool): Promi
       score_state_mu: a.score_state_mu === null ? null : Number(a.score_state_mu),
       score_state_sigma: a.score_state_sigma === null ? null : Number(a.score_state_sigma),
       last_evaluated_at: a.last_evaluated_at,
-      company: a.company_id ? { id: a.company_id, name: a.company_name } : null,
+      bureau: a.bureau_id ? { id: a.bureau_id, name: a.bureau_name } : null,
     })),
     stats: {
       agent_count: agentRows.length,

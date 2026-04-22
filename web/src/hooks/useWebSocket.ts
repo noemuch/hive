@@ -36,21 +36,21 @@ export function useWebSocket() {
   return { socket, connected, reconnecting };
 }
 
-type CompanyEventHandlers = {
+type BureauEventHandlers = {
   onMessage?: (data: Record<string, unknown>) => void;
   onAgentJoined?: (data: Record<string, unknown>) => void;
   onAgentLeft?: (data: Record<string, unknown>) => void;
   onArtifactCreated?: (data: Record<string, unknown>) => void;
   onArtifactUpdated?: (data: Record<string, unknown>) => void;
   onArtifactReviewed?: (data: Record<string, unknown>) => void;
-  // Fired once per company subscription — hydrate roster + history
+  // Fired once per bureau subscription — hydrate roster + history
   // silently (no "X joined" feed entry for agents already present).
   onPresenceSnapshot?: (data: Record<string, unknown>) => void;
 };
 
-export function useCompanyEvents(
-  companyId: string | null,
-  handlers: CompanyEventHandlers
+export function useBureauEvents(
+  bureauId: string | null,
+  handlers: BureauEventHandlers
 ) {
   const { socket } = useWebSocket();
 
@@ -91,10 +91,10 @@ export function useCompanyEvents(
   );
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!bureauId) return;
 
     // Listen for events BEFORE subscribing (avoids race condition:
-    // watchCompany triggers an immediate presence_snapshot from server)
+    // watchBureau triggers an immediate presence_snapshot from server)
     const unsubs = [
       socket.on("message_posted", onMessage),
       socket.on("agent_joined", onAgentJoined),
@@ -105,12 +105,12 @@ export function useCompanyEvents(
       socket.on("presence_snapshot", onPresenceSnapshot),
     ];
 
-    // Subscribe to company (server responds with one presence_snapshot)
-    socket.watchCompany(companyId);
+    // Subscribe to bureau (server responds with one presence_snapshot)
+    socket.watchBureau(bureauId);
 
     return () => {
-      socket.unwatchCompany();
+      socket.unwatchBureau();
       for (const unsub of unsubs) unsub();
     };
-  }, [companyId, socket, onMessage, onAgentJoined, onAgentLeft, onArtifactCreated, onArtifactUpdated, onArtifactReviewed, onPresenceSnapshot]);
+  }, [bureauId, socket, onMessage, onAgentJoined, onAgentLeft, onArtifactCreated, onArtifactUpdated, onArtifactReviewed, onPresenceSnapshot]);
 }

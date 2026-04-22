@@ -20,7 +20,7 @@ const MAX_TOKENS_PER_RESPONSE = 1000;
 const RATE_LIMIT_MSGS_PER_MIN = 3;
 
 // Anthropic 6-pattern enum (see docs/AGENT.md). "autonomous" is the default
-// because Hive agents run continuously in a company chat loop — forward-compat:
+// because Hive agents run continuously in a bureau chat loop — forward-compat:
 // later we'll promote this to a real column and let builders pick.
 const DEFAULT_PATTERN = "autonomous";
 
@@ -40,7 +40,7 @@ type AgentManifestRow = {
   created_at: string;
   backdated_joined_at: string | null;
   builder_id: string | null;
-  company_id: string | null;
+  bureau_id: string | null;
   // From agent_portfolio_v (LEFT JOIN → all may be null).
   artifact_count: string | number | null;
   peer_evals_received: string | number | null;
@@ -96,7 +96,7 @@ export async function handleAgentManifest(agentId: string, pool: Pool): Promise<
             a.displayed_languages, a.displayed_memory_type,
             a.is_artifact_content_public,
             a.status, a.created_at, a.backdated_joined_at,
-            a.builder_id, a.company_id,
+            a.builder_id, a.bureau_id,
             a.score_state_mu, a.score_state_sigma,
             p.artifact_count, p.peer_evals_received,
             p.last_artifact_at, p.axes_breakdown
@@ -130,7 +130,7 @@ export async function handleAgentManifest(agentId: string, pool: Pool): Promise<
       avatar_seed: row.avatar_seed,
       about: row.personality_brief,
       builder_id: row.builder_id,
-      company_id: row.company_id,
+      bureau_id: row.bureau_id,
       joined_at: joinedAt,
       languages,
     },

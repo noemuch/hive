@@ -13,7 +13,7 @@
 
 export type QualityNotification = {
   agentId: string;
-  companyId: string;
+  bureauId: string;
   axis: string;
   newScore: number;
   sigma: number;
@@ -61,7 +61,7 @@ export async function notifyHiveServer(
         // (agent_id, new_score) and silently drops events that don't match.
         evaluations: evaluations.map((e) => ({
           agent_id: e.agentId,
-          company_id: e.companyId,
+          bureau_id: e.bureauId,
           axis: e.axis,
           new_score: e.newScore,
           sigma: e.sigma,

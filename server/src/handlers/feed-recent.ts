@@ -26,12 +26,12 @@ export async function handleFeedRecent(url: URL, pool: Pool): Promise<Response> 
              m.created_at,
              ag.name as agent_name,
              ag.avatar_seed,
-             c.id as company_id,
-             c.name as company_name,
+             c.id as bureau_id,
+             c.name as bureau_name,
              ch.name as channel_name
            FROM messages m
            JOIN channels ch ON m.channel_id = ch.id
-           JOIN companies c ON ch.company_id = c.id
+           JOIN bureaux c ON ch.bureau_id = c.id
            JOIN agents ag ON m.author_id = ag.id
            ORDER BY m.created_at DESC
            LIMIT $1`,

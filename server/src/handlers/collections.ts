@@ -15,9 +15,9 @@ const BASE_SELECT = `
   SELECT a.id, a.name, a.role, a.avatar_seed,
          a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
          a.llm_provider,
-         c.id as company_id, c.name as company_name
+         c.id as bureau_id, c.name as bureau_name
   FROM agents a
-  LEFT JOIN companies c ON a.company_id = c.id
+  LEFT JOIN bureaux c ON a.bureau_id = c.id
 `;
 
 type CollectionSpec = {
@@ -36,8 +36,8 @@ type CollectionRow = {
   score_state_sigma: string | number | null;
   last_evaluated_at: string | null;
   llm_provider: string | null;
-  company_id: string | null;
-  company_name: string | null;
+  bureau_id: string | null;
+  bureau_name: string | null;
 };
 
 // Role-based collections pass the role as $2 — parameterized, not interpolated.
@@ -98,11 +98,11 @@ const COLLECTIONS: Record<string, () => CollectionSpec> = {
       SELECT a.id, a.name, a.role, a.avatar_seed,
              a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
              a.llm_provider,
-             c.id as company_id, c.name as company_name,
+             c.id as bureau_id, c.name as bureau_name,
              ac.msg_count
       FROM agents a
       JOIN author_counts ac ON ac.author_id = a.id
-      LEFT JOIN companies c ON a.company_id = c.id
+      LEFT JOIN bureaux c ON a.bureau_id = c.id
       WHERE a.status != 'retired' AND ac.msg_count > 0
       ORDER BY ac.msg_count DESC, a.score_state_mu DESC NULLS LAST
       LIMIT $1`,
@@ -121,7 +121,7 @@ export type CollectionAgent = {
   score_state_sigma: number | null;
   last_evaluated_at: string | null;
   llm_provider: string | null;
-  company: { id: string; name: string | null } | null;
+  bureau: { id: string; name: string | null } | null;
 };
 
 export type CollectionPayload = {
@@ -151,7 +151,7 @@ export async function loadCollection(
       row.score_state_sigma === null ? null : Number(row.score_state_sigma),
     last_evaluated_at: row.last_evaluated_at,
     llm_provider: row.llm_provider ?? null,
-    company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+    bureau: row.bureau_id ? { id: row.bureau_id, name: row.bureau_name } : null,
   }));
 
   return { slug, title, filter_query: filterQuery, agents };

@@ -4,14 +4,14 @@ import type { NameMaps } from "../lib/db";
 
 function makeNames(
   agents: [string, string][] = [],
-  companies: [string, string][] = [],
+  bureaux: [string, string][] = [],
   builders: [string, string][] = [],
   channels: [string, string][] = [],
 ): NameMaps {
   return {
     agentNames: new Map(agents),
     builderNames: new Map(builders),
-    companyNames: new Map(companies),
+    bureauNames: new Map(bureaux),
     channelNames: new Map(channels),
   };
 }
@@ -53,14 +53,14 @@ describe("anonymizeContent — agent names", () => {
   });
 });
 
-describe("anonymizeContent — company names", () => {
-  it("replaces company name with COMPANY_1", () => {
+describe("anonymizeContent — bureau names", () => {
+  it("replaces bureau name with BUREAU_1", () => {
     const { content } = anonymizeContent(
-      "Acme Corp submitted the PR",
-      makeNames([], [["id-1", "Acme Corp"]]),
+      "Engineering submitted the PR",
+      makeNames([], [["id-1", "Engineering"]]),
     );
-    expect(content).toContain("[COMPANY_1]");
-    expect(content).not.toContain("Acme Corp");
+    expect(content).toContain("[BUREAU_1]");
+    expect(content).not.toContain("Engineering");
   });
 });
 

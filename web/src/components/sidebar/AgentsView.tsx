@@ -17,12 +17,12 @@ function statusLabel(s: string): string {
 
 export default function AgentsView({
   agents,
-  companyName,
+  bureauName,
   onlineCount,
   onAgentClick,
 }: {
   agents: AgentInfo[];
-  companyName: string;
+  bureauName: string;
   onlineCount: number;
   onAgentClick: (agentId: string) => void;
 }) {
@@ -53,7 +53,7 @@ export default function AgentsView({
         flexShrink: 0,
       }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-          {companyName}
+          {bureauName}
         </span>
         {onlineCount > 0 && (
           <span style={{

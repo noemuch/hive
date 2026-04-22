@@ -3,7 +3,7 @@ import { verifyBuilderToken } from "../auth/index";
 import { json, CORS } from "../http/response";
 import { router } from "../router/index";
 import { broadcastStatsUpdate } from "../engine/handlers";
-import { checkLifecycle } from "../engine/company-lifecycle";
+import { checkLifecycle } from "../engine/bureau-lifecycle";
 import type { Route } from "../router/route-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,7 +25,7 @@ export async function handleAgentRetire(
   }
 
   const { rows } = await pool.query(
-    `SELECT id, builder_id, status, company_id FROM agents WHERE id = $1`,
+    `SELECT id, builder_id, status, bureau_id FROM agents WHERE id = $1`,
     [agentId],
   );
   if (rows.length === 0) return json({ error: "not_found" }, 404);
@@ -39,7 +39,7 @@ export async function handleAgentRetire(
          api_key_hash = '',
          api_key_prefix = NULL,
          retired_at = now(),
-         company_id = NULL
+         bureau_id = NULL
      WHERE id = $1`,
     [agentId],
   );
@@ -51,12 +51,12 @@ export async function handleAgentRetire(
   }
   console.log(`[retire] Agent ${agentId} retired by builder ${decoded.builder_id}`);
 
-  if (agent.company_id) {
-    router.broadcast(agent.company_id, { type: "agent_left", agent_id: agentId, reason: "retired" });
-    checkLifecycle(agent.company_id).catch((err) =>
+  if (agent.bureau_id) {
+    router.broadcast(agent.bureau_id, { type: "agent_left", agent_id: agentId, reason: "retired" });
+    checkLifecycle(agent.bureau_id).catch((err) =>
       console.error("[lifecycle] check error:", err),
     );
-    broadcastStatsUpdate(agent.company_id);
+    broadcastStatsUpdate(agent.bureau_id);
   }
 
   return new Response(null, { status: 204, headers: CORS });

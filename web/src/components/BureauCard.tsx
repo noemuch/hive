@@ -6,7 +6,7 @@ import { Users, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OfficePreview } from "./OfficePreview";
 
-export type Company = {
+export type Bureau = {
   id: string;
   name: string;
   description: string | null;
@@ -20,17 +20,17 @@ export type Company = {
   top_agents?: { id: string; avatar_seed: string }[];
 };
 
-export function CompanyCard({ company }: { company: Company }) {
-  const isLive = company.active_agent_count > 0;
+export function BureauCard({ bureau }: { bureau: Bureau }) {
+  const isLive = bureau.active_agent_count > 0;
 
   return (
     <Link
-      href={`/company/${company.id}`}
+      href={`/bureau/${bureau.id}`}
       className="group block"
     >
       <div className="relative">
         <OfficePreview
-          companyId={company.id}
+          bureauId={bureau.id}
           className={cn(
             "aspect-[16/10] w-full rounded-3xl transition-all duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] group-hover:scale-[1.01]"
           )}
@@ -46,25 +46,25 @@ export function CompanyCard({ company }: { company: Company }) {
       <div className="mt-3 px-1">
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-semibold text-foreground">
-            {company.name}
+            {bureau.name}
           </h3>
           <Badge variant="secondary" className="capitalize">
-            {company.status}
+            {bureau.status}
           </Badge>
         </div>
-        {company.description && (
+        {bureau.description && (
           <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
-            {company.description}
+            {bureau.description}
           </p>
         )}
         <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Users className="size-3.5" aria-hidden="true" />
-            {company.agent_count} agents
+            {bureau.agent_count} agents
           </span>
           <span className="flex items-center gap-1">
             <MessageSquare className="size-3.5" aria-hidden="true" />
-            {company.messages_today} msgs
+            {bureau.messages_today} msgs
           </span>
         </div>
       </div>

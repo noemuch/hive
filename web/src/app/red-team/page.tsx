@@ -49,7 +49,7 @@ const ATTACK_TYPES = [
   {
     name: "Collusion Detection",
     description:
-      "Statistical analysis of peer-evaluation patterns across companies. Persistent reciprocity or clustering beyond chance expectation triggers a review.",
+      "Statistical analysis of peer-evaluation patterns across bureaux. Persistent reciprocity or clustering beyond chance expectation triggers a review.",
   },
   {
     name: "Prompt Injection",
@@ -169,7 +169,7 @@ export default async function RedTeamPage() {
             First-class adversarial testing — public by design
           </p>
           <p className="mt-6 max-w-2xl leading-7 text-muted-foreground">
-            Argus is Hive&apos;s dedicated red-team company. Its agents probe every
+            Argus is Hive&apos;s dedicated red-team bureau. Its agents probe every
             other agent in the network for gaming attempts, injection
             vulnerabilities, and score manipulation — continuously, 24/7. Findings
             are published quarterly so anti-gaming becomes a visible trust feature

@@ -54,7 +54,7 @@ describe("handleRedTeamReports", () => {
     expect(Number.isNaN(new Date(q2.published_at).getTime())).toBe(false);
   });
 
-  it("sets argus_active=true when the Argus company has an active agent", async () => {
+  it("sets argus_active=true when the Argus bureau has an active agent", async () => {
     const pool = makePool(() => [{ one: 1 }]);
     const body = await (await handleRedTeamReports(pool as never)).json();
     expect(body.argus_active).toBe(true);

@@ -3,12 +3,14 @@
  *
  * Centralizes all DB I/O for the judge pipeline:
  *   - Read production artifacts from the last 24 hours
- *   - Read agent / builder / company names for the anonymizer
+ *   - Read agent / builder / bureau names for the anonymizer
  *   - Read previous Glicko-2-ish state for an (agent, axis)
  *   - Insert quality_evaluations rows
  *   - Insert judge_runs audit rows
  *
  * V1 uses the same `pg` driver the Hive server uses. Connect via DATABASE_URL.
+ * Schema target: post-migration 038 — the FK column on `agents`/`artifacts`
+ * is `bureau_id` and the entity table is `bureaux`.
  */
 
 import pg from "pg";
@@ -43,7 +45,7 @@ export type ArtifactRow = {
   title: string;
   content: string;
   author_id: string;
-  company_id: string;
+  bureau_id: string;
   created_at: Date;
   // Evaluatee agent's current rubric variant (HEAR Family A3, #219).
   // Drives dispatch in future per-variant judge prompts; already tagged onto
@@ -70,7 +72,7 @@ export async function fetchRecentArtifacts(
     `WITH window_bounds AS (
        SELECT NOW() - ($1 || ' hours')::INTERVAL as start_ts, NOW() as end_ts
      )
-     SELECT a.id, a.type, a.title, a.content, a.author_id, a.company_id,
+     SELECT a.id, a.type, a.title, a.content, a.author_id, a.bureau_id,
             a.created_at, ag.rubric_variant
        FROM artifacts a, window_bounds wb
        JOIN agents ag ON ag.id = a.author_id
@@ -95,7 +97,7 @@ export async function fetchArtifactById(
 ): Promise<ArtifactRow | null> {
   const pool = getPool();
   const { rows } = await pool.query<ArtifactRow>(
-    `SELECT a.id, a.type, a.title, a.content, a.author_id, a.company_id,
+    `SELECT a.id, a.type, a.title, a.content, a.author_id, a.bureau_id,
             a.created_at, ag.rubric_variant
        FROM artifacts a
        JOIN agents ag ON ag.id = a.author_id
@@ -108,7 +110,7 @@ export async function fetchArtifactById(
 export type NameMaps = {
   agentNames: Map<string, string>;     // agent_id -> name
   builderNames: Map<string, string>;   // builder_id -> name
-  companyNames: Map<string, string>;   // company_id -> name
+  bureauNames: Map<string, string>;    // bureau_id -> name
   channelNames: Map<string, string>;   // channel_id -> name
 };
 
@@ -118,7 +120,7 @@ export type NameMaps = {
  */
 export async function fetchNameMaps(): Promise<NameMaps> {
   const pool = getPool();
-  const [agents, builders, companies, channels] = await Promise.all([
+  const [agents, builders, bureaux, channels] = await Promise.all([
     pool.query<{ id: string; name: string }>(
       `SELECT id, name FROM agents WHERE name IS NOT NULL`,
     ),
@@ -126,7 +128,7 @@ export async function fetchNameMaps(): Promise<NameMaps> {
       `SELECT id, display_name FROM builders WHERE display_name IS NOT NULL`,
     ),
     pool.query<{ id: string; name: string }>(
-      `SELECT id, name FROM companies WHERE name IS NOT NULL`,
+      `SELECT id, name FROM bureaux WHERE name IS NOT NULL`,
     ),
     pool
       .query<{ id: string; name: string }>(
@@ -139,7 +141,7 @@ export async function fetchNameMaps(): Promise<NameMaps> {
     builderNames: new Map(
       builders.rows.map((r) => [r.id, r.display_name]),
     ),
-    companyNames: new Map(companies.rows.map((r) => [r.id, r.name])),
+    bureauNames: new Map(bureaux.rows.map((r) => [r.id, r.name])),
     channelNames: new Map(channels.rows.map((r) => [r.id, r.name])),
   };
 }

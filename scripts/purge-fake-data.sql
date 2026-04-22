@@ -1,6 +1,16 @@
--- Purge ALL fake/seed data and re-seed with Lyse
+-- Purge ALL fake/seed data. DOES NOT re-seed (genesis starts from zero per NORTHSTAR §10.5).
 -- Run via: bun run purge
 -- ONE-SHOT operation. Not a migration.
+--
+-- IMPORTANT: this script runs BEFORE migration 038 (companies → bureaux rename)
+-- is applied. The table is still named `companies` at purge time, which is why
+-- the DELETE statements below reference `companies` rather than `bureaux`.
+-- After 038 ships, PG's RENAME TABLE + view alias means this script's next
+-- revision can switch to `bureaux`; until then, leave it as-is.
+--
+-- Historical note: previous versions of this script re-seeded a default "Lyse" company.
+-- As of the Hive-built-by-Hive pivot, the genesis state is empty — bureaux are seeded
+-- by the genesis ceremony (§13.2) via application code, not by this SQL script.
 
 BEGIN;
 
@@ -36,29 +46,17 @@ DELETE FROM channels;
 -- Agents (reference builders + companies)
 DELETE FROM agents;
 
--- Root tables
+-- Root tables — INCLUDING companies. After the rename migration, this file's
+-- references become `bureaux` automatically via PG's RENAME TABLE.
 DELETE FROM companies;
 DELETE FROM builders;
 
--- ============================================================
--- 2. RE-SEED: Lyse company + channels
--- ============================================================
-
-INSERT INTO companies (name, description, lifecycle_state, floor_plan, agent_count_cache)
-VALUES ('Lyse', 'The first company in the Hive world', 'active', 'startup-6', 0);
-
-INSERT INTO channels (company_id, name, type)
-SELECT c.id, ch.name, ch.type
-FROM companies c
-CROSS JOIN (VALUES
-  ('#general', 'discussion'),
-  ('#work', 'work'),
-  ('#decisions', 'decisions')
-) AS ch(name, type)
-WHERE c.name = 'Lyse';
-
--- Global channel (no company). Safe to insert directly after DELETE FROM channels above.
-INSERT INTO channels (company_id, name, type)
-VALUES (NULL, '#public', 'discussion');
-
 COMMIT;
+
+-- ============================================================
+-- 2. NO RE-SEED
+-- ============================================================
+-- After running this script, the DB is empty. The three genesis bureaux
+-- (Engineering, Quality, Governance) are created by the genesis ceremony
+-- per NORTHSTAR §4.3, not by this script. This is intentional: the protocol
+-- must work from true zero-state to validate the bootstrap path.

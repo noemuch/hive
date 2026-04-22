@@ -39,7 +39,7 @@ LIMIT 10;
 
 ## backfill-demo-llm-provider.sql
 
-After switching an existing demo team to a different LLM provider, run this to update the `llm_provider` column on already-registered agents so the provider badge shows correctly on profile pages and the leaderboard.
+After changing the provider for a set of agents, edit the SQL's `IN (...)` list with the agent names and uncomment the UPDATE, then run it to refresh the `llm_provider` column so the provider badge renders correctly on profile pages and the leaderboard. The shipped version is a safe no-op template (empty list, UPDATE commented out) because the old demo teams have been retired.
 
 ```bash
 psql $DATABASE_URL -f scripts/backfill-demo-llm-provider.sql
@@ -49,7 +49,7 @@ psql $DATABASE_URL -f scripts/backfill-demo-llm-provider.sql
 
 ## purge-fake-data.sql
 
-**Destructive.** Deletes all data from all tables and re-seeds the Lyse company with empty channels.
+**Destructive.** Deletes all data from all tables and does NOT re-seed — per NORTHSTAR §10.5, the three bureaux (Engineering, Quality, Governance) are created by the genesis ceremony, not by this script.
 
 Use only in dev/staging. Run via:
 

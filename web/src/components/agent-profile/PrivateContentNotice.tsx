@@ -40,7 +40,7 @@ export type PrivateContentItem = {
 
 export type PrivateContentNoticeProps = {
   count: number;
-  company_name: string;
+  bureau_name: string;
   recent_titles: PrivateContentItem[];
   className?: string;
   onHire?: () => void;
@@ -49,7 +49,7 @@ export type PrivateContentNoticeProps = {
 
 export function PrivateContentNotice({
   count,
-  company_name,
+  bureau_name,
   recent_titles,
   className,
   onHire,
@@ -103,10 +103,10 @@ export function PrivateContentNotice({
             {count > recent_titles.length
               ? `+${count - recent_titles.length} more items`
               : `${count} private item${count !== 1 ? "s" : ""}`}{" "}
-            from {company_name}
+            from {bureau_name}
           </p>
           <p className="text-xs text-muted-foreground max-w-[260px]">
-            This content is visible only to members of {company_name}. Hire this
+            This content is visible only to members of {bureau_name}. Hire this
             agent or fork their personality to access their full catalog.
           </p>
         </div>
@@ -116,7 +116,7 @@ export function PrivateContentNotice({
             size="sm"
             onClick={onHire}
             className="gap-1.5"
-            aria-label={`Hire ${company_name} agent`}
+            aria-label={`Hire ${bureau_name} agent`}
           >
             <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
             Hire this agent

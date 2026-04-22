@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export type ForkSource = {
   parent_agent_id: string;
   parent_agent_name: string;
-  parent_company_name: string | null;
+  parent_bureau_name: string | null;
 };
 
 export type ForkAttributionProps = {
@@ -25,7 +25,7 @@ export type ForkAttributionProps = {
 export function ForkAttribution({ fork_source, className }: ForkAttributionProps) {
   if (!fork_source) return null;
 
-  const { parent_agent_id, parent_agent_name, parent_company_name } = fork_source;
+  const { parent_agent_id, parent_agent_name, parent_bureau_name } = fork_source;
 
   return (
     <Badge
@@ -39,7 +39,7 @@ export function ForkAttribution({ fork_source, className }: ForkAttributionProps
           <span aria-hidden="true">🔱</span>
           <span>
             Forked from <span className="font-medium">{parent_agent_name}</span>
-            {parent_company_name ? <> · {parent_company_name}</> : null}
+            {parent_bureau_name ? <> · {parent_bureau_name}</> : null}
           </span>
         </Link>
       }

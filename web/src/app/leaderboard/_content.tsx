@@ -62,7 +62,7 @@ type LeaderboardAgent = {
   name: string;
   role: string;
   avatar_seed: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   // Canonical HEAR composite (null = not evaluated yet).
   score_state_mu: number | null;
   score_state_sigma?: number | null;
@@ -112,7 +112,7 @@ function PodiumCard({
         <PixelAvatar seed={agent.avatar_seed} size={56} className="rounded-md" />
         <div className="text-center">
           <div className="max-w-[120px] truncate text-sm font-semibold">{agent.name}</div>
-          <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.company?.name ?? "Freelancer"}</div>
+          <div className="max-w-[120px] truncate text-xs text-muted-foreground">{agent.bureau?.name ?? "Freelancer"}</div>
         </div>
         <Badge variant="secondary">{agent.role}</Badge>
         <span className="font-mono text-lg font-bold">{scoreLabel}</span>
@@ -153,13 +153,13 @@ function LeaderboardSkeleton() {
 function buildLeaderboardUrl(opts: {
   dimension: Dimension;
   axis: string;
-  companyId: string | null;
+  bureauId: string | null;
 }): string {
-  const { dimension, axis, companyId } = opts;
+  const { dimension, axis, bureauId } = opts;
   const params = new URLSearchParams();
   if (dimension !== "performance") params.set("dimension", dimension);
   if (dimension !== "performance" && axis !== "all") params.set("axis", axis);
-  if (companyId) params.set("company_id", companyId);
+  if (bureauId) params.set("bureau_id", bureauId);
   const qs = params.toString();
   return `${API_URL}/api/leaderboard${qs ? `?${qs}` : ""}`;
 }
@@ -173,7 +173,7 @@ export function LeaderboardContent() {
   const initialAxis = params.get("axis") ?? "all";
 
   const [agents,        setAgents]        = useState<LeaderboardAgent[]>([]);
-  const [allCompanies,  setAllCompanies]  = useState<{ id: string; name: string }[]>([]);
+  const [allBureaux,    setAllBureaux]    = useState<{ id: string; name: string }[]>([]);
 
   // Live composite refresh + re-sort. Mirrors the server ORDER BY
   // score_state_mu DESC NULLS LAST so ranking updates live.
@@ -204,33 +204,33 @@ export function LeaderboardContent() {
   useAgentScoreRefresh(applyScoreRefresh);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(false);
-  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
+  const [bureauFilter,  setBureauFilter]  = useState<string | null>(null);
   const [dimension,     setDimension]     = useState<Dimension>(initialDimension);
   const [axis,          setAxis]          = useState<string>(initialAxis);
   const [badgeFilter,   setBadgeFilter]   = useState<BadgeKey | null>(null);
   const [selectedId,    setSelectedId]    = useState<string | null>(() => params.get("agent"));
   const filterAbortRef = useRef<AbortController | null>(null);
 
-  // Fetch agents (re-runs whenever dimension, axis, or companyFilter changes)
+  // Fetch agents (re-runs whenever dimension, axis, or bureauFilter changes)
   const fetchAgents = useCallback((
     dim: Dimension,
     ax: string,
-    companyId: string | null,
-    seedCompanies: boolean,
+    bureauId: string | null,
+    seedBureaux: boolean,
   ) => {
     filterAbortRef.current?.abort();
     filterAbortRef.current = new AbortController();
     setLoading(true);
     setError(false);
-    const url = buildLeaderboardUrl({ dimension: dim, axis: ax, companyId });
+    const url = buildLeaderboardUrl({ dimension: dim, axis: ax, bureauId });
     fetch(url, { signal: filterAbortRef.current.signal })
       .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() as Promise<{ agents: LeaderboardAgent[] }>; })
       .then(data => {
         const all = data.agents ?? [];
         setAgents(all);
-        if (seedCompanies) {
-          setAllCompanies(
-            [...new Map(all.filter(a => a.company).map(a => [a.company!.id, a.company!])).values()]
+        if (seedBureaux) {
+          setAllBureaux(
+            [...new Map(all.filter(a => a.bureau).map(a => [a.bureau!.id, a.bureau!])).values()]
           );
         }
         setLoading(false);
@@ -240,10 +240,10 @@ export function LeaderboardContent() {
       });
   }, []);
 
-  // Fetch all agents on mount — also seeds the company dropdown
+  // Fetch all agents on mount — also seeds the bureau dropdown
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount
-    fetchAgents(dimension, axis, companyFilter, true);
+    fetchAgents(dimension, axis, bureauFilter, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -283,17 +283,17 @@ export function LeaderboardContent() {
     setDimension(newDim);
     setAxis(newAxis);
     syncUrl(newDim, newAxis, selectedId);
-    fetchAgents(newDim, newAxis, companyFilter, false);
-  }, [axis, selectedId, companyFilter, syncUrl, fetchAgents]);
+    fetchAgents(newDim, newAxis, bureauFilter, false);
+  }, [axis, selectedId, bureauFilter, syncUrl, fetchAgents]);
 
   const handleAxisChange = useCallback((newAxis: string) => {
     setAxis(newAxis);
     syncUrl(dimension, newAxis, selectedId);
-    fetchAgents(dimension, newAxis, companyFilter, false);
-  }, [dimension, selectedId, companyFilter, syncUrl, fetchAgents]);
+    fetchAgents(dimension, newAxis, bureauFilter, false);
+  }, [dimension, selectedId, bureauFilter, syncUrl, fetchAgents]);
 
-  const handleCompanyFilter = useCallback((id: string | null) => {
-    setCompanyFilter(id);
+  const handleBureauFilter = useCallback((id: string | null) => {
+    setBureauFilter(id);
     fetchAgents(dimension, axis, id, false);
   }, [dimension, axis, fetchAgents]);
 
@@ -318,9 +318,9 @@ export function LeaderboardContent() {
       )
     : agents;
   const top3 = visibleAgents.slice(0, 3);
-  const companyLabel = companyFilter
-    ? (allCompanies.find(c => c.id === companyFilter)?.name ?? "All companies")
-    : "All companies";
+  const bureauLabel = bureauFilter
+    ? (allBureaux.find(c => c.id === bureauFilter)?.name ?? "All bureaux")
+    : "All bureaux";
   const badgeFilterLabel = badgeFilter
     ? BADGE_DEFINITIONS[badgeFilter].label
     : "All badges";
@@ -374,23 +374,23 @@ export function LeaderboardContent() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Company filter — same DropdownMenu pattern as GridControls */}
-            {allCompanies.length > 1 && (
+            {/* Bureau filter — same DropdownMenu pattern as GridControls */}
+            {allBureaux.length > 1 && (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={<Button variant="outline" size="sm" className="cursor-pointer" />}
                 >
                   <ArrowUpDown className="size-3.5" />
-                  {companyLabel}
+                  {bureauLabel}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleCompanyFilter(null)} className="cursor-pointer">
-                    All companies
+                  <DropdownMenuItem onClick={() => handleBureauFilter(null)} className="cursor-pointer">
+                    All bureaux
                   </DropdownMenuItem>
-                  {allCompanies.map(c => (
+                  {allBureaux.map(c => (
                     <DropdownMenuItem
                       key={c.id}
-                      onClick={() => handleCompanyFilter(c.id)}
+                      onClick={() => handleBureauFilter(c.id)}
                       className="cursor-pointer"
                     >
                       {c.name}
@@ -456,7 +456,7 @@ export function LeaderboardContent() {
                       <th className="w-14 px-4 py-3 text-left text-xs font-medium text-muted-foreground">Rank</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Agent</th>
                       <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground sm:table-cell">Role</th>
-                      <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground md:table-cell">Company</th>
+                      <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground md:table-cell">Bureau</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{scoreColumnLabel}</th>
                       <th className="w-14 px-4 py-3 text-center text-xs font-medium text-muted-foreground">Trend</th>
                     </tr>
@@ -506,7 +506,7 @@ export function LeaderboardContent() {
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                          {agent.company?.name ?? "Freelancer"}
+                          {agent.bureau?.name ?? "Freelancer"}
                         </td>
                         <td className="px-4 py-3 text-right font-mono font-semibold">
                           {formatScore(agent)}

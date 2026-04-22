@@ -1,17 +1,22 @@
 /**
- * Hive agent launcher — spawn and manage a team of agents.
+ * Hive agent launcher — spawn and manage a bureau's agents.
  *
- * Usage (Mistral default for demo teams — cheapest sweet spot):
+ * Usage (Mistral default — cheapest sweet spot):
  *   HIVE_EMAIL=you@example.com HIVE_PASSWORD=*** \
  *   LLM_API_KEY=mistral-*** \
  *   LLM_BASE_URL=https://api.mistral.ai/v1 \
  *   LLM_MODEL=mistral-small-latest \
  *   LLM_PROVIDER=mistral \
- *   bun agents/lib/launcher.ts --team lyse
+ *   bun agents/lib/launcher.ts --bureau mybureau
  *
- * Pass `--team-file <path>` instead of `--team <name>` to load a config from
- * an arbitrary absolute path — used by sibling repos (e.g. hive-fleet) that
- * generate team configs outside of `agents/teams/`.
+ * Pass `--bureau-file <path>` (or the legacy `--team-file`) instead of
+ * `--bureau <name>` to load a config from an arbitrary absolute path — used
+ * by sibling repos (e.g. hive-fleet) that generate bureau configs outside
+ * of `agents/teams/`.
+ *
+ * Flag naming: `--bureau` / `--bureau-file` are canonical. The legacy
+ * `--team` / `--team-file` flags continue to work for 90 days and print
+ * a deprecation warning when used.
  *
  * See docs/BYOK.md for other providers.
  *
@@ -23,74 +28,98 @@
 
 import { resolve, basename } from "path";
 import { existsSync } from "fs";
-import type { TeamConfig, AgentPersonality } from "./types";
+import type { BureauConfig, AgentPersonality } from "./types";
 import { migrateIfNeeded, readConfig, readKeys as readHiveKeys, writeKeys as writeHiveKeys } from "./credentials";
 
 const BASE_URL = process.env.HIVE_API_URL || "http://localhost:3000";
 
 // ---------------------------------------------------------------------------
 // CLI args
+//
+// `--bureau` / `--bureau-file` are the canonical flags. The old `--team` /
+// `--team-file` names are still accepted so scripts in sibling repos and
+// personal shell aliases keep working during the 90-day deprecation window.
+// Using a legacy flag triggers a one-line warning to stderr.
 // ---------------------------------------------------------------------------
 
-const teamArg = process.argv.find((_, i, a) => a[i - 1] === "--team");
-const teamFileArg = process.argv.find((_, i, a) => a[i - 1] === "--team-file");
-
-if (!teamArg && !teamFileArg) {
-  console.error("Usage: bun agents/lib/launcher.ts --team <name>");
-  console.error("   or: bun agents/lib/launcher.ts --team-file <path-to-config.ts>");
-  process.exit(1);
-}
-if (teamArg && teamFileArg) {
-  console.error("Error: pass either --team or --team-file, not both.");
-  process.exit(1);
+function findFlag(...flags: string[]): { value: string | undefined; flag: string | undefined } {
+  for (const f of flags) {
+    const value = process.argv.find((_, i, a) => a[i - 1] === f);
+    if (value !== undefined) return { value, flag: f };
+  }
+  return { value: undefined, flag: undefined };
 }
 
-// `teamFlag` is the cache key — used for ~/.hive/<teamFlag>/keys.json and
-// legacy credential migration. When loading via --team-file, derive it from
+const bureauArgRaw = findFlag("--bureau", "--team");
+const bureauFileArgRaw = findFlag("--bureau-file", "--team-file");
+
+if (bureauArgRaw.flag === "--team") {
+  console.warn("[deprecation] --team is deprecated; use --bureau. The old flag will keep working for 90 days.");
+}
+if (bureauFileArgRaw.flag === "--team-file") {
+  console.warn("[deprecation] --team-file is deprecated; use --bureau-file. The old flag will keep working for 90 days.");
+}
+
+const bureauArg = bureauArgRaw.value;
+const bureauFileArg = bureauFileArgRaw.value;
+
+if (!bureauArg && !bureauFileArg) {
+  console.error("Usage: bun agents/lib/launcher.ts --bureau <name>");
+  console.error("   or: bun agents/lib/launcher.ts --bureau-file <path-to-config.ts>");
+  process.exit(1);
+}
+if (bureauArg && bureauFileArg) {
+  console.error("Error: pass either --bureau or --bureau-file, not both.");
+  process.exit(1);
+}
+
+// `bureauFlag` is the cache key — used for ~/.hive/<bureauFlag>/keys.json and
+// legacy credential migration. When loading via --bureau-file, derive it from
 // the file basename (e.g. /path/to/sloane.ts → "sloane").
-const teamFlag = teamArg ?? basename(teamFileArg!, ".ts");
+const bureauFlag = bureauArg ?? basename(bureauFileArg!, ".ts");
 
 const HIVE_EMAIL = process.env.HIVE_EMAIL;
 const HIVE_PASSWORD = process.env.HIVE_PASSWORD;
 
 // ---------------------------------------------------------------------------
-// Load team config
+// Load bureau config (file still lives under agents/teams/ — the directory
+// name is kept for path stability across the 90-day deprecation window).
 // ---------------------------------------------------------------------------
 
-const teamPath = teamArg
-  ? resolve(import.meta.dir, `../teams/${teamArg}.ts`)
-  : resolve(teamFileArg!);
+const bureauPath = bureauArg
+  ? resolve(import.meta.dir, `../teams/${bureauArg}.ts`)
+  : resolve(bureauFileArg!);
 
-if (!existsSync(teamPath)) {
-  console.error(`Team config not found: ${teamPath}`);
-  if (teamArg) console.error(`Create it by copying agents/teams/_template.ts`);
+if (!existsSync(bureauPath)) {
+  console.error(`Bureau config not found: ${bureauPath}`);
+  if (bureauArg) console.error(`Create it by copying agents/teams/_template.ts`);
   process.exit(1);
 }
 
-const teamModule = await import(teamPath);
-const team: TeamConfig = teamModule.default;
+const bureauModule = await import(bureauPath);
+const bureau: BureauConfig = bureauModule.default;
 
-if (!team?.agents?.length) {
-  console.error(`Team "${teamFlag}" has no agents defined.`);
+if (!bureau?.agents?.length) {
+  console.error(`Bureau "${bureauFlag}" has no agents defined.`);
   process.exit(1);
 }
 
-console.log(`Team "${teamFlag}": ${team.agents.length} agents`);
-migrateIfNeeded(teamFlag, resolve(import.meta.dir, "../.."));
+console.log(`Bureau "${bureauFlag}": ${bureau.agents.length} agents`);
+migrateIfNeeded(bureauFlag, resolve(import.meta.dir, "../.."));
 
-// Resolve LLM credentials — env takes precedence, fallback to ~/.hive/{team}/config.json.
+// Resolve LLM credentials — env takes precedence, fallback to ~/.hive/{bureau}/config.json.
 // LLM_API_KEY is the canonical var; ANTHROPIC_API_KEY is a backward-compat alias.
 let LLM_KEY = process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
 if (!LLM_KEY) {
-  const cfg = readConfig(teamFlag);
+  const cfg = readConfig(bureauFlag);
   if (cfg?.anthropic_api_key) {
     LLM_KEY = cfg.anthropic_api_key;
-    console.log(`[launch] Loaded LLM_API_KEY from ~/.hive/${teamFlag}/config.json`);
+    console.log(`[launch] Loaded LLM_API_KEY from ~/.hive/${bureauFlag}/config.json`);
   }
 }
 if (!LLM_KEY) {
   console.error("ERROR: Set LLM_API_KEY (or the legacy ANTHROPIC_API_KEY alias),");
-  console.error("       or run: bun run agents setup --team " + teamFlag);
+  console.error("       or run: bun run agents setup --bureau " + bureauFlag);
   console.error("       See docs/BYOK.md for provider-specific LLM_BASE_URL and LLM_MODEL.");
   process.exit(1);
 }
@@ -135,7 +164,7 @@ async function loadOrCreateKeys(): Promise<Keys> {
     console.log(`Builder logged in: ${HIVE_EMAIL}`);
 
     const agents: Record<string, string> = {};
-    for (const p of team.agents) {
+    for (const p of bureau.agents) {
       const registerBody: Record<string, unknown> = {
         name: p.name,
         role: p.role,
@@ -147,7 +176,7 @@ async function loadOrCreateKeys(): Promise<Keys> {
         agents[p.name] = res.data.api_key as string;
         console.log(`  Registered ${p.name} (${p.role})`);
       } else if (res.status === 409) {
-        console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or run: bun run agents setup --team ${teamFlag}`);
+        console.warn(`  ${p.name} already exists — delete the agent via /dashboard and re-run, or run: bun run agents setup --bureau ${bureauFlag}`);
       } else {
         console.warn(`  ${p.name} failed: ${JSON.stringify(res.data)}`);
       }
@@ -159,21 +188,21 @@ async function loadOrCreateKeys(): Promise<Keys> {
     }
 
     const keys: Keys = { builder_token: token, agents };
-    writeHiveKeys(teamFlag, keys);
-    console.log(`Saved ${Object.keys(agents).length} keys to ~/.hive/${teamFlag}/keys.json`);
+    writeHiveKeys(bureauFlag, keys);
+    console.log(`Saved ${Object.keys(agents).length} keys to ~/.hive/${bureauFlag}/keys.json`);
     return keys;
   }
 
-  // 2. Try ~/.hive/{team}/keys.json (new standard)
-  const hiveKeys = readHiveKeys(teamFlag);
+  // 2. Try ~/.hive/{bureau}/keys.json (new standard)
+  const hiveKeys = readHiveKeys(bureauFlag);
   if (hiveKeys && hiveKeys.builder_token && Object.keys(hiveKeys.agents).length > 0) {
-    console.log(`Loaded ${Object.keys(hiveKeys.agents).length} cached keys from ~/.hive/${teamFlag}/`);
+    console.log(`Loaded ${Object.keys(hiveKeys.agents).length} cached keys from ~/.hive/${bureauFlag}/`);
     return hiveKeys;
   }
 
   // 3. No credentials found
   console.error(`ERROR: No credentials found.`);
-  console.error(`Run: bun run agents setup --team ${teamFlag}`);
+  console.error(`Run: bun run agents setup --bureau ${bureauFlag}`);
   process.exit(1);
 }
 
@@ -237,7 +266,7 @@ async function healthcheck() {
 const keys = await loadOrCreateKeys();
 
 let spawned = 0;
-for (const p of team.agents) {
+for (const p of bureau.agents) {
   const apiKey = keys.agents[p.name];
   if (!apiKey) {
     console.warn(`[launch] Skipping ${p.name} — no key cached`);

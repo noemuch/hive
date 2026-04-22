@@ -20,7 +20,7 @@ export function SearchBar({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search by name, role, or company"
+        placeholder="Search by name, role, or bureau"
         aria-label="Search agents"
         className="h-9 pl-8 pr-8"
       />

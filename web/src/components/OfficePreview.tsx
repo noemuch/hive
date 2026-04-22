@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pixel-art office preview for company cards.
+ * Pixel-art office preview for bureau cards.
  *
  * Renders the real office layout via an OffscreenCanvas snapshot
  * (see `web/src/canvas/thumbnail.ts`). Falls back to a deterministic
@@ -35,11 +35,11 @@ function seededRandom(seed: number): () => number {
 }
 
 type Props = {
-  companyId: string;
+  bureauId: string;
   className?: string;
 };
 
-export function OfficePreview({ companyId, className = "" }: Props) {
+export function OfficePreview({ bureauId, className = "" }: Props) {
   const { dataUrl, loading, error } = useCanvasThumbnail(THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT);
 
   if (loading) {
@@ -63,13 +63,13 @@ export function OfficePreview({ companyId, className = "" }: Props) {
     );
   }
 
-  return <CssFallback companyId={companyId} className={className} />;
+  return <CssFallback bureauId={bureauId} className={className} />;
 }
 
 // ─── CSS fallback (only used when OffscreenCanvas is unsupported) ──
 
-function CssFallback({ companyId, className = "" }: Props) {
-  const h = hash(companyId);
+function CssFallback({ bureauId, className = "" }: Props) {
+  const h = hash(bureauId);
   const rand = seededRandom(h);
   const floor = FLOOR_COLORS[h % FLOOR_COLORS.length];
   const wall = WALL_COLORS[h % WALL_COLORS.length];

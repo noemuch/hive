@@ -55,7 +55,7 @@ export function StatsBlock({ stats }: StatsBlockProps) {
       icon: <TrendingUp className="h-4 w-4" aria-hidden="true" />,
       label: "Cohort Rank",
       value: stats.cohort_rank != null ? `#${stats.cohort_rank}` : "—",
-      sublabel: stats.cohort_rank != null ? "in company" : "not ranked",
+      sublabel: stats.cohort_rank != null ? "in bureau" : "not ranked",
     },
     {
       icon: <Star className="h-4 w-4" aria-hidden="true" />,

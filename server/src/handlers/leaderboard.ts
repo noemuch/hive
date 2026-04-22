@@ -11,21 +11,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
  * Performance leaderboard (canonical HEAR composite ranking).
- * Returns an empty agents array for an invalid company_id filter rather than 400,
+ * Returns an empty agents array for an invalid bureau_id filter rather than 400,
  * so UIs that pass a stale id degrade gracefully.
  */
 export async function handleLeaderboardPerformance(
   url: URL,
   pool: Pool,
 ): Promise<Response> {
-  const companyFilter = url.searchParams.get("company_id");
-  if (companyFilter && !UUID_RE.test(companyFilter)) return json({ agents: [] });
+  const bureauFilter = url.searchParams.get("bureau_id");
+  if (bureauFilter && !UUID_RE.test(bureauFilter)) return json({ agents: [] });
 
   const data = await marketplaceCache.wrap(cacheKeyFromUrl(url), async () => {
-    const whereClause = companyFilter
-      ? `WHERE a.status != 'retired' AND a.company_id = $1`
+    const whereClause = bureauFilter
+      ? `WHERE a.status != 'retired' AND a.bureau_id = $1`
       : `WHERE a.status != 'retired'`;
-    const params = companyFilter ? [companyFilter] : [];
+    const params = bureauFilter ? [bureauFilter] : [];
 
     // LEFT JOIN `agent_inherited_mu` (migration 038, #241 A13) so forked
     // agents rank by their decaying effective μ. Non-forked agents get
@@ -36,9 +36,9 @@ export async function handleLeaderboardPerformance(
          a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
          a.llm_provider,
          aim.effective_mu,
-         c.id as company_id, c.name as company_name
+         c.id as bureau_id, c.name as bureau_name
        FROM agents a
-       LEFT JOIN companies c ON a.company_id = c.id
+       LEFT JOIN bureaux c ON a.bureau_id = c.id
        LEFT JOIN agent_inherited_mu aim ON aim.agent_id = a.id
        ${whereClause}
        ORDER BY COALESCE(aim.effective_mu, a.score_state_mu) DESC NULLS LAST, a.created_at ASC
@@ -122,7 +122,7 @@ export async function handleLeaderboardPerformance(
         name: row.name,
         role: row.role,
         avatar_seed: row.avatar_seed,
-        company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+        bureau: row.bureau_id ? { id: row.bureau_id, name: row.bureau_name } : null,
         score_state_mu: currentScore,
         effective_mu: effectiveMu,
         score_state_sigma: row.score_state_sigma === null ? null : Number(row.score_state_sigma),
@@ -205,10 +205,10 @@ export async function handleLeaderboardQuality(url: URL, pool: Pool): Promise<Re
          )
          SELECT
            a.id, a.name, a.role, a.avatar_seed,
-           c.id as company_id, c.name as company_name,
+           c.id as bureau_id, c.name as bureau_name,
            comp.score, comp.sigma
          FROM agents a
-         LEFT JOIN companies c ON a.company_id = c.id
+         LEFT JOIN bureaux c ON a.bureau_id = c.id
          JOIN composite comp ON comp.agent_id = a.id
          WHERE ${whereParts.join(" AND ")}
          ORDER BY comp.score DESC NULLS LAST
@@ -221,7 +221,7 @@ export async function handleLeaderboardQuality(url: URL, pool: Pool): Promise<Re
         name: row.name,
         role: row.role,
         avatar_seed: row.avatar_seed,
-        company: row.company_id ? { id: row.company_id, name: row.company_name } : null,
+        bureau: row.bureau_id ? { id: row.bureau_id, name: row.bureau_name } : null,
         score_state_mu: row.score === null ? null : Number(row.score),
         sigma: row.sigma === null ? null : Number(row.sigma),
         trend: "stable" as const,

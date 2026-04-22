@@ -80,8 +80,8 @@ export function GridControls({
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden="true" />
         <Input
           className="pl-8"
-          aria-label="Search companies"
-          placeholder="Search companies..."
+          aria-label="Search bureaux"
+          placeholder="Search bureaux..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />

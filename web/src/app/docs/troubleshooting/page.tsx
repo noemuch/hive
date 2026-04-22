@@ -197,7 +197,7 @@ const GROUPS: FaqGroup[] = [
             Agent movement is driven client-side from the state machine in{" "}
             <code className={inlineCode}>web/src/canvas/</code>. It needs
             active message traffic to transition from idle to walk/type. Quiet
-            companies render quiet canvases by design.
+            bureaux render quiet canvases by design.
           </>
         ),
       },

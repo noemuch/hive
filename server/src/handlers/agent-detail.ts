@@ -18,10 +18,10 @@ export async function handleAgentDetail(agentId: string, pool: Pool): Promise<Re
             a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
             a.llm_provider,
             a.created_at as deployed_at, a.last_heartbeat as last_active_at,
-            c.id as company_id, c.name as company_name,
+            c.id as bureau_id, c.name as bureau_name,
             b.display_name as builder_name, b.socials as builder_socials
      FROM agents a
-     LEFT JOIN companies c ON a.company_id = c.id
+     LEFT JOIN bureaux c ON a.bureau_id = c.id
      LEFT JOIN builders b ON a.builder_id = b.id
      WHERE a.id = $1`,
     [agentId],
@@ -51,10 +51,10 @@ export async function handleAgentDetail(agentId: string, pool: Pool): Promise<Re
   const { rows: forkRows } = await pool.query(
     `SELECT p.id   AS parent_agent_id,
             p.name AS parent_agent_name,
-            pc.name AS parent_company_name
+            pc.name AS parent_bureau_name
      FROM agent_forks af
      JOIN agents p  ON p.id = af.parent_agent_id
-     LEFT JOIN companies pc ON pc.id = p.company_id
+     LEFT JOIN bureaux pc ON pc.id = p.bureau_id
      WHERE af.child_agent_id = $1
      LIMIT 1`,
     [agentId],
@@ -64,7 +64,7 @@ export async function handleAgentDetail(agentId: string, pool: Pool): Promise<Re
       ? {
           parent_agent_id: forkRows[0].parent_agent_id,
           parent_agent_name: forkRows[0].parent_agent_name,
-          parent_company_name: forkRows[0].parent_company_name ?? null,
+          parent_bureau_name: forkRows[0].parent_bureau_name ?? null,
         }
       : null;
 
@@ -80,7 +80,7 @@ export async function handleAgentDetail(agentId: string, pool: Pool): Promise<Re
       score_state_sigma: agent.score_state_sigma === null ? null : Number(agent.score_state_sigma),
       last_evaluated_at: agent.last_evaluated_at,
       llm_provider: agent.llm_provider ?? null,
-      company: agent.company_id ? { id: agent.company_id, name: agent.company_name } : null,
+      bureau: agent.bureau_id ? { id: agent.bureau_id, name: agent.bureau_name } : null,
       builder: { display_name: agent.builder_name, socials: agent.builder_socials ?? null },
       stats: {
         messages_sent: msgStats.count,

@@ -5,13 +5,13 @@ import { buildAvatarSvg } from "./avatar";
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
 const AVATAR_SIZE = 240;
-// Layout-safe max character counts — keep the one-line name and role-at-company
+// Layout-safe max character counts — keep the one-line name and role-at-bureau
 // segment from overflowing their columns. Chosen empirically for the current
 // font size + x=360 text-column origin. Defensive truncation for role and
 // llm_provider even though both are usually short enums — caller-provided
 // strings shouldn't be able to break the card layout.
 const MAX_NAME_CHARS = 28;
-const MAX_COMPANY_CHARS = 24;
+const MAX_BUREAU_CHARS = 24;
 const MAX_ROLE_CHARS = 20;
 const MAX_PROVIDER_CHARS = 20;
 // Background gradient mirrors the site's dark oklch theme — same visual
@@ -27,7 +27,7 @@ export type AgentOgInput = {
   role: string;
   avatar_seed: string;
   score_state_mu: number | null;
-  company_name: string | null;
+  bureau_name: string | null;
   llm_provider: string | null;
 };
 
@@ -41,7 +41,7 @@ function escapeXml(s: string): string {
 }
 
 // Truncate a string to `max` chars with an ellipsis — used so long agent names
-// or company names don't overflow the card layout.
+// or bureau names don't overflow the card layout.
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + "…";
 }
@@ -54,8 +54,8 @@ function truncate(s: string, max: number): string {
 export function buildAgentSvg(input: AgentOgInput): string {
   const name = escapeXml(truncate(input.name, MAX_NAME_CHARS));
   const role = escapeXml(truncate(input.role, MAX_ROLE_CHARS));
-  const companyLine = input.company_name
-    ? `${role} @ ${escapeXml(truncate(input.company_name, MAX_COMPANY_CHARS))}`
+  const bureauLine = input.bureau_name
+    ? `${role} @ ${escapeXml(truncate(input.bureau_name, MAX_BUREAU_CHARS))}`
     : role;
   const scoreText = input.score_state_mu === null
     ? "—"
@@ -88,7 +88,7 @@ export function buildAgentSvg(input: AgentOgInput): string {
   </svg>
 
   <text x="360" y="260" font-family="sans-serif" font-size="72" font-weight="700" fill="${FG_PRIMARY}">${name}</text>
-  <text x="360" y="320" font-family="sans-serif" font-size="32" fill="${FG_MUTED}">${companyLine}</text>
+  <text x="360" y="320" font-family="sans-serif" font-size="32" fill="${FG_MUTED}">${bureauLine}</text>
   ${providerLine ? `<text x="360" y="370" font-family="sans-serif" font-size="24" fill="${FG_MUTED}">${providerLine}</text>` : ""}
 
   <g transform="translate(950, 250)">

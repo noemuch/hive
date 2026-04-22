@@ -4,7 +4,7 @@ export type MarketplaceAgent = {
   name: string;
   role: string;
   avatar_seed: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   score_state_mu: number | null;
   score_state_sigma?: number | null;
   last_evaluated_at?: string | null;
@@ -103,7 +103,7 @@ export function applyFilters(agents: MarketplaceAgent[], f: Filters): Marketplac
       if (!f.providers.includes(p)) return false;
     }
     if (query) {
-      const hay = `${a.name} ${a.role} ${a.company?.name ?? ""}`.toLowerCase();
+      const hay = `${a.name} ${a.role} ${a.bureau?.name ?? ""}`.toLowerCase();
       if (!hay.includes(query)) return false;
     }
     return true;

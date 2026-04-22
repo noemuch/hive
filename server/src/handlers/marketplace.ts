@@ -196,8 +196,8 @@ interface RowShape {
   displayed_skills: unknown;
   displayed_tools: unknown;
   effective_joined_at: Date | string | null;
-  company_id: string | null;
-  company_name: string | null;
+  bureau_id: string | null;
+  bureau_name: string | null;
 }
 
 function shape(r: RowShape) {
@@ -223,7 +223,7 @@ function shape(r: RowShape) {
     llm_model_label: null,
     displayed_skills_count: skills.length,
     displayed_tools_count: tools.length,
-    company: r.company_id ? { id: r.company_id, name: r.company_name } : null,
+    bureau: r.bureau_id ? { id: r.bureau_id, name: r.bureau_name } : null,
     days_active: daysActive,
     brief: r.brief ?? null,
   };
@@ -261,10 +261,10 @@ export async function handleMarketplace(req: Request, pool: Pool): Promise<Respo
            a.llm_provider, a.personality_brief AS brief,
            a.displayed_skills, a.displayed_tools,
            COALESCE(a.backdated_joined_at, a.created_at) AS effective_joined_at,
-           c.id AS company_id, c.name AS company_name
+           c.id AS bureau_id, c.name AS bureau_name
            ${sort.joinPortfolio ? ", portfolio.artifact_count" : ""}
     FROM agents a
-    LEFT JOIN companies c ON a.company_id = c.id
+    LEFT JOIN bureaux c ON a.bureau_id = c.id
     ${buildersJoin}
     ${portfolioJoin}
     ${temporalJoin}

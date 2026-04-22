@@ -116,12 +116,12 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
     content: string;
     type: string;
     author_id: string;
-    company_id: string;
+    bureau_id: string;
     author_name: string;
     author_builder_id: string;
     rubric_variant: string;
   }>(
-    `SELECT a.id, a.content, a.type, a.author_id, a.company_id,
+    `SELECT a.id, a.content, a.type, a.author_id, a.bureau_id,
             ag.name AS author_name, ag.builder_id AS author_builder_id,
             ag.rubric_variant
      FROM artifacts a
@@ -136,7 +136,7 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   const variant = await getRubricVariant(artifact.rubric_variant);
   const axes = allAxesFor(variant);
 
-  // 2. Find eligible evaluators: different company, online, prefer reliable
+  // 2. Find eligible evaluators: different bureau, online, prefer reliable
   // Demo builders bypass the "different builder" constraint (same logic as placement.ts)
   const { rows: [builderRow] } = await pool.query<{ is_demo: boolean }>(
     `SELECT is_demo FROM builders WHERE id = $1`,
@@ -146,28 +146,28 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
 
   const { rows: candidates } = await pool.query<{
     agent_id: string;
-    company_id: string;
+    bureau_id: string;
     builder_id: string;
     name: string;
     eval_reliability: string;
   }>(
-    `SELECT a.id AS agent_id, a.company_id, a.builder_id, a.name,
+    `SELECT a.id AS agent_id, a.bureau_id, a.builder_id, a.name,
             a.eval_reliability
      FROM agents a
      WHERE a.status IN ('active', 'idle')
-       AND a.company_id != $1
+       AND a.bureau_id != $1
        AND ($3 OR a.builder_id != $2)
        AND a.id NOT IN (
          SELECT evaluator_agent_id FROM peer_evaluations WHERE status = 'pending'
        )
      ORDER BY a.eval_reliability DESC, random()
      LIMIT 2`,
-    [artifact.company_id, artifact.author_builder_id, isDemo]
+    [artifact.bureau_id, artifact.author_builder_id, isDemo]
   );
 
   if (candidates.length < 2) {
     console.log(
-      `[peer-eval] Not enough cross-company evaluators (found ${candidates.length}), skipping`
+      `[peer-eval] Not enough cross-bureau evaluators (found ${candidates.length}), skipping`
     );
     return;
   }
@@ -176,8 +176,8 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   const { rows: agents } = await pool.query<{ name: string }>(
     `SELECT name FROM agents`
   );
-  const { rows: companies } = await pool.query<{ name: string }>(
-    `SELECT name FROM companies`
+  const { rows: bureaux } = await pool.query<{ name: string }>(
+    `SELECT name FROM bureaux`
   );
   const { rows: builders } = await pool.query<{ display_name: string }>(
     `SELECT display_name FROM builders`
@@ -187,7 +187,7 @@ export async function triggerPeerEvaluation(artifactId: string): Promise<void> {
   const { content: anonContent } = anonymize(
     artifact.content,
     agents.map((a) => a.name),
-    companies.map((c) => c.name),
+    bureaux.map((c) => c.name),
     builders.map((b) => b.display_name)
   );
 
@@ -245,10 +245,10 @@ export async function handleEvaluationResult(
     id: string;
     artifact_id: string;
     author_id: string;
-    company_id: string;
+    bureau_id: string;
     rubric_variant: string;
   }>(
-    `SELECT pe.id, pe.artifact_id, a.author_id, a.company_id, ag.rubric_variant
+    `SELECT pe.id, pe.artifact_id, a.author_id, a.bureau_id, ag.rubric_variant
      FROM peer_evaluations pe
      JOIN artifacts a ON a.id = pe.artifact_id
      JOIN agents ag ON ag.id = a.author_id
@@ -532,7 +532,7 @@ export async function handleEvaluationResult(
       sigma: newState.sigma,
       delta,
     };
-    router.broadcast(pe.company_id, qualityEvent);
+    router.broadcast(pe.bureau_id, qualityEvent);
   }
 
   // 11b. Refresh the canonical HEAR snapshot on agents table so every
@@ -542,10 +542,10 @@ export async function handleEvaluationResult(
   // refetching.
   const snapshot = await recomputeAgentScoreState(pe.author_id);
   if (snapshot) {
-    router.broadcast(snapshot.company_id, {
+    router.broadcast(snapshot.bureau_id, {
       type: "agent_score_refreshed",
       agent_id: snapshot.agent_id,
-      company_id: snapshot.company_id,
+      bureau_id: snapshot.bureau_id,
       score_state_mu: snapshot.score_state_mu,
       score_state_sigma: snapshot.score_state_sigma,
       last_evaluated_at: snapshot.last_evaluated_at,

@@ -11,9 +11,19 @@ export type AgentPersonality = {
   artifactTypes: ArtifactType[];
 };
 
-export type TeamConfig = {
+/**
+ * Configuration for a bureau's agents. Consumed by the launcher — each
+ * entry is spawned as a separate process at boot time.
+ *
+ * Canonical name: `BureauConfig`. `TeamConfig` is kept as a type alias for
+ * 90 days so existing `agents/teams/*.ts` files keep compiling without
+ * touch-ups; delete the alias when all known callers have migrated.
+ */
+export type BureauConfig = {
   agents: AgentPersonality[];
 };
+/** @deprecated use BureauConfig — kept for 90-day backward compat */
+export type TeamConfig = BureauConfig;
 
 /**
  * Configuration for a single MCP (Model Context Protocol) server an agent is

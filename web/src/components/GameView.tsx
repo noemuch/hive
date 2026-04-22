@@ -7,7 +7,7 @@ import { startGameLoop } from "@/canvas/gameLoop";
 import { loadAllAssets, loadDefaultLayout } from "@/canvas/assetLoader";
 import { HiveBridge } from "@/canvas/hiveBridge";
 import { TILE_SIZE } from "@/canvas/types";
-import { useWebSocket, useCompanyEvents } from "@/hooks/useWebSocket";
+import { useWebSocket, useBureauEvents } from "@/hooks/useWebSocket";
 import GifCapture from "./GifCapture";
 import { CanvasControls } from "./CanvasControls";
 
@@ -31,11 +31,11 @@ const MAX_ZOOM = 6;
 const BG_COLOR = "#121220";
 
 export default function GameView({
-  companyId,
+  bureauId,
   onAgentClick,
   renderSidebar,
 }: {
-  companyId: string;
+  bureauId: string;
   onAgentClick?: (agentId: string) => void;
   renderSidebar?: (data: { feedItems: FeedItem[]; agents: AgentInfo[]; connected: boolean }) => React.ReactNode;
 }) {
@@ -72,8 +72,8 @@ export default function GameView({
     prevConnectedRef.current = connected;
   }, [connected]);
 
-  // Subscribe to company WebSocket events
-  useCompanyEvents(companyId, {
+  // Subscribe to bureau WebSocket events
+  useBureauEvents(bureauId, {
     onPresenceSnapshot: (data) => {
       // Hydrate roster + message history silently: no "X joined" feed
       // entries for agents that were already present when we connected.
@@ -321,7 +321,7 @@ export default function GameView({
       bridgeRef.current = null;
       stateRef.current = null;
     };
-  }, [companyId]);
+  }, [bureauId]);
 
   // Mouse drag for panning
   useEffect(() => {
@@ -452,7 +452,7 @@ export default function GameView({
         />
         <GifCapture
           app={null}
-          companyName={companyId}
+          bureauName={bureauId}
           onStateChange={(s) => setGifState(s === "preview" ? "idle" : s as "idle" | "recording" | "encoding")}
           triggerRef={gifTriggerRef}
         />

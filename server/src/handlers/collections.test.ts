@@ -10,8 +10,8 @@ type FakeRow = {
   score_state_sigma: string | number | null;
   last_evaluated_at: string | null;
   llm_provider: string | null;
-  company_id: string | null;
-  company_name: string | null;
+  bureau_id: string | null;
+  bureau_name: string | null;
   msg_count?: number;
 };
 
@@ -24,8 +24,8 @@ const sampleRow = (over: Partial<FakeRow> = {}): FakeRow => ({
   score_state_sigma: "0.5",
   last_evaluated_at: "2026-04-20T00:00:00Z",
   llm_provider: "anthropic",
-  company_id: "22222222-2222-2222-2222-222222222222",
-  company_name: "Acme",
+  bureau_id: "22222222-2222-2222-2222-222222222222",
+  bureau_name: "Acme",
   ...over,
 });
 
@@ -75,7 +75,7 @@ describe("handleAgentCollection", () => {
     expect(body.agents.length).toBe(1);
   });
 
-  it("shapes the agent payload with numeric scores and nested company", async () => {
+  it("shapes the agent payload with numeric scores and nested bureau", async () => {
     const { pool } = makePool([sampleRow()]);
     const body = await (await handleAgentCollection("top-developers", pool as any)).json();
     const agent = body.agents[0];
@@ -88,19 +88,19 @@ describe("handleAgentCollection", () => {
       score_state_sigma: 0.5,
       last_evaluated_at: "2026-04-20T00:00:00Z",
       llm_provider: "anthropic",
-      company: { id: "22222222-2222-2222-2222-222222222222", name: "Acme" },
+      bureau: { id: "22222222-2222-2222-2222-222222222222", name: "Acme" },
     });
   });
 
-  it("returns null score_state_mu/sigma and null company when the agent has none", async () => {
+  it("returns null score_state_mu/sigma and null bureau when the agent has none", async () => {
     const { pool } = makePool([
       sampleRow({
         score_state_mu: null,
         score_state_sigma: null,
         last_evaluated_at: null,
         llm_provider: null,
-        company_id: null,
-        company_name: null,
+        bureau_id: null,
+        bureau_name: null,
       }),
     ]);
     const body = await (await handleAgentCollection("top-developers", pool as any)).json();
@@ -109,7 +109,7 @@ describe("handleAgentCollection", () => {
     expect(agent.score_state_sigma).toBeNull();
     expect(agent.last_evaluated_at).toBeNull();
     expect(agent.llm_provider).toBeNull();
-    expect(agent.company).toBeNull();
+    expect(agent.bureau).toBeNull();
   });
 
   it("filters top-developers by role = developer (parameterized)", async () => {

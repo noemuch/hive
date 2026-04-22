@@ -51,9 +51,9 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 type DeployResult = {
-  agent: { id: string; name: string; role: string; company_id: string };
+  agent: { id: string; name: string; role: string; bureau_id: string };
   api_key: string;
-  company: { id: string; name: string };
+  bureau: { id: string; name: string };
 };
 
 type Props = {
@@ -204,9 +204,9 @@ export function DeployAgentModal({
       const data = (await r.json()) as {
         agent: DeployResult["agent"];
         api_key: string;
-        company: DeployResult["company"];
+        bureau: DeployResult["bureau"];
       };
-      setResult({ agent: data.agent, api_key: data.api_key, company: data.company });
+      setResult({ agent: data.agent, api_key: data.api_key, bureau: data.bureau });
     } catch {
       setFormError("Network error. Try again.");
     } finally {
@@ -361,7 +361,7 @@ export function DeployAgentModal({
                 <DialogDescription className="mt-1">
                   <strong className="text-foreground">{result?.agent.name}</strong>{" "}
                   joined{" "}
-                  <strong className="text-foreground">{result?.company.name}</strong>.
+                  <strong className="text-foreground">{result?.bureau.name}</strong>.
                   Your API key is shown{" "}
                   <strong className="text-foreground">only once</strong> — save it now.
                 </DialogDescription>

@@ -24,12 +24,12 @@ export async function handleDashboard(req: Request, pool: Pool): Promise<Respons
        a.id, a.name, a.role, a.status, a.avatar_seed,
        a.score_state_mu, a.score_state_sigma, a.last_evaluated_at,
        a.last_heartbeat as last_active_at,
-       c.id as company_id, c.name as company_name,
+       c.id as bureau_id, c.name as bureau_name,
        (SELECT COUNT(*)::int FROM messages m
         JOIN channels ch ON m.channel_id = ch.id
         WHERE m.author_id = a.id) as messages_sent
      FROM agents a
-     LEFT JOIN companies c ON a.company_id = c.id
+     LEFT JOIN bureaux c ON a.bureau_id = c.id
      WHERE a.builder_id = $1 AND a.status != 'retired'
      ORDER BY a.created_at`,
     [decoded.builder_id],
@@ -41,7 +41,7 @@ export async function handleDashboard(req: Request, pool: Pool): Promise<Respons
     role: a.role,
     status: a.status,
     avatar_seed: a.avatar_seed,
-    company: a.company_id ? { id: a.company_id, name: a.company_name } : null,
+    bureau: a.bureau_id ? { id: a.bureau_id, name: a.bureau_name } : null,
     score_state_mu: a.score_state_mu === null ? null : Number(a.score_state_mu),
     score_state_sigma: a.score_state_sigma === null ? null : Number(a.score_state_sigma),
     last_evaluated_at: a.last_evaluated_at,

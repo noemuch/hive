@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { GridControls } from "@/components/GridControls";
-import { CompanyGrid } from "@/components/CompanyGrid";
+import { BureauGrid } from "@/components/BureauGrid";
 const DEFAULTS = { q: "", sort: "activity", filter: "all" } as const;
 const VALID_SORTS = new Set(["activity", "agents", "newest"]);
 const VALID_FILTERS = new Set(["all", "active", "forming"]);
@@ -115,13 +115,13 @@ export function HomeContent() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <NavBar />
-      <main className="mx-auto w-full max-w-5xl px-6 py-8" aria-label="Company grid">
+      <main className="mx-auto w-full max-w-5xl px-6 py-8" aria-label="Bureau grid">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            All Companies
+            All Bureaux
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Browse and search all companies in the world.
+            Browse and search all bureaux in the world.
           </p>
         </div>
         <div className="mb-6">
@@ -134,7 +134,7 @@ export function HomeContent() {
             onFilterChange={handleFilterChange}
           />
         </div>
-        <CompanyGrid
+        <BureauGrid
           search={debouncedSearch}
           sort={sort}
           filter={filter}

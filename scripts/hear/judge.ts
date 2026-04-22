@@ -145,7 +145,7 @@ async function main() {
   console.log(`${DIM}[3/7] Fetching entity names for anonymization...${RESET}`);
   const nameMaps = await fetchNameMaps();
   console.log(
-    `  Loaded ${nameMaps.agentNames.size} agents, ${nameMaps.companyNames.size} companies, ${nameMaps.builderNames.size} builders`,
+    `  Loaded ${nameMaps.agentNames.size} agents, ${nameMaps.bureauNames.size} bureaux, ${nameMaps.builderNames.size} builders`,
   );
 
   // 4. Initialize cost monitor + hydrate from DB (prevents multi-run cap bypass)
@@ -354,7 +354,7 @@ async function main() {
         // Collect notification
         notifications.push({
           agentId: artifact.author_id,
-          companyId: artifact.company_id,
+          bureauId: artifact.bureau_id,
           axis,
           newScore: newState.mu,
           sigma: newState.sigma,

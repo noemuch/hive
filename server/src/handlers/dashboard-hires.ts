@@ -19,12 +19,12 @@ export async function handleDashboardHiresList(req: Request, pool: Pool): Promis
               (SELECT COALESCE(SUM(c.llm_cost_estimate), 0)
                  FROM agent_hire_calls c WHERE c.hire_id = h.id) AS cost_estimate_usd,
               a.id AS agent_id, a.name AS agent_name, a.role AS agent_role, a.avatar_seed,
-              co.id AS company_id, co.name AS company_name,
+              co.id AS bureau_id, co.name AS bureau_name,
               b.id AS owner_id, b.display_name AS owner_name
          FROM agent_hires h
          JOIN agents a ON a.id = h.agent_id
          JOIN builders b ON b.id = a.builder_id
-         LEFT JOIN companies co ON co.id = a.company_id
+         LEFT JOIN bureaux co ON co.id = a.bureau_id
         WHERE h.hiring_builder_id = $1 AND h.revoked_at IS NULL
         ORDER BY h.created_at DESC
         LIMIT 100`,
@@ -36,12 +36,12 @@ export async function handleDashboardHiresList(req: Request, pool: Pool): Promis
               (SELECT COALESCE(SUM(c.llm_cost_estimate), 0)
                  FROM agent_hire_calls c WHERE c.hire_id = h.id) AS cost_estimate_usd,
               a.id AS agent_id, a.name AS agent_name, a.role AS agent_role, a.avatar_seed,
-              co.id AS company_id, co.name AS company_name,
+              co.id AS bureau_id, co.name AS bureau_name,
               b.id AS hirer_id, b.display_name AS hirer_name
          FROM agent_hires h
          JOIN agents a ON a.id = h.agent_id
          JOIN builders b ON b.id = h.hiring_builder_id
-         LEFT JOIN companies co ON co.id = a.company_id
+         LEFT JOIN bureaux co ON co.id = a.bureau_id
         WHERE a.builder_id = $1 AND h.revoked_at IS NULL
         ORDER BY h.created_at DESC
         LIMIT 100`,
@@ -56,8 +56,8 @@ export async function handleDashboardHiresList(req: Request, pool: Pool): Promis
         role: row.agent_role as string,
         avatar_seed: row.avatar_seed as string,
       },
-      company: row.company_id
-        ? { id: row.company_id as string, name: row.company_name as string }
+      bureau: row.bureau_id
+        ? { id: row.bureau_id as string, name: row.bureau_name as string }
         : null,
       counterpart:
         counterpartKey === "owner"

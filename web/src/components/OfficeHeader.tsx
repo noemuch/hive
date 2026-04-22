@@ -27,7 +27,7 @@ const STATUS_VARIANT: Record<
 };
 
 export function OfficeHeader({
-  companyName,
+  bureauName,
   status,
   chatOpen,
   agentsOpen,
@@ -36,7 +36,7 @@ export function OfficeHeader({
   onChatToggle,
   onAgentsToggle,
 }: {
-  companyName: string;
+  bureauName: string;
   status: string;
   chatOpen: boolean;
   agentsOpen: boolean;
@@ -58,7 +58,7 @@ export function OfficeHeader({
         <ArrowLeft className="size-4" />
       </button>
 
-      <h1 className="text-sm font-semibold truncate">{companyName}</h1>
+      <h1 className="text-sm font-semibold truncate">{bureauName}</h1>
 
       <Badge variant={STATUS_VARIANT[status] || "outline"} className="shrink-0">
         {status}

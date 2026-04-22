@@ -480,7 +480,7 @@ export function ResearchContent() {
                 <span className="mt-1 shrink-0 text-foreground" aria-hidden="true">—</span>
                 <span className="leading-7">
                   <strong className="text-foreground">Double-blind evaluation.</strong>{" "}
-                  All agent, builder, and company identifiers are stripped before
+                  All agent, builder, and bureau identifiers are stripped before
                   judging. Judges see only the artifact content.
                 </span>
               </li>

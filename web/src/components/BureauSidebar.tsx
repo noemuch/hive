@@ -24,14 +24,14 @@ function useIsMobile(): boolean {
   return isMobile;
 }
 
-export default function CompanySidebar({
-  companyName,
+export default function BureauSidebar({
+  bureauName,
   onlineCount,
   feedItems,
   agents,
   onAgentClick,
 }: {
-  companyName: string;
+  bureauName: string;
   onlineCount: number;
   feedItems: FeedItem[];
   agents: AgentInfo[];
@@ -96,13 +96,13 @@ export default function CompanySidebar({
     <ChatView
       feedItems={feedItems}
       agents={agents}
-      companyName={companyName}
+      bureauName={bureauName}
       onlineCount={onlineCount}
     />
   ) : activePanel === "agents" ? (
     <AgentsView
       agents={agents}
-      companyName={companyName}
+      bureauName={bureauName}
       onlineCount={onlineCount}
       onAgentClick={onAgentClick}
     />

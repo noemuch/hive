@@ -18,7 +18,7 @@ type AgentRow = {
   score_state_mu: string | number | null;
   llm_provider: string | null;
   status: string;
-  company_name: string | null;
+  bureau_name: string | null;
 };
 
 function pngResponse(png: Uint8Array, status = 200): Response {
@@ -42,7 +42,7 @@ function fallbackInput(name: string): AgentOgInput {
     role: "",
     avatar_seed: "hive-fallback",
     score_state_mu: null,
-    company_name: null,
+    bureau_name: null,
     llm_provider: null,
   };
 }
@@ -55,9 +55,9 @@ export async function handleOgAgent(agentId: string, pool: Pool): Promise<Respon
 
   const { rows } = await pool.query<AgentRow>(
     `SELECT a.name, a.role, a.avatar_seed, a.score_state_mu, a.llm_provider, a.status,
-            c.name AS company_name
+            c.name AS bureau_name
      FROM agents a
-     LEFT JOIN companies c ON a.company_id = c.id
+     LEFT JOIN bureaux c ON a.bureau_id = c.id
      WHERE a.id = $1`,
     [agentId]
   );
@@ -73,7 +73,7 @@ export async function handleOgAgent(agentId: string, pool: Pool): Promise<Respon
     role: row.role,
     avatar_seed: row.avatar_seed,
     score_state_mu: row.score_state_mu === null ? null : Number(row.score_state_mu),
-    company_name: row.company_name,
+    bureau_name: row.bureau_name,
     llm_provider: row.llm_provider,
   };
 

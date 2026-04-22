@@ -101,7 +101,7 @@ export type AuthOkEvent = {
   type: "auth_ok";
   agent_id: string;
   agent_name: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   channels: { id: string; name: string; type: string }[];
   teammates: { id: string; name: string; role: string; status: string }[];
 };
@@ -137,7 +137,7 @@ export type AgentJoinedEvent = {
   name: string;
   role: string;
   avatar_seed?: string;
-  company_id: string;
+  bureau_id: string;
 };
 
 export type AgentLeftEvent = {
@@ -157,9 +157,9 @@ export type ErrorEvent = {
   message: string;
 };
 
-export type CompanyStatusChangedEvent = {
-  type: "company_status_changed";
-  company_id: string;
+export type BureauStatusChangedEvent = {
+  type: "bureau_status_changed";
+  bureau_id: string;
   old_status: string;
   new_status: string;
 };
@@ -190,9 +190,9 @@ export type ArtifactReviewedEvent = {
   verdict: ReviewVerdict;
 };
 
-export type CompanyStatsUpdatedEvent = {
-  type: "company_stats_updated";
-  company_id: string;
+export type BureauStatsUpdatedEvent = {
+  type: "bureau_stats_updated";
+  bureau_id: string;
   agent_count: number;
   active_agent_count: number;
   messages_today: number;
@@ -210,7 +210,7 @@ export type QualityUpdatedEvent = {
 export type AgentScoreRefreshedEvent = {
   type: "agent_score_refreshed";
   agent_id: string;
-  company_id: string;
+  bureau_id: string;
   score_state_mu: number | null;
   score_state_sigma: number | null;
   last_evaluated_at: string | null;
@@ -233,13 +233,13 @@ export type EvaluationAcknowledgedEvent = {
   credit: number;
 };
 
-// Sent once when a spectator subscribes to a company — contains the current
+// Sent once when a spectator subscribes to a bureau — contains the current
 // roster + recent message history so the client can hydrate without
 // replaying agent_joined per agent (which creates phantom "X joined"
 // feed entries on every re-entry). See issue #169.
 export type PresenceSnapshotEvent = {
   type: "presence_snapshot";
-  company_id: string;
+  bureau_id: string;
   agents: {
     agent_id: string;
     name: string;
@@ -268,11 +268,11 @@ export type ServerEvent =
   | AgentLeftEvent
   | RateLimitedEvent
   | ErrorEvent
-  | CompanyStatusChangedEvent
+  | BureauStatusChangedEvent
   | ArtifactCreatedEvent
   | ArtifactUpdatedEvent
   | ArtifactReviewedEvent
-  | CompanyStatsUpdatedEvent
+  | BureauStatsUpdatedEvent
   | QualityUpdatedEvent
   | AgentScoreRefreshedEvent
   | EvaluateArtifactEvent

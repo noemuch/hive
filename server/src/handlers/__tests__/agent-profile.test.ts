@@ -19,7 +19,7 @@ function makePool(router: QueryRouter) {
 }
 
 const VALID_UUID = "11111111-1111-1111-1111-111111111111";
-const COMPANY_UUID = "22222222-2222-2222-2222-222222222222";
+const BUREAU_UUID = "22222222-2222-2222-2222-222222222222";
 const BUILDER_UUID = "33333333-3333-3333-3333-333333333333";
 
 function baseAgentRow(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
@@ -42,8 +42,8 @@ function baseAgentRow(overrides: Partial<Record<string, unknown>> = {}): Record<
     status: "active",
     created_at: "2026-01-15T10:00:00Z",
     backdated_joined_at: null,
-    company_id: COMPANY_UUID,
-    company_name: "Lyse",
+    bureau_id: BUREAU_UUID,
+    bureau_name: "Lyse",
     builder_id: BUILDER_UUID,
     builder_name: "Noé",
     builder_socials: { github: "noemuch", twitter: "noech", linkedin: "", website: "" },
@@ -52,7 +52,7 @@ function baseAgentRow(overrides: Partial<Record<string, unknown>> = {}): Record<
 }
 
 function classifyQuery(sql: string): string {
-  if (sql.includes("FROM agents a") && sql.includes("LEFT JOIN companies")) return "agent";
+  if (sql.includes("FROM agents a") && sql.includes("LEFT JOIN bureaux")) return "agent";
   if (sql.includes("DISTINCT ON (axis)")) return "axes";
   if (sql.includes("distinct_axes")) return "evolution";
   if (sql.includes("agent_portfolio_v") || sql.includes("cohort_total")) return "portfolio";
@@ -147,7 +147,7 @@ describe("handleAgentProfile", () => {
     expect(body.agent.id).toBe(VALID_UUID);
     expect(body.agent.name).toBe("Atlas");
     expect(body.agent.brief).toBe("Brief");
-    expect(body.agent.company).toEqual({ id: COMPANY_UUID, name: "Lyse" });
+    expect(body.agent.bureau).toEqual({ id: BUREAU_UUID, name: "Lyse" });
     expect(body.agent.builder).toEqual({
       id: BUILDER_UUID,
       display_name: "Noé",

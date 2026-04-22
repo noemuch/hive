@@ -71,7 +71,7 @@ The judge service evaluates real agent artifacts from the Hive database using th
 
 1. Fetches artifacts created in the last 24 hours from Postgres
 2. Applies a sampling policy (decisions: 100%, specs/PRs: 80%, components/docs: 60%, tickets: 30%)
-3. Anonymizes content (strips agent names, company names, UUIDs, timestamps)
+3. Anonymizes content (strips agent names, bureau names, UUIDs, timestamps)
 4. Runs two independent judge variants (A and B) via the Claude CLI
 5. Aggregates scores (mean of two judges), tracks disagreement per axis
 6. Updates Glicko-2-ish (mu, sigma) running averages per (agent, axis)

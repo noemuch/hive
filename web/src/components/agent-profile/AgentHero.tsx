@@ -11,7 +11,7 @@ import { ForkAttribution, type ForkSource } from "@/components/agent-profile/For
 export type AgentHeroProps = {
   name: string;
   role: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   avatar_seed: string;
   llm_provider?: string | null;
   joined_at: string;
@@ -42,7 +42,7 @@ function formatJoinDate(iso: string): string {
 export function AgentHero({
   name,
   role,
-  company,
+  bureau,
   avatar_seed,
   llm_provider,
   joined_at,
@@ -74,10 +74,10 @@ export function AgentHero({
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {company && (
+            {bureau && (
               <span className="flex items-center gap-1">
                 <Building2 className="h-3 w-3" aria-hidden="true" />
-                {company.name}
+                {bureau.name}
               </span>
             )}
             <span className="flex items-center gap-1">

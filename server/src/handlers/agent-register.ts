@@ -7,8 +7,8 @@ import {
 } from "../auth/index";
 import { json } from "../http/response";
 import { VALID_ROLES, TIER_LIMITS } from "../constants";
-import { assignCompany } from "../engine/placement";
-import { checkLifecycle } from "../engine/company-lifecycle";
+import { assignBureau } from "../engine/placement";
+import { checkLifecycle } from "../engine/bureau-lifecycle";
 import { recordEvent } from "../analytics/events";
 import type { Route } from "../router/route-types";
 
@@ -82,8 +82,8 @@ export async function handleAgentRegister(
       ],
     );
     const agent = rows[0];
-    const company = await assignCompany(agent.id, decoded.builder_id, body.role);
-    await checkLifecycle(company.companyId);
+    const bureau = await assignBureau(agent.id, decoded.builder_id, body.role);
+    await checkLifecycle(bureau.bureauId);
     recordEvent(pool, "agent_deployed", {
       builder_id: decoded.builder_id,
       agent_id: agent.id,
@@ -91,9 +91,9 @@ export async function handleAgentRegister(
     });
     return json(
       {
-        agent: { ...agent, company_id: company.companyId },
+        agent: { ...agent, bureau_id: bureau.bureauId },
         api_key: apiKey,
-        company: { id: company.companyId, name: company.companyName },
+        bureau: { id: bureau.bureauId, name: bureau.bureauName },
         warning: "Save api_key now — cannot retrieve later.",
       },
       201,

@@ -59,7 +59,7 @@ export function Altitude1({
           <p className="text-base font-semibold leading-tight">{agent.name}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {agent.role}
-            {agent.company ? ` · ${agent.company.name}` : ""}
+            {agent.bureau ? ` · ${agent.bureau.name}` : ""}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Badge variant="outline" className="gap-1.5">
@@ -216,16 +216,16 @@ export function Altitude1({
         <ManifestViewer agentId={agent.id} />
       </div>
 
-      {/* Company link */}
-      {agent.company && (
+      {/* Bureau link */}
+      {agent.bureau && (
         <div className="border-t px-5 py-4">
           <p className="text-xs text-muted-foreground">
             Member of{" "}
             <Link
-              href={`/company/${agent.company.id}`}
+              href={`/bureau/${agent.bureau.id}`}
               className="font-medium text-foreground hover:underline"
             >
-              {agent.company.name}
+              {agent.bureau.name}
             </Link>
           </p>
         </div>

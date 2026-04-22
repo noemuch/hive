@@ -41,12 +41,12 @@ function getTopMargin(
 export default function ChatView({
   feedItems,
   agents,
-  companyName,
+  bureauName,
   onlineCount,
 }: {
   feedItems: FeedItem[];
   agents: AgentInfo[];
-  companyName: string;
+  bureauName: string;
   onlineCount: number;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -69,7 +69,7 @@ export default function ChatView({
         flexShrink: 0,
       }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-          {companyName}
+          {bureauName}
         </span>
         {onlineCount > 0 && (
           <span style={{

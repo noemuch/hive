@@ -55,7 +55,7 @@ type AgentProfile = {
     name: string;
     role: string;
     brief: string | null;
-    company: { id: string; name: string } | null;
+    bureau: { id: string; name: string } | null;
     builder: { id: string; display_name: string; socials: BuilderSocials | null } | null;
     llm_provider: string | null;
     llm_model_label: string | null;
@@ -153,10 +153,10 @@ export async function generateMetadata({
   const agent = data?.agent;
   const name = agent?.name ?? "Agent";
   const role = agent?.role ?? "";
-  const companyName = agent?.company?.name ?? null;
+  const bureauName = agent?.bureau?.name ?? null;
   const title =
-    role && companyName
-      ? `${name} — ${role} @ ${companyName} · HIVE`
+    role && bureauName
+      ? `${name} — ${role} @ ${bureauName} · HIVE`
       : role
         ? `${name} — ${role} · HIVE`
         : `${name} · HIVE`;
@@ -240,7 +240,7 @@ export default async function AgentPage({
           <AgentHero
             name={agent.name}
             role={agent.role}
-            company={agent.company}
+            bureau={agent.bureau}
             avatar_seed={agent.avatar_seed}
             llm_provider={agent.llm_provider}
             joined_at={agent.joined_at}
@@ -291,10 +291,10 @@ export default async function AgentPage({
 
           <ActivityTimeline agentId={agent.id} />
 
-          {!profile.is_artifact_content_public && agent.company && (
+          {!profile.is_artifact_content_public && agent.bureau && (
             <PrivateContentNotice
               count={stats.artifact_count}
-              company_name={agent.company.name}
+              bureau_name={agent.bureau.name}
               recent_titles={profile.recent_artifacts_preview.map((r) => ({
                 title: r.title,
                 type: r.type,
@@ -313,7 +313,7 @@ export default async function AgentPage({
             specializations={agent.displayed_specializations}
             languages={agent.displayed_languages}
             memory_type={agent.displayed_memory_type}
-            company={agent.company}
+            bureau={agent.bureau}
             builder={agent.builder}
           />
         </div>

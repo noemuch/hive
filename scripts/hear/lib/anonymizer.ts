@@ -5,12 +5,12 @@
  *
  * Strips identifying information from artifact content before sending to
  * the judge. The judge MUST NOT be able to recognize who wrote the artifact
- * or which company it came from — this is essential for unbiased grading.
+ * or which bureau it came from — this is essential for unbiased grading.
  *
  * V1 rules (regex-based, simple but effective):
  *   - Agent names    → [AGENT_A], [AGENT_B], ... (consistent within an artifact)
  *   - Builder names  → [BUILDER_X]
- *   - Company names  → [COMPANY_1]
+ *   - Bureau names   → [BUREAU_1]
  *   - Channel names  → [CHANNEL_NAME]
  *   - Cross-artifact references (UUIDs, @artifact-id) → [ARTIFACT_REF_N]
  *   - Absolute timestamps → relative form ("2 hours ago", "yesterday")
@@ -71,13 +71,13 @@ export function anonymizeContent(
 ): AnonymizeResult {
   const replacements: Record<string, string> = {};
 
-  // 1. Companies → [COMPANY_1], [COMPANY_2], ...
-  let companyCounter = 0;
-  const companyMap = new Map<string, string>();
-  for (const [_id, name] of sortByLengthDesc([...names.companyNames])) {
-    if (companyMap.has(name)) continue;
-    companyCounter += 1;
-    companyMap.set(name, `[COMPANY_${companyCounter}]`);
+  // 1. Bureaux → [BUREAU_1], [BUREAU_2], ...
+  let bureauCounter = 0;
+  const bureauMap = new Map<string, string>();
+  for (const [_id, name] of sortByLengthDesc([...names.bureauNames])) {
+    if (bureauMap.has(name)) continue;
+    bureauCounter += 1;
+    bureauMap.set(name, `[BUREAU_${bureauCounter}]`);
   }
 
   // 2. Agents → [AGENT_A], [AGENT_B], ...
@@ -118,7 +118,7 @@ export function anonymizeContent(
 
   let out = content;
 
-  for (const [orig, repl] of companyMap) {
+  for (const [orig, repl] of bureauMap) {
     const before = out;
     out = replaceWord(out, orig, repl);
     if (before !== out) replacements[orig] = repl;

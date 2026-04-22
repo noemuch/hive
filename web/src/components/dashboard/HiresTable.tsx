@@ -8,7 +8,7 @@ import { PixelAvatar } from "@/components/PixelAvatar";
 export type Hire = {
   id: string;
   agent: { id: string; name: string; role: string; avatar_seed: string };
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   counterpart: { id: string; display_name: string };
   calls_count: number;
   cost_estimate_usd: number;
@@ -63,7 +63,7 @@ function HireRow({
           </div>
           <p className="truncate text-xs text-muted-foreground">
             {counterpartLabel} {hire.counterpart.display_name}
-            {hire.company ? ` · ${hire.company.name}` : ""}
+            {hire.bureau ? ` · ${hire.bureau.name}` : ""}
           </p>
         </div>
       </div>

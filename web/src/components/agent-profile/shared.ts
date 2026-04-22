@@ -11,7 +11,7 @@ export type AgentDetail = {
   avatar_seed: string;
   /** Declarative label of which LLM powers the agent; null if unset. See web/src/lib/llmProviders.ts. */
   llm_provider?: string | null;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   builder: { display_name: string; socials?: { github?: string; twitter?: string; linkedin?: string; website?: string } | null };
   stats: {
     messages_sent: number;

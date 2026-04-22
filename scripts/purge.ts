@@ -2,6 +2,30 @@ import pg from "pg";
 import { readFileSync } from "fs";
 import { join } from "path";
 
+/**
+ * Purge runner.
+ *
+ * Per NORTHSTAR §10.5, the genesis state after a purge is EMPTY — bureaux are
+ * created by the genesis ceremony via application code, not by SQL. So the
+ * expected post-purge state is zero rows across every content table, including
+ * bureaux (a.k.a. the legacy `companies` table pre-migration 038).
+ *
+ * This script auto-detects whether migration 038 (companies → bureaux rename)
+ * has been applied and queries the appropriate table, so the same runner
+ * works both before and after the rename.
+ */
+async function tableExists(
+  client: pg.Client,
+  tableName: string,
+): Promise<boolean> {
+  const { rows } = await client.query(
+    `SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName],
+  );
+  return rows.length > 0;
+}
+
 async function purge() {
   const databaseUrl =
     process.env.DATABASE_URL || "postgresql://localhost:5432/hive";
@@ -46,42 +70,46 @@ async function purge() {
       console.log(`  ${row.t}: ${row.n} [${status}]`);
     }
 
-    // Verification: companies
-    const { rows: companies } = await client.query(
-      "SELECT name, lifecycle_state, agent_count_cache FROM companies ORDER BY name"
+    // Verification: bureaux (legacy `companies` before migration 038).
+    // The column is called `bureau_id` post-038 and `company_id` pre-038.
+    const hasBureaux = await tableExists(client, "bureaux");
+    const bureauTable = hasBureaux ? "bureaux" : "companies";
+    const bureauFkColumn = hasBureaux ? "bureau_id" : "company_id";
+
+    const { rows: bureaux } = await client.query(
+      `SELECT name, lifecycle_state, agent_count_cache
+         FROM ${bureauTable}
+        ORDER BY name`,
     );
-    console.log("\nCompanies:");
-    for (const c of companies) {
+    console.log(`\nBureaux (table: ${bureauTable}):`);
+    for (const b of bureaux) {
       console.log(
-        `  ${c.name} | ${c.lifecycle_state} | agents: ${c.agent_count_cache}`
+        `  ${b.name} | ${b.lifecycle_state} | agents: ${b.agent_count_cache}`,
       );
     }
 
     // Verification: channels
-    const { rows: channels } = await client.query(`
-      SELECT c.name as company, ch.name as channel, ch.type
-      FROM channels ch
-      LEFT JOIN companies c ON c.id = ch.company_id
-      ORDER BY c.name NULLS LAST, ch.name
-    `);
+    const { rows: channels } = await client.query(
+      `SELECT b.name as bureau, ch.name as channel, ch.type
+         FROM channels ch
+         LEFT JOIN ${bureauTable} b ON b.id = ch.${bureauFkColumn}
+        ORDER BY b.name NULLS LAST, ch.name`,
+    );
     console.log("\nChannels:");
     for (const ch of channels) {
       console.log(
-        `  ${ch.company ?? "(global)"} | ${ch.channel} | ${ch.type}`
+        `  ${ch.bureau ?? "(global)"} | ${ch.channel} | ${ch.type}`,
       );
     }
 
-    // Final verdict
-    const companyOk =
-      companies.length === 1 &&
-      companies[0].name === "Lyse" &&
-      companies[0].lifecycle_state === "active" &&
-      companies[0].agent_count_cache === 0;
-    const channelsOk = channels.length === 4;
+    // Final verdict — per NORTHSTAR §10.5, EVERYTHING should be zero.
+    // The genesis ceremony seeds Engineering / Quality / Governance later.
+    const bureauOk = bureaux.length === 0;
+    const channelsOk = channels.length === 0;
 
     console.log("\n=== Result ===\n");
-    if (allZero && companyOk && channelsOk) {
-      console.log("PASS: Clean slate. Ready for real agents.");
+    if (allZero && bureauOk && channelsOk) {
+      console.log("PASS: Clean slate. Ready for the genesis ceremony.");
     } else {
       console.error("FAIL: Unexpected state after purge.");
       process.exit(1);

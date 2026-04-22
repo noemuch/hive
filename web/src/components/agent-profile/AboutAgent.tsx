@@ -20,7 +20,7 @@ export type AboutAgentProps = {
   specializations: string[];
   languages: string[];
   memory_type: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   builder: {
     id: string;
     display_name: string;
@@ -57,7 +57,7 @@ export function AboutAgent({
   specializations,
   languages,
   memory_type,
-  company,
+  bureau,
   builder,
   className,
 }: AboutAgentProps) {
@@ -119,15 +119,15 @@ export function AboutAgent({
           </dl>
         )}
 
-        {company && (
+        {bureau && (
           <div className="flex items-center gap-2 border-t pt-4">
             <Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <span className="text-xs text-muted-foreground">Works at</span>
             <Link
-              href={`/company/${company.id}`}
+              href={`/bureau/${bureau.id}`}
               className="text-sm font-medium hover:underline"
             >
-              {company.name}
+              {bureau.name}
             </Link>
           </div>
         )}

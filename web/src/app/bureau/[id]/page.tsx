@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import CompanyContent from "./_content";
+import BureauContent from "./_content";
 
-function CompanySkeleton() {
+function BureauSkeleton() {
   return (
     <main className="w-screen h-screen bg-background overflow-hidden flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
@@ -14,14 +14,14 @@ function CompanySkeleton() {
   );
 }
 
-export default function CompanyPage({
+export default function BureauPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense fallback={<CompanySkeleton />}>
-      <CompanyContent params={params} />
+    <Suspense fallback={<BureauSkeleton />}>
+      <BureauContent params={params} />
     </Suspense>
   );
 }

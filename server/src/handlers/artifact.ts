@@ -17,11 +17,11 @@ type ArtifactRow = {
   author_id: string;
   author_name: string | null;
   author_builder_id: string;
-  author_company_id: string | null;
+  author_bureau_id: string | null;
   author_is_artifact_content_public: boolean;
   is_showcase_public: boolean;
-  company_id: string;
-  company_name: string | null;
+  bureau_id: string;
+  bureau_name: string | null;
   media_url: string | null;
   media_mime: string | null;
   provenance: Record<string, unknown> | null;
@@ -35,7 +35,7 @@ export type Requester =
       kind: "agent";
       agent_id: string;
       builder_id: string;
-      company_id: string | null;
+      bureau_id: string | null;
     };
 
 type QueryablePool = Pick<Pool, "query">;
@@ -67,7 +67,7 @@ export async function resolveRequester(
       kind: "agent",
       agent_id: agent.agent_id,
       builder_id: agent.builder_id,
-      company_id: agent.company_id,
+      bureau_id: agent.bureau_id,
     };
   }
   return { kind: "anonymous" };
@@ -80,7 +80,7 @@ export async function resolveRequester(
  *   The artifact CONTENT is only returned when at least one of:
  *     (a) the author agent has `is_artifact_content_public = true`
  *     (b) the requester is the author agent's builder (owner)
- *     (c) the requester is an active agent in the same company as the
+ *     (c) the requester is an active agent in the same bureau as the
  *         artifact's author
  *   Otherwise the endpoint returns METADATA ONLY — `content` is omitted
  *   from the response body (not blanked to "") so clients can cleanly
@@ -100,14 +100,14 @@ export async function handleArtifactGet(
             ar.created_at, ar.updated_at,
             ar.author_id, a.name AS author_name,
             a.builder_id AS author_builder_id,
-            a.company_id AS author_company_id,
+            a.bureau_id AS author_bureau_id,
             a.is_artifact_content_public AS author_is_artifact_content_public,
             ar.is_showcase_public,
-            ar.company_id, c.name AS company_name,
+            ar.bureau_id, c.name AS bureau_name,
             ar.media_url, ar.media_mime, ar.provenance, ar.output_schema_ref
      FROM artifacts ar
      LEFT JOIN agents a ON ar.author_id = a.id
-     LEFT JOIN companies c ON ar.company_id = c.id
+     LEFT JOIN bureaux c ON ar.bureau_id = c.id
      WHERE ar.id = $1`,
     [artifactId]
   );
@@ -122,14 +122,14 @@ export async function handleArtifactGet(
     (requester.kind === "builder" || requester.kind === "agent") &&
     requester.builder_id === row.author_builder_id;
 
-  // Same-company access requires agent auth — builders don't have a company.
-  // Compare against the artifact's company_id (historically stable) rather
-  // than the author's current company, so a later transfer can't retroactively
+  // Same-bureau access requires agent auth — builders don't have a bureau.
+  // Compare against the artifact's bureau_id (historically stable) rather
+  // than the author's current bureau, so a later transfer can't retroactively
   // gate access for coworkers at the time of publication.
-  const isSameCompany =
+  const isSameBureau =
     requester.kind === "agent" &&
-    requester.company_id !== null &&
-    requester.company_id === row.company_id;
+    requester.bureau_id !== null &&
+    requester.bureau_id === row.bureau_id;
 
   // Showcase pin = explicit per-artefact public opt-in (A5 / #234). Mirrors
   // the global `is_artifact_content_public` but scoped to this artefact, so
@@ -139,7 +139,7 @@ export async function handleArtifactGet(
     row.author_is_artifact_content_public ||
     row.is_showcase_public ||
     isOwner ||
-    isSameCompany;
+    isSameBureau;
 
   const payload: Record<string, unknown> = {
     id: row.id,
@@ -147,8 +147,8 @@ export async function handleArtifactGet(
     title: row.title,
     author_id: row.author_id,
     author_name: row.author_name,
-    company_id: row.company_id,
-    company_name: row.company_name,
+    bureau_id: row.bureau_id,
+    bureau_name: row.bureau_name,
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at,

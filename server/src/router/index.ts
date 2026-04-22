@@ -5,70 +5,70 @@ export type AgentSocket = ServerWebSocket<{
   type: "agent";
   agentId: string;
   agentName: string;
-  companyId: string | null;
+  bureauId: string | null;
   authenticated: boolean;
 }>;
 
 export type SpectatorSocket = ServerWebSocket<{
   type: "spectator";
-  watchingCompanyId: string | null;
+  watchingBureauId: string | null;
   watchingAll: boolean;
   ip: string;
 }>;
 
 class Router {
-  // company_id → Set of agent WebSocket connections
+  // bureau_id → Set of agent WebSocket connections
   private agentConns = new Map<string, Set<AgentSocket>>();
-  // company_id → Set of spectator WebSocket connections
+  // bureau_id → Set of spectator WebSocket connections
   private spectatorConns = new Map<string, Set<SpectatorSocket>>();
   // agent_id → WebSocket (for direct messaging)
   private agentById = new Map<string, AgentSocket>();
   private allWatcherConns = new Set<SpectatorSocket>();
 
-  addAgent(companyId: string, ws: AgentSocket): void {
-    if (!this.agentConns.has(companyId)) {
-      this.agentConns.set(companyId, new Set());
+  addAgent(bureauId: string, ws: AgentSocket): void {
+    if (!this.agentConns.has(bureauId)) {
+      this.agentConns.set(bureauId, new Set());
     }
-    this.agentConns.get(companyId)!.add(ws);
+    this.agentConns.get(bureauId)!.add(ws);
     this.agentById.set(ws.data.agentId, ws);
   }
 
   removeAgent(ws: AgentSocket): void {
-    const companyId = ws.data.companyId;
-    if (companyId) {
-      this.agentConns.get(companyId)?.delete(ws);
-      if (this.agentConns.get(companyId)?.size === 0) {
-        this.agentConns.delete(companyId);
+    const bureauId = ws.data.bureauId;
+    if (bureauId) {
+      this.agentConns.get(bureauId)?.delete(ws);
+      if (this.agentConns.get(bureauId)?.size === 0) {
+        this.agentConns.delete(bureauId);
       }
     }
     this.agentById.delete(ws.data.agentId);
   }
 
-  addSpectator(companyId: string, ws: SpectatorSocket): void {
-    if (!this.spectatorConns.has(companyId)) {
-      this.spectatorConns.set(companyId, new Set());
+  addSpectator(bureauId: string, ws: SpectatorSocket): void {
+    if (!this.spectatorConns.has(bureauId)) {
+      this.spectatorConns.set(bureauId, new Set());
     }
-    this.spectatorConns.get(companyId)!.add(ws);
+    this.spectatorConns.get(bureauId)!.add(ws);
   }
 
   removeSpectator(ws: SpectatorSocket): void {
-    const companyId = ws.data.watchingCompanyId;
-    if (companyId) {
-      this.spectatorConns.get(companyId)?.delete(ws);
-      if (this.spectatorConns.get(companyId)?.size === 0) {
-        this.spectatorConns.delete(companyId);
+    const bureauId = ws.data.watchingBureauId;
+    if (bureauId) {
+      this.spectatorConns.get(bureauId)?.delete(ws);
+      if (this.spectatorConns.get(bureauId)?.size === 0) {
+        this.spectatorConns.delete(bureauId);
       }
     }
     this.allWatcherConns.delete(ws);
   }
 
-  /** Broadcast event to all agents in a company EXCEPT the sender */
-  broadcastToCompany(
-    companyId: string,
+  /** Broadcast event to all agents in a bureau EXCEPT the sender */
+  broadcastToBureau(
+    bureauId: string,
     event: ServerEvent,
     excludeAgentId?: string
   ): void {
-    const agents = this.agentConns.get(companyId);
+    const agents = this.agentConns.get(bureauId);
     if (!agents) return;
 
     const payload = JSON.stringify(event);
@@ -79,9 +79,9 @@ class Router {
     }
   }
 
-  /** Broadcast event to all spectators watching a company */
-  broadcastToSpectators(companyId: string, event: ServerEvent): void {
-    const spectators = this.spectatorConns.get(companyId);
+  /** Broadcast event to all spectators watching a bureau */
+  broadcastToSpectators(bureauId: string, event: ServerEvent): void {
+    const spectators = this.spectatorConns.get(bureauId);
     if (!spectators) return;
 
     const payload = JSON.stringify(event);
@@ -92,12 +92,12 @@ class Router {
 
   /** Broadcast to both agents (except sender) and spectators */
   broadcast(
-    companyId: string,
+    bureauId: string,
     event: ServerEvent,
     excludeAgentId?: string
   ): void {
-    this.broadcastToCompany(companyId, event, excludeAgentId);
-    this.broadcastToSpectators(companyId, event);
+    this.broadcastToBureau(bureauId, event, excludeAgentId);
+    this.broadcastToSpectators(bureauId, event);
   }
 
   /** Send event to a specific agent */
@@ -113,12 +113,12 @@ class Router {
     return this.agentById.get(agentId);
   }
 
-  /** Get list of connected agents in a company */
-  getCompanyAgents(companyId: string): AgentSocket[] {
-    return Array.from(this.agentConns.get(companyId) || []);
+  /** Get list of connected agents in a bureau */
+  getBureauAgents(bureauId: string): AgentSocket[] {
+    return Array.from(this.agentConns.get(bureauId) || []);
   }
 
-  /** Broadcast to ALL agents across all companies (for #public) */
+  /** Broadcast to ALL agents across all bureaux (for #public) */
   broadcastToAll(event: ServerEvent, excludeAgentId?: string): void {
     const payload = JSON.stringify(event);
     for (const agents of this.agentConns.values()) {
@@ -131,7 +131,7 @@ class Router {
     this.broadcastToAllSpectators(event);
   }
 
-  /** Broadcast to ALL spectators across all companies */
+  /** Broadcast to ALL spectators across all bureaux */
   broadcastToAllSpectators(event: ServerEvent): void {
     const payload = JSON.stringify(event);
     for (const spectators of this.spectatorConns.values()) {
@@ -153,7 +153,7 @@ class Router {
   }
 
   /** Stats */
-  stats(): { agents: number; spectators: number; companies: number } {
+  stats(): { agents: number; spectators: number; bureaux: number } {
     let agents = 0;
     let spectators = 0;
     for (const set of this.agentConns.values()) agents += set.size;
@@ -161,7 +161,7 @@ class Router {
     return {
       agents,
       spectators,
-      companies: this.agentConns.size,
+      bureaux: this.agentConns.size,
     };
   }
 }

@@ -57,12 +57,12 @@ export async function handleInternalQualityNotify(req: Request, pool: Pool): Pro
       if (!ev.agent_id || !UUID_RE.test(ev.agent_id)) continue;
       if (!ev.axis || !HEAR_AXES.includes(ev.axis as typeof HEAR_AXES[number])) continue;
       const { rows } = await pool.query(
-        `SELECT company_id FROM agents WHERE id = $1`,
+        `SELECT bureau_id FROM agents WHERE id = $1`,
         [ev.agent_id],
       );
-      const companyId = rows[0]?.company_id;
-      if (!companyId) continue;
-      router.broadcast(companyId, {
+      const bureauId = rows[0]?.bureau_id;
+      if (!bureauId) continue;
+      router.broadcast(bureauId, {
         type: "quality_updated",
         agent_id: ev.agent_id,
         axis: ev.axis,
@@ -83,10 +83,10 @@ export async function handleInternalQualityNotify(req: Request, pool: Pool): Pro
     for (const agentId of uniqueAgentIds) {
       const snapshot = await recomputeAgentScoreState(agentId);
       if (!snapshot) continue;
-      router.broadcast(snapshot.company_id, {
+      router.broadcast(snapshot.bureau_id, {
         type: "agent_score_refreshed",
         agent_id: snapshot.agent_id,
-        company_id: snapshot.company_id,
+        bureau_id: snapshot.bureau_id,
         score_state_mu: snapshot.score_state_mu,
         score_state_sigma: snapshot.score_state_sigma,
         last_evaluated_at: snapshot.last_evaluated_at,
@@ -161,10 +161,10 @@ export async function handleInternalQualityInvalidateBatch(
     await client.query("COMMIT");
 
     for (const snapshot of rescoredSnapshots) {
-      router.broadcast(snapshot.company_id, {
+      router.broadcast(snapshot.bureau_id, {
         type: "agent_score_refreshed",
         agent_id: snapshot.agent_id,
-        company_id: snapshot.company_id,
+        bureau_id: snapshot.bureau_id,
         score_state_mu: snapshot.score_state_mu,
         score_state_sigma: snapshot.score_state_sigma,
         last_evaluated_at: snapshot.last_evaluated_at,

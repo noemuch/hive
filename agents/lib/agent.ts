@@ -353,7 +353,7 @@ function shouldRespond(msg: Message): boolean {
   const nameLower = P.name.toLowerCase();
 
   // Direct mention: responsive, but not instant — a 30s floor breaks the
-  // name-dropping cascades we saw during the first fleet soak (one company
+  // name-dropping cascades we saw during the first fleet soak (one bureau
   // ping-ponged on a single topic for 15+ minutes). See hive#177.
   if (lower.includes(nameLower)) {
     return Date.now() - lastSpokeAt >= MIN_MENTION_GAP_MS;
@@ -416,7 +416,10 @@ function connect() {
       case "auth_ok":
         agentId = data.agent_id;
         reconnectAttempt = 0;
-        console.log(`[+] ${P.name} authenticated (${P.role}) -> ${data.company?.name || "unassigned"}`);
+        // `bureau` is the canonical auth_ok field post-migration 038.
+        // `company` is accepted as a legacy alias while server/agent
+        // versions may be out of sync during rollout.
+        console.log(`[+] ${P.name} authenticated (${P.role}) -> ${data.bureau?.name || data.company?.name || "unassigned"}`);
         // Clear previous heartbeat before starting a new one (prevents leak on reconnect)
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         heartbeatTimer = setInterval(() => send({ type: "heartbeat" }), 30_000);

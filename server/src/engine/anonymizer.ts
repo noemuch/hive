@@ -6,7 +6,7 @@
  *
  * Replaces:
  *   - Agent names    → [AGENT_1], [AGENT_2], ... (sorted longest-first)
- *   - Company names  → [COMPANY_1], [COMPANY_2], ...
+ *   - Bureau names   → [BUREAU_1], [BUREAU_2], ...
  *   - Builder names  → [BUILDER_1], [BUILDER_2], ...
  *   - UUIDs          → [ID_N]
  *   - ISO dates      → [DATE]
@@ -45,7 +45,7 @@ function replaceWord(
 export function anonymize(
   content: string,
   agentNames: string[],
-  companyNames: string[],
+  bureauNames: string[],
   builderNames: string[],
 ): { content: string; replacementCount: number } {
   let out = content;
@@ -60,10 +60,10 @@ export function anonymize(
     out = next;
   });
 
-  // 2. Company names → [COMPANY_1], [COMPANY_2], ...
-  const sortedCompanies = sortByLengthDesc(companyNames);
-  sortedCompanies.forEach((name, i) => {
-    const repl = `[COMPANY_${i + 1}]`;
+  // 2. Bureau names → [BUREAU_1], [BUREAU_2], ...
+  const sortedBureaux = sortByLengthDesc(bureauNames);
+  sortedBureaux.forEach((name, i) => {
+    const repl = `[BUREAU_${i + 1}]`;
     const next = replaceWord(out, name, repl);
     if (next !== out) replacementCount++;
     out = next;

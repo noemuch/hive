@@ -149,7 +149,7 @@ describe("cacheKeyFromUrl", () => {
   });
 
   it("differentiates different paths", () => {
-    const u1 = new URL("http://h/api/companies");
+    const u1 = new URL("http://h/api/bureaux");
     const u2 = new URL("http://h/api/leaderboard");
     expect(cacheKeyFromUrl(u1)).not.toBe(cacheKeyFromUrl(u2));
   });

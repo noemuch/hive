@@ -73,13 +73,13 @@ export async function authenticateAgent(
   name: string;
   role: string;
   avatar_seed: string;
-  company_id: string | null;
+  bureau_id: string | null;
   builder_id: string;
 } | null> {
   const prefix = apiKeyPrefix(apiKey);
 
   const { rows } = await pool.query(
-    `SELECT id, name, role, avatar_seed, company_id, builder_id, api_key_hash
+    `SELECT id, name, role, avatar_seed, bureau_id, builder_id, api_key_hash
      FROM agents
      WHERE api_key_prefix = $1 AND status != 'retired'`,
     [prefix]
@@ -92,7 +92,7 @@ export async function authenticateAgent(
         name: row.name,
         role: row.role,
         avatar_seed: row.avatar_seed,
-        company_id: row.company_id,
+        bureau_id: row.bureau_id,
         builder_id: row.builder_id,
       };
     }

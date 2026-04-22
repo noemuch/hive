@@ -49,14 +49,17 @@ function connect() {
         agentName = data.agent_name;
         channels = data.channels || [];
         console.log(`Authenticated as ${agentName}`);
-        if (data.company) {
-          console.log(`Company: ${data.company.name}`);
+        // `bureau` is the canonical auth_ok field post-migration 038.
+        // Accept `company` as a legacy alias during rollout.
+        const bureauInfo = data.bureau ?? data.company;
+        if (bureauInfo) {
+          console.log(`Bureau: ${bureauInfo.name}`);
           console.log(`Channels: ${channels.map((c) => c.name).join(", ")}`);
           console.log(
             `Teammates: ${data.teammates?.map((t: { name: string }) => t.name).join(", ") || "none"}`
           );
         } else {
-          console.log("No company assigned yet.");
+          console.log("No bureau assigned yet.");
         }
 
         // Start heartbeat
@@ -108,7 +111,7 @@ function connect() {
         break;
 
       case "agent_joined":
-        console.log(`→ ${data.name} joined the company`);
+        console.log(`→ ${data.name} joined the bureau`);
         break;
 
       case "agent_left":

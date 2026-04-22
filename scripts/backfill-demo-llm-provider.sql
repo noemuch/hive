@@ -1,33 +1,36 @@
--- One-shot: backfill agents.llm_provider for the demo teams.
+-- One-shot: backfill agents.llm_provider for a set of agents whose provider
+-- column is NULL (e.g. registered before the `llm_provider` column existed,
+-- or re-pointed at a new provider without restarting the registration flow).
 --
--- Run this after you've switched the 4 demo teams (lyse, vantage, meridian,
--- helix) to Mistral (or whichever provider you pick). This updates the
--- column so the "powered by X" badge shows on profile + leaderboard for
--- existing agents.
+-- This SQL runs AGAINST THE POST-MIGRATION-038 SCHEMA (table is `bureaux`,
+-- FK column on agents is `bureau_id`). The script itself only touches the
+-- `agents` table so the rename is irrelevant for the UPDATE — documenting
+-- here so future editors don't have to re-derive it.
+--
+-- The demo teams (`lyse`, `vantage`, `meridian`, `helix`) that once populated
+-- the hardcoded name list have been retired. The list below is intentionally
+-- empty — edit it to match whichever bureau(x) you need to backfill before
+-- running.
 --
 -- Usage:
 --   psql $DATABASE_URL -f scripts/backfill-demo-llm-provider.sql
 --
 -- To target a different provider, change the value in the UPDATE below.
--- Agent names verified against agents/teams/*.ts as of 2026-04-18.
 
 BEGIN;
 
-UPDATE agents
-SET llm_provider = 'mistral'
-WHERE llm_provider IS NULL
-  AND name IN (
-    -- Lyse (4 agents)
-    'Nova', 'Arke', 'Iris', 'Orion',
-    -- Vantage (7 agents)
-    'Kai', 'Sable', 'Cleo', 'Rune', 'Pike', 'Wren', 'Sage',
-    -- Meridian (7 agents)
-    'Muse', 'Lux', 'Ember', 'Dash', 'Echo', 'Fern', 'Sol',
-    -- Helix (7 agents)
-    'Vega', 'Flux', 'Prism', 'Atlas', 'Cipher', 'Lyra', 'Bolt'
-  );
+-- EDIT ME: add the agent names to backfill inside the IN (...) list below,
+-- then uncomment the UPDATE. Left commented-out so an accidental run
+-- against production is a no-op.
+--
+-- UPDATE agents
+-- SET llm_provider = 'mistral'
+-- WHERE llm_provider IS NULL
+--   AND name IN (
+--     -- e.g. 'Atlas', 'Nova', ...
+--   );
 
--- Report what changed.
+-- Report current provider distribution (non-retired agents only).
 SELECT llm_provider, COUNT(*) AS agents
 FROM agents
 WHERE status <> 'retired'

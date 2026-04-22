@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { type Company } from "@/components/CompanyCard";
+import { type Bureau } from "@/components/BureauCard";
 import { PulseDot } from "@/components/PulseDot";
 import { OfficePreview } from "@/components/OfficePreview";
 import { PixelAvatar } from "@/components/PixelAvatar";
@@ -22,27 +22,27 @@ const POLL_INTERVAL = 30_000;
 
 type GridState = "loading" | "populated" | "error";
 
-export function CompanyGrid({
+export function BureauGrid({
   search,
   sort,
   filter,
   onClearFilters,
-  onCompaniesLoaded,
+  onBureauxLoaded,
 }: {
   search: string;
   sort: string;
   filter: string;
   onClearFilters?: () => void;
-  onCompaniesLoaded?: (companies: Company[]) => void;
+  onBureauxLoaded?: (bureaux: Bureau[]) => void;
 }) {
-  const [rawCompanies, setRawCompanies] = useState<Company[]>([]);
+  const [rawBureaux, setRawBureaux] = useState<Bureau[]>([]);
   const [state, setState] = useState<GridState>("loading");
   const [, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { socket, connected } = useWebSocket();
 
-  const fetchCompanies = useCallback(async (silent = false) => {
+  const fetchBureaux = useCallback(async (silent = false) => {
     if (!silent) setState("loading");
     setError(null);
 
@@ -58,11 +58,11 @@ export function CompanyGrid({
       if (filter && filter !== "all") params.set("status", filter);
 
       const qs = params.toString();
-      const url = `${API_URL}/api/companies${qs ? `?${qs}` : ""}`;
+      const url = `${API_URL}/api/bureaux${qs ? `?${qs}` : ""}`;
       const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setRawCompanies(data.companies ?? []);
+      setRawBureaux(data.bureaux ?? []);
       setState("populated");
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -71,31 +71,31 @@ export function CompanyGrid({
     }
   }, [sort, filter]);
 
-  // Notify parent when companies list changes
+  // Notify parent when bureaux list changes
   useEffect(() => {
-    onCompaniesLoaded?.(rawCompanies);
-  }, [rawCompanies, onCompaniesLoaded]);
+    onBureauxLoaded?.(rawBureaux);
+  }, [rawBureaux, onBureauxLoaded]);
 
-  // Initial fetch + re-fetch on sort/filter change — fetchCompanies calls
+  // Initial fetch + re-fetch on sort/filter change — fetchBureaux calls
   // setState internally, which is intentional (initial data hydration).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: initial fetch on mount
-    fetchCompanies();
-  }, [fetchCompanies]);
+    fetchBureaux();
+  }, [fetchBureaux]);
 
   // Polling — only fires when WS is not connected (fallback)
   useEffect(() => {
     pollRef.current = setInterval(() => {
-      if (!connected) fetchCompanies(true);
+      if (!connected) fetchBureaux(true);
     }, POLL_INTERVAL);
 
     const onVisibility = () => {
       if (document.hidden) {
         if (pollRef.current) clearInterval(pollRef.current);
       } else {
-        if (!connected) fetchCompanies(true);
+        if (!connected) fetchBureaux(true);
         pollRef.current = setInterval(() => {
-          if (!connected) fetchCompanies(true);
+          if (!connected) fetchBureaux(true);
         }, POLL_INTERVAL);
       }
     };
@@ -105,21 +105,21 @@ export function CompanyGrid({
       if (pollRef.current) clearInterval(pollRef.current);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [fetchCompanies, connected]);
+  }, [fetchBureaux, connected]);
 
-  // Effect A: register company_stats_updated listener (socket is a stable singleton, runs once)
+  // Effect A: register bureau_stats_updated listener (socket is a stable singleton, runs once)
   useEffect(() => {
-    const unsub = socket.on("company_stats_updated", (data) => {
+    const unsub = socket.on("bureau_stats_updated", (data) => {
       const update = data as {
-        type: "company_stats_updated";
-        company_id: string;
+        type: "bureau_stats_updated";
+        bureau_id: string;
         agent_count: number;
         active_agent_count: number;
         messages_today: number;
       };
-      setRawCompanies((prev) =>
+      setRawBureaux((prev) =>
         prev.map((c) =>
-          c.id === update.company_id
+          c.id === update.bureau_id
             ? {
                 ...c,
                 agent_count: update.agent_count,
@@ -139,16 +139,16 @@ export function CompanyGrid({
       socket.send({ type: "watch_all" });
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: hydrate data when WS drops
-      fetchCompanies(true);
+      fetchBureaux(true);
     }
-  }, [connected, socket, fetchCompanies]);
+  }, [connected, socket, fetchBureaux]);
 
   // Client-side search filter
-  const filteredCompanies = useMemo(() => {
-    if (!search.trim()) return rawCompanies;
+  const filteredBureaux = useMemo(() => {
+    if (!search.trim()) return rawBureaux;
     const q = search.toLowerCase();
-    return rawCompanies.filter((c) => c.name.toLowerCase().includes(q));
-  }, [rawCompanies, search]);
+    return rawBureaux.filter((c) => c.name.toLowerCase().includes(q));
+  }, [rawBureaux, search]);
 
   if (state === "loading") {
     return (
@@ -173,27 +173,27 @@ export function CompanyGrid({
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <p className="text-muted-foreground">Couldn&apos;t load the world.</p>
-        <Button variant="outline" onClick={() => fetchCompanies()}>
+        <Button variant="outline" onClick={() => fetchBureaux()}>
           Retry
         </Button>
       </div>
     );
   }
 
-  if (rawCompanies.length === 0) {
+  if (rawBureaux.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
         <p className="text-muted-foreground">
-          The Hive is starting up. First companies forming soon.
+          The Hive is starting up. First bureaux forming soon.
         </p>
       </div>
     );
   }
 
-  if (filteredCompanies.length === 0) {
+  if (filteredBureaux.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <p className="text-muted-foreground">No companies match your search.</p>
+        <p className="text-muted-foreground">No bureaux match your search.</p>
         {onClearFilters && (
           <Button variant="outline" size="sm" onClick={onClearFilters}>
             Clear filters
@@ -207,16 +207,16 @@ export function CompanyGrid({
     <div className="rounded-xl border bg-card" aria-live="polite">
       <div className="px-5 py-4">
         <div className="divide-y">
-          {filteredCompanies.map((company) => (
+          {filteredBureaux.map((bureau) => (
             <Link
-              key={company.id}
-              href={`/company/${company.id}`}
+              key={bureau.id}
+              href={`/bureau/${bureau.id}`}
               className="flex gap-4 py-4 first:pt-0 last:pb-0 transition-colors hover:bg-muted/20 -mx-5 px-5"
             >
               {/* Office preview */}
               <div className="w-28 shrink-0 aspect-[4/3] rounded-lg overflow-hidden relative">
-                <OfficePreview companyId={company.id} className="w-full h-full" />
-                {company.active_agent_count > 0 && (
+                <OfficePreview bureauId={bureau.id} className="w-full h-full" />
+                {bureau.active_agent_count > 0 && (
                   <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
                     <PulseDot />
                     <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
@@ -228,12 +228,12 @@ export function CompanyGrid({
               <div className="flex-1 min-w-0 flex flex-col justify-between">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <h3 className="text-sm font-semibold truncate">{company.name}</h3>
-                    <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
+                    <h3 className="text-sm font-semibold truncate">{bureau.name}</h3>
+                    <span className={`size-2 rounded-full shrink-0 ${statusColor(bureau.status)}`} />
                   </div>
-                  {company.top_agents && company.top_agents.length > 0 && (
+                  {bureau.top_agents && bureau.top_agents.length > 0 && (
                     <div className="flex items-center -space-x-1.5 shrink-0">
-                      {company.top_agents.map((a) => (
+                      {bureau.top_agents.map((a) => (
                         <div
                           key={a.id}
                           className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
@@ -245,11 +245,11 @@ export function CompanyGrid({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
-                  {company.description || "No description yet"}
+                  {bureau.description || "No description yet"}
                 </p>
                 <span className="text-xs text-muted-foreground">
-                  {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
-                  {company.messages_today > 0 && <span> · {company.messages_today.toLocaleString()} msgs today</span>}
+                  {bureau.agent_count} {bureau.agent_count === 1 ? "agent" : "agents"}
+                  {bureau.messages_today > 0 && <span> · {bureau.messages_today.toLocaleString()} msgs today</span>}
                 </span>
               </div>
             </Link>

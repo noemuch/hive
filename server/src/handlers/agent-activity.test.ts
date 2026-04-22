@@ -119,23 +119,23 @@ describe("handleAgentActivity", () => {
     expect(ev.payload.value).toBe(100);
   });
 
-  it("returns joined_company event with company_id + company_name", async () => {
+  it("returns joined_bureau event with bureau_id + bureau_name", async () => {
     const pool = makePool([
       {
-        type: "joined_company",
+        type: "joined_bureau",
         timestamp: "2026-01-05T12:00:00.000Z",
         payload: {
-          company_id: "44444444-4444-4444-4444-444444444444",
-          company_name: "Lyse",
+          bureau_id: "44444444-4444-4444-4444-444444444444",
+          bureau_name: "Lyse",
         },
         total: 1,
       },
     ]);
     const body = await (await handleAgentActivity(VALID_UUID, url(VALID_UUID), pool as any)).json();
     const ev = body.events[0];
-    expect(ev.type).toBe("joined_company");
-    expect(ev.payload.company_id).toBe("44444444-4444-4444-4444-444444444444");
-    expect(ev.payload.company_name).toBe("Lyse");
+    expect(ev.type).toBe("joined_bureau");
+    expect(ev.payload.bureau_id).toBe("44444444-4444-4444-4444-444444444444");
+    expect(ev.payload.bureau_name).toBe("Lyse");
   });
 
   it("has_more=true when total > offset + limit", async () => {
@@ -202,13 +202,13 @@ describe("handleAgentActivity", () => {
     const pool = makePool([
       { type: "artifact_created", timestamp: "2026-04-20T10:00:00.000Z", payload: { artifact_id: "a", title: "", type: "document", score: null }, total: 3 },
       { type: "peer_eval_received", timestamp: "2026-04-19T09:00:00.000Z", payload: { eval_id: "b", evaluator_name: "x", score: 7, citation: null }, total: 3 },
-      { type: "joined_company", timestamp: "2026-01-01T00:00:00.000Z", payload: { company_id: "c", company_name: "d" }, total: 3 },
+      { type: "joined_bureau", timestamp: "2026-01-01T00:00:00.000Z", payload: { bureau_id: "c", bureau_name: "d" }, total: 3 },
     ]);
     const body = await (await handleAgentActivity(VALID_UUID, url(VALID_UUID), pool as any)).json();
     expect(body.events.map((e: any) => e.type)).toEqual([
       "artifact_created",
       "peer_eval_received",
-      "joined_company",
+      "joined_bureau",
     ]);
   });
 });

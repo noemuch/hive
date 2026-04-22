@@ -4,7 +4,7 @@ import { parseAgentEvent, validateEvent } from "./protocol/validate";
 import { handleAgentEvent, broadcastStatsUpdate } from "./engine/handlers";
 import { router, type AgentSocket, type SpectatorSocket } from "./router/index";
 import { isValidUUID } from "./router/rate-limit";
-import { checkLifecycle, checkAllLifecycles } from "./engine/company-lifecycle";
+import { checkLifecycle, checkAllLifecycles } from "./engine/bureau-lifecycle";
 import { awardBadges } from "./jobs/award-badges";
 import { dispatchRoute } from "./router/routes";
 import type { RouteContext } from "./router/route-types";
@@ -51,7 +51,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           type: "agent" as const,
           agentId: "",
           agentName: "",
-          companyId: null as string | null,
+          bureauId: null as string | null,
           authenticated: false,
         },
       })
@@ -70,7 +70,7 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
       return server.upgrade(req, {
         data: {
           type: "spectator" as const,
-          watchingCompanyId: null as string | null,
+          watchingBureauId: null as string | null,
           watchingAll: false as boolean,
           ip,
         },
@@ -120,14 +120,14 @@ const server: ReturnType<typeof Bun.serve> = Bun.serve({
           `UPDATE agents SET status = 'disconnected' WHERE id = $1 AND status != 'retired'`,
           [a.data.agentId],
         );
-        if (rowCount && rowCount > 0 && a.data.companyId) {
-          router.broadcast(a.data.companyId, {
+        if (rowCount && rowCount > 0 && a.data.bureauId) {
+          router.broadcast(a.data.bureauId, {
             type: "agent_left",
             agent_id: a.data.agentId,
             reason: "disconnected",
           });
-          broadcastStatsUpdate(a.data.companyId);
-          checkLifecycle(a.data.companyId).catch((err) =>
+          broadcastStatsUpdate(a.data.bureauId);
+          checkLifecycle(a.data.bureauId).catch((err) =>
             console.error("[lifecycle] check error:", err),
           );
         }
@@ -172,48 +172,48 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
 
     ws.data.agentId = agent.agent_id;
     ws.data.agentName = agent.name;
-    ws.data.companyId = agent.company_id;
+    ws.data.bureauId = agent.bureau_id;
     ws.data.authenticated = true;
     let channels: { id: string; name: string; type: string }[] = [];
     let teammates: { id: string; name: string; role: string; status: string }[] = [];
-    let company: { id: string; name: string } | null = null;
+    let bureau: { id: string; name: string } | null = null;
 
-    const newStatus = agent.company_id ? "assigned" : "connected";
+    const newStatus = agent.bureau_id ? "assigned" : "connected";
     await pool.query(`UPDATE agents SET status = $1, last_heartbeat = now() WHERE id = $2`, [
       newStatus,
       agent.agent_id,
     ]);
 
-    if (agent.company_id) {
-      router.addAgent(agent.company_id, ws);
+    if (agent.bureau_id) {
+      router.addAgent(agent.bureau_id, ws);
       channels = (
         await pool.query(
-          `SELECT id, name, type FROM channels WHERE company_id = $1 OR company_id IS NULL ORDER BY company_id IS NULL ASC, name ASC`,
-          [agent.company_id],
+          `SELECT id, name, type FROM channels WHERE bureau_id = $1 OR bureau_id IS NULL ORDER BY bureau_id IS NULL ASC, name ASC`,
+          [agent.bureau_id],
         )
       ).rows;
       teammates = (
         await pool.query(
-          `SELECT id, name, role, status, avatar_seed FROM agents WHERE company_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`,
-          [agent.company_id, agent.agent_id],
+          `SELECT id, name, role, status, avatar_seed FROM agents WHERE bureau_id = $1 AND id != $2 AND status NOT IN ('retired','disconnected')`,
+          [agent.bureau_id, agent.agent_id],
         )
       ).rows;
-      company =
-        (await pool.query(`SELECT id, name FROM companies WHERE id = $1`, [agent.company_id]))
+      bureau =
+        (await pool.query(`SELECT id, name FROM bureaux WHERE id = $1`, [agent.bureau_id]))
           .rows[0] || null;
       router.broadcast(
-        agent.company_id,
+        agent.bureau_id,
         {
           type: "agent_joined",
           agent_id: agent.agent_id,
           name: agent.name,
           role: agent.role,
           avatar_seed: agent.avatar_seed,
-          company_id: agent.company_id,
+          bureau_id: agent.bureau_id,
         },
         agent.agent_id,
       );
-      broadcastStatsUpdate(agent.company_id);
+      broadcastStatsUpdate(agent.bureau_id);
     }
 
     ws.send(
@@ -221,16 +221,16 @@ async function handleAgentMessage(ws: AgentSocket, raw: string) {
         type: "auth_ok",
         agent_id: agent.agent_id,
         agent_name: agent.name,
-        company,
+        bureau,
         channels,
         teammates,
       } satisfies AuthOkEvent),
     );
     console.log(
-      `[ws] Agent connected: ${agent.name} (${agent.role})${company ? ` -> ${company.name}` : " (unassigned)"}`,
+      `[ws] Agent connected: ${agent.name} (${agent.role})${bureau ? ` -> ${bureau.name}` : " (unassigned)"}`,
     );
-    if (agent.company_id)
-      checkLifecycle(agent.company_id).catch((err) => console.error("[lifecycle] check error:", err));
+    if (agent.bureau_id)
+      checkLifecycle(agent.bureau_id).catch((err) => console.error("[lifecycle] check error:", err));
     return;
   }
 
@@ -242,19 +242,19 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
   try {
     const data = JSON.parse(raw);
     if (
-      data.type === "watch_company" &&
-      typeof data.company_id === "string" &&
-      isValidUUID(data.company_id)
+      data.type === "watch_bureau" &&
+      typeof data.bureau_id === "string" &&
+      isValidUUID(data.bureau_id)
     ) {
-      if (ws.data.watchingCompanyId) router.removeSpectator(ws);
-      ws.data.watchingCompanyId = data.company_id;
-      router.addSpectator(data.company_id, ws);
+      if (ws.data.watchingBureauId) router.removeSpectator(ws);
+      ws.data.watchingBureauId = data.bureau_id;
+      router.addSpectator(data.bureau_id, ws);
 
       const { rows: agents } = await pool.query(
         `SELECT id, name, role, status, avatar_seed
          FROM agents
-         WHERE company_id = $1 AND status != 'retired'`,
-        [data.company_id],
+         WHERE bureau_id = $1 AND status != 'retired'`,
+        [data.bureau_id],
       );
       const { rows: messages } = await pool.query(
         `SELECT m.id, m.content, m.thread_id, m.created_at,
@@ -263,15 +263,15 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
          FROM messages m
          JOIN agents a ON m.author_id = a.id
          JOIN channels ch ON m.channel_id = ch.id
-         WHERE ch.company_id = $1
+         WHERE ch.bureau_id = $1
            AND m.created_at > now() - INTERVAL '1 hour'
          ORDER BY m.created_at DESC
          LIMIT 50`,
-        [data.company_id],
+        [data.bureau_id],
       );
       const snapshot: import("./protocol/types").PresenceSnapshotEvent = {
         type: "presence_snapshot",
-        company_id: data.company_id,
+        bureau_id: data.bureau_id,
         agents: agents.map((a) => ({
           agent_id: a.id,
           name: a.name,
@@ -297,7 +297,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
       if (ws.data.watchingAll) return;
       ws.data.watchingAll = true;
 
-      const { rows: companies } = await pool.query<{
+      const { rows: bureaux } = await pool.query<{
         id: string;
         agent_count: string;
         active_agent_count: string;
@@ -308,20 +308,20 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
           COUNT(CASE WHEN a.status NOT IN ('retired','disconnected') THEN 1 END)::text AS agent_count,
           COUNT(CASE WHEN a.status = 'active' THEN 1 END)::text AS active_agent_count,
           (SELECT COUNT(*) FROM messages m
-            WHERE m.author_id IN (SELECT id FROM agents WHERE company_id = c.id)
+            WHERE m.author_id IN (SELECT id FROM agents WHERE bureau_id = c.id)
             AND m.created_at >= CURRENT_DATE AT TIME ZONE 'UTC')::text AS messages_today
-        FROM companies c
-        LEFT JOIN agents a ON a.company_id = c.id
+        FROM bureaux c
+        LEFT JOIN agents a ON a.bureau_id = c.id
         GROUP BY c.id
       `);
-      for (const company of companies) {
+      for (const bureau of bureaux) {
         ws.send(
           JSON.stringify({
-            type: "company_stats_updated",
-            company_id: company.id,
-            agent_count: parseInt(company.agent_count, 10),
-            active_agent_count: parseInt(company.active_agent_count, 10),
-            messages_today: parseInt(company.messages_today, 10),
+            type: "bureau_stats_updated",
+            bureau_id: bureau.id,
+            agent_count: parseInt(bureau.agent_count, 10),
+            active_agent_count: parseInt(bureau.active_agent_count, 10),
+            messages_today: parseInt(bureau.messages_today, 10),
           }),
         );
       }
@@ -332,7 +332,7 @@ async function handleSpectatorMessage(ws: SpectatorSocket, raw: string) {
   }
 }
 
-// Company lifecycle checker (every 5 minutes)
+// Bureau lifecycle checker (every 5 minutes)
 setInterval(() => {
   checkAllLifecycles().catch((err) => console.error("[lifecycle] periodic check error:", err));
 }, 5 * 60_000);

@@ -26,7 +26,7 @@ const BASE_ROW = {
   score_state_mu: "7.42",
   llm_provider: "mistral",
   status: "active",
-  company_name: "Lyse",
+  bureau_name: "Lyse",
 };
 
 function assertPng(res: Response, body: ArrayBuffer) {
@@ -72,13 +72,13 @@ describe("handleOgAgent", () => {
     assertPng(res, await res.arrayBuffer());
   });
 
-  it("uses exactly one parameterized query to fetch agent + company", async () => {
+  it("uses exactly one parameterized query to fetch agent + bureau", async () => {
     const pool = makePool(() => [BASE_ROW]);
     await handleOgAgent(VALID_UUID, pool as never);
     expect(pool.query).toHaveBeenCalledTimes(1);
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toContain("FROM agents");
-    expect(sql).toContain("LEFT JOIN companies");
+    expect(sql).toContain("LEFT JOIN bureaux");
     expect(params).toEqual([VALID_UUID]);
   });
 
@@ -89,8 +89,8 @@ describe("handleOgAgent", () => {
     assertPng(res, await res.arrayBuffer());
   });
 
-  it("renders 200 PNG when company is null (independent agent)", async () => {
-    const pool = makePool(() => [{ ...BASE_ROW, company_name: null }]);
+  it("renders 200 PNG when bureau is null (independent agent)", async () => {
+    const pool = makePool(() => [{ ...BASE_ROW, bureau_name: null }]);
     const res = await handleOgAgent(VALID_UUID, pool as never);
     expect(res.status).toBe(200);
     assertPng(res, await res.arrayBuffer());

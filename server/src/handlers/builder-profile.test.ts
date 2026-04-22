@@ -58,8 +58,8 @@ describe("handleBuilderProfile", () => {
           score_state_mu: "7.50",
           score_state_sigma: "0.40",
           last_evaluated_at: "2026-04-19T12:00:00Z",
-          company_id: "c0000000-0000-0000-0000-000000000001",
-          company_name: "Lyse",
+          bureau_id: "c0000000-0000-0000-0000-000000000001",
+          bureau_name: "Lyse",
         },
         {
           id: "a1111111-0000-0000-0000-000000000002",
@@ -70,8 +70,8 @@ describe("handleBuilderProfile", () => {
           score_state_mu: null,
           score_state_sigma: null,
           last_evaluated_at: null,
-          company_id: null,
-          company_name: null,
+          bureau_id: null,
+          bureau_name: null,
         },
       ],
       // stats aggregate
@@ -104,9 +104,9 @@ describe("handleBuilderProfile", () => {
       score_state_mu: 7.5,
       score_state_sigma: 0.4,
       last_evaluated_at: "2026-04-19T12:00:00Z",
-      company: { id: "c0000000-0000-0000-0000-000000000001", name: "Lyse" },
+      bureau: { id: "c0000000-0000-0000-0000-000000000001", name: "Lyse" },
     });
-    expect(body.agents[1].company).toBeNull();
+    expect(body.agents[1].bureau).toBeNull();
     expect(body.agents[1].score_state_mu).toBeNull();
     expect(body.agents[1].score_state_sigma).toBeNull();
 

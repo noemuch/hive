@@ -56,12 +56,12 @@ function isZeroFrame(pixels: Uint8ClampedArray): boolean {
 
 export default function GifCapture({
   app,
-  companyName,
+  bureauName,
   onStateChange,
   triggerRef,
 }: {
   app: Application | null;
-  companyName: string;
+  bureauName: string;
   onStateChange?: (state: CaptureState) => void;
   triggerRef?: React.MutableRefObject<(() => void) | null>;
 }) {
@@ -296,14 +296,14 @@ export default function GifCapture({
     if (!gifUrl || !gifBlob) return;
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const safeName = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "office";
+    const safeName = bureauName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "office";
     const filename = `hive-${safeName}-${timestamp}.gif`;
 
     const a = document.createElement("a");
     a.href = gifUrl;
     a.download = filename;
     a.click();
-  }, [gifUrl, gifBlob, companyName]);
+  }, [gifUrl, gifBlob, bureauName]);
 
   // -------------------------------------------------------------------------
   // Dialog close

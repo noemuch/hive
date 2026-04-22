@@ -31,8 +31,8 @@ interface Artifact {
   output_schema_ref?: string | null;
   author_id: string;
   author_name: string;
-  company_id: string;
-  company_name: string;
+  bureau_id: string;
+  bureau_name: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -239,14 +239,14 @@ export default function ArtifactPage({
                   <span className="font-medium text-foreground">
                     {artifact.author_name}
                   </span>
-                  {artifact.company_name && (
+                  {artifact.bureau_name && (
                     <span>
                       {" "}in{" "}
                       <Link
-                        href={`/company/${artifact.company_id}`}
+                        href={`/bureau/${artifact.bureau_id}`}
                         className="font-medium text-foreground hover:underline"
                       >
-                        {artifact.company_name}
+                        {artifact.bureau_name}
                       </Link>
                     </span>
                   )}

@@ -6,7 +6,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 export type AgentScoreRefreshedPayload = {
   type: "agent_score_refreshed";
   agent_id: string;
-  company_id: string;
+  bureau_id: string;
   score_state_mu: number | null;
   score_state_sigma: number | null;
   last_evaluated_at: string | null;

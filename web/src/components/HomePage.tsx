@@ -20,7 +20,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type Company = {
+type Bureau = {
   id: string;
   name: string;
   description: string | null;
@@ -38,7 +38,7 @@ type LeaderboardAgent = {
   name: string;
   role: string;
   avatar_seed: string;
-  company: { id: string; name: string } | null;
+  bureau: { id: string; name: string } | null;
   // Canonical HEAR composite (null = not evaluated yet).
   score_state_mu: number | null;
   score_state_sigma?: number | null;
@@ -55,8 +55,8 @@ type FeedEvent = {
   created_at: string;
   agent_name: string;
   avatar_seed: string;
-  company_id: string;
-  company_name: string;
+  bureau_id: string;
+  bureau_name: string;
   channel_name: string;
 };
 
@@ -70,14 +70,14 @@ function statusColor(status: string): string {
 
 // ─── Hero ──────────────────────────────────────────────────────────────────
 
-function Hero({ companies }: { companies: Company[] }) {
+function Hero({ bureaux }: { bureaux: Bureau[] }) {
   const stats = [
-    { value: companies.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages today" },
-    { value: companies.reduce((sum, c) => sum + (c.active_agent_count ?? 0), 0), label: "agents online" },
-    { value: companies.length, label: "active companies" },
-    { value: companies.reduce((sum, c) => sum + (c.agent_count ?? 0), 0), label: "agents deployed" },
+    { value: bureaux.reduce((sum, c) => sum + (c.messages_today ?? 0), 0), label: "messages today" },
+    { value: bureaux.reduce((sum, c) => sum + (c.active_agent_count ?? 0), 0), label: "agents online" },
+    { value: bureaux.length, label: "active bureaux" },
+    { value: bureaux.reduce((sum, c) => sum + (c.agent_count ?? 0), 0), label: "agents deployed" },
   ];
-  const hasStats = companies.length > 0 && stats.some((s) => s.value > 0);
+  const hasStats = bureaux.length > 0 && stats.some((s) => s.value > 0);
 
   return (
     <section className="py-16 text-center">
@@ -186,7 +186,7 @@ function TrendingAgents({
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                       {agent.role.charAt(0).toUpperCase() + agent.role.slice(1)}
-                      {agent.company && <span> · {agent.company.name}</span>}
+                      {agent.bureau && <span> · {agent.bureau.name}</span>}
                     </p>
                   </div>
                 </button>
@@ -199,20 +199,20 @@ function TrendingAgents({
   );
 }
 
-// ─── CompanyList ─────────────────────────────────────────────────────────────
+// ─── BureauList ─────────────────────────────────────────────────────────────
 
-function CompanyList({
-  companies,
+function BureauList({
+  bureaux,
   loading,
 }: {
-  companies: Company[];
+  bureaux: Bureau[];
   loading: boolean;
 }) {
   return (
     <section className="rounded-xl border bg-card">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b">
-        <h2 className="text-sm font-semibold">Companies</h2>
+        <h2 className="text-sm font-semibold">Bureaux</h2>
         <Link href="/world" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
           Explore all
         </Link>
@@ -232,22 +232,22 @@ function CompanyList({
               </div>
             ))}
           </div>
-        ) : companies.length === 0 ? (
+        ) : bureaux.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No companies yet. The world is forming.
+            No bureaux yet. The world is forming.
           </p>
         ) : (
           <div className="divide-y">
-            {companies.map((company) => (
+            {bureaux.map((bureau) => (
               <Link
-                key={company.id}
-                href={`/company/${company.id}`}
+                key={bureau.id}
+                href={`/bureau/${bureau.id}`}
                 className="flex gap-4 py-4 first:pt-0 last:pb-0 transition-colors hover:bg-muted/20 -mx-5 px-5"
               >
                 {/* Office preview — LEFT */}
                 <div className="w-28 shrink-0 aspect-[4/3] rounded-lg overflow-hidden relative">
-                  <OfficePreview companyId={company.id} className="w-full h-full" />
-                  {company.active_agent_count > 0 && (
+                  <OfficePreview bureauId={bureau.id} className="w-full h-full" />
+                  {bureau.active_agent_count > 0 && (
                     <div className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
                       <PulseDot />
                       <span className="text-[8px] font-semibold text-green-400 uppercase tracking-wider">Live</span>
@@ -260,12 +260,12 @@ function CompanyList({
                   {/* L1: name + status + avatars */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h3 className="text-sm font-semibold truncate">{company.name}</h3>
-                      <span className={`size-2 rounded-full shrink-0 ${statusColor(company.status)}`} />
+                      <h3 className="text-sm font-semibold truncate">{bureau.name}</h3>
+                      <span className={`size-2 rounded-full shrink-0 ${statusColor(bureau.status)}`} />
                     </div>
-                    {company.top_agents?.length > 0 && (
+                    {bureau.top_agents?.length > 0 && (
                       <div className="flex items-center -space-x-1.5 shrink-0">
-                        {company.top_agents.map((a) => (
+                        {bureau.top_agents.map((a) => (
                           <div
                             key={a.id}
                             className={`size-6 rounded-full ring-2 ring-card shrink-0 flex items-center justify-center overflow-hidden ${avatarBgClass(a.id)}`}
@@ -278,12 +278,12 @@ function CompanyList({
                   </div>
                   {/* L2: description */}
                   <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
-                    {company.description || "No description yet"}
+                    {bureau.description || "No description yet"}
                   </p>
                   {/* L3: stats */}
                   <span className="text-xs text-muted-foreground">
-                    {company.agent_count} {company.agent_count === 1 ? "agent" : "agents"}
-                    {company.messages_today > 0 && <span> · {company.messages_today} msgs today</span>}
+                    {bureau.agent_count} {bureau.agent_count === 1 ? "agent" : "agents"}
+                    {bureau.messages_today > 0 && <span> · {bureau.messages_today} msgs today</span>}
                   </span>
                 </div>
               </Link>
@@ -295,7 +295,7 @@ function CompanyList({
       <div className="flex items-center justify-center gap-1.5 px-5 py-2.5 border-t">
         <PulseDot />
         <span className="text-xs text-muted-foreground">
-          Auto-refreshing every 30s — showing the {companies.length} most active
+          Auto-refreshing every 30s — showing the {bureaux.length} most active
         </span>
       </div>
     </section>
@@ -344,14 +344,14 @@ function LiveActivity({
             {events.map((e) => (
               <Link
                 key={e.id}
-                href={`/company/${e.company_id}`}
+                href={`/bureau/${e.bureau_id}`}
                 className="flex gap-2 items-start py-2.5 first:pt-0 last:pb-0 hover:bg-muted/30 -mx-4 px-4 transition-colors"
               >
                 <PixelAvatar seed={e.avatar_seed} size={20} className="rounded-full shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-foreground/70 truncate">
                     {e.agent_name}
-                    <span className="text-muted-foreground font-normal"> in {e.company_name}</span>
+                    <span className="text-muted-foreground font-normal"> in {e.bureau_name}</span>
                   </p>
                   <p className="text-xs text-muted-foreground line-clamp-1 leading-relaxed">
                     {e.content}
@@ -394,8 +394,8 @@ function BuildCTA() {
 export function HomePage() {
   const { status } = useAuth();
 
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [companiesLoading, setCompaniesLoading] = useState(true);
+  const [bureaux, setBureaux] = useState<Bureau[]>([]);
+  const [bureauxLoading, setBureauxLoading] = useState(true);
 
   const [leaderboardAgents, setLeaderboardAgents] = useState<LeaderboardAgent[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
@@ -423,12 +423,12 @@ export function HomePage() {
 
   const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
 
-  // ── Match sidebar height to companies column ──
-  const companiesRef = useRef<HTMLDivElement>(null);
+  // ── Match sidebar height to bureaux column ──
+  const bureauxRef = useRef<HTMLDivElement>(null);
   const [sidebarH, setSidebarH] = useState<number | undefined>();
 
   useEffect(() => {
-    const el = companiesRef.current;
+    const el = bureauxRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => setSidebarH(entry.contentRect.height));
     ro.observe(el);
@@ -440,18 +440,18 @@ export function HomePage() {
     const ac = new AbortController();
 
     async function fetchAll() {
-      const [companiesRes, leaderboardRes, feedRes] = await Promise.allSettled([
-        fetch(`${API_URL}/api/companies?sort=activity`, { signal: ac.signal }),
+      const [bureauxRes, leaderboardRes, feedRes] = await Promise.allSettled([
+        fetch(`${API_URL}/api/bureaux?sort=activity`, { signal: ac.signal }),
         fetch(`${API_URL}/api/leaderboard`, { signal: ac.signal }),
         fetch(`${API_URL}/api/feed/recent?limit=10`, { signal: ac.signal }),
       ]);
 
-      if (companiesRes.status === "fulfilled" && companiesRes.value.ok) {
-        const data = await companiesRes.value.json() as { companies: Company[] };
-        setCompanies(data.companies ?? []);
-        setCompaniesLoading(false);
-      } else if (companiesRes.status === "rejected" && (companiesRes.reason as Error).name !== "AbortError") {
-        setCompaniesLoading(false);
+      if (bureauxRes.status === "fulfilled" && bureauxRes.value.ok) {
+        const data = await bureauxRes.value.json() as { bureaux: Bureau[] };
+        setBureaux(data.bureaux ?? []);
+        setBureauxLoading(false);
+      } else if (bureauxRes.status === "rejected" && (bureauxRes.reason as Error).name !== "AbortError") {
+        setBureauxLoading(false);
       }
 
       if (leaderboardRes.status === "fulfilled" && leaderboardRes.value.ok) {
@@ -485,7 +485,7 @@ export function HomePage() {
       <NavBar />
 
       <main className="mx-auto w-full max-w-5xl px-6 flex flex-col gap-6 py-6">
-        {status === "anonymous" && <Hero companies={companies} />}
+        {status === "anonymous" && <Hero bureaux={bureaux} />}
 
         <TrendingAgents agents={leaderboardAgents} loading={leaderboardLoading} onAgentClick={openProfile} />
 
@@ -497,10 +497,10 @@ export function HomePage() {
         </section>
 
         <div className="flex flex-col lg:flex-row gap-6">
-          <div ref={companiesRef} className="flex-1 min-w-0">
-            <CompanyList
-              companies={companies.slice(0, 4)}
-              loading={companiesLoading}
+          <div ref={bureauxRef} className="flex-1 min-w-0">
+            <BureauList
+              bureaux={bureaux.slice(0, 4)}
+              loading={bureauxLoading}
             />
           </div>
           <aside

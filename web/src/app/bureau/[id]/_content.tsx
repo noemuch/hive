@@ -6,7 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgentProfile } from "@/components/AgentProfile";
-import CompanySidebar from "@/components/CompanySidebar";
+import BureauSidebar from "@/components/BureauSidebar";
 
 const GameView = dynamic(() => import("@/components/GameView"), {
   ssr: false,
@@ -15,7 +15,7 @@ const GameView = dynamic(() => import("@/components/GameView"), {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-type CompanyData = {
+type BureauData = {
   name: string;
   status: string;
   agent_count: number;
@@ -24,11 +24,11 @@ type CompanyData = {
 };
 
 type FetchState =
-  | { status: "loading"; company: null }
-  | { status: "notFound"; company: null }
-  | { status: "ready"; company: CompanyData };
+  | { status: "loading"; bureau: null }
+  | { status: "notFound"; bureau: null }
+  | { status: "ready"; bureau: BureauData };
 
-export default function CompanyContent({
+export default function BureauContent({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -39,27 +39,27 @@ export default function CompanyContent({
 
   const [fetchState, setFetchState] = useState<FetchState>({
     status: "loading",
-    company: null,
+    bureau: null,
   });
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`${API_URL}/api/companies/${id}`)
+    fetch(`${API_URL}/api/bureaux/${id}`)
       .then((r) => {
         if (r.status === 404) {
-          if (!cancelled) setFetchState({ status: "notFound", company: null });
+          if (!cancelled) setFetchState({ status: "notFound", bureau: null });
           return null;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data: { company: CompanyData } | null) => {
-        if (!cancelled && data?.company)
-          setFetchState({ status: "ready", company: data.company });
+      .then((data: { bureau: BureauData } | null) => {
+        if (!cancelled && data?.bureau)
+          setFetchState({ status: "ready", bureau: data.bureau });
       })
       .catch(() => {
-        if (!cancelled) setFetchState({ status: "notFound", company: null });
+        if (!cancelled) setFetchState({ status: "notFound", bureau: null });
       });
 
     return () => {
@@ -73,7 +73,7 @@ export default function CompanyContent({
     (agentId: string) => {
       const p = new URLSearchParams(searchParams.toString());
       p.set("agent", agentId);
-      router.replace(`/company/${id}?${p.toString()}`, { scroll: false });
+      router.replace(`/bureau/${id}?${p.toString()}`, { scroll: false });
     },
     [id, searchParams, router],
   );
@@ -82,7 +82,7 @@ export default function CompanyContent({
     const p = new URLSearchParams(searchParams.toString());
     p.delete("agent");
     const qs = p.toString();
-    router.replace(`/company/${id}${qs ? `?${qs}` : ""}`, { scroll: false });
+    router.replace(`/bureau/${id}${qs ? `?${qs}` : ""}`, { scroll: false });
   }, [id, searchParams, router]);
 
   if (fetchState.status === "loading") {
@@ -101,7 +101,7 @@ export default function CompanyContent({
     return (
       <main className="w-screen h-screen bg-background overflow-hidden flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">404</h1>
-        <p className="text-muted-foreground">Company not found.</p>
+        <p className="text-muted-foreground">Bureau not found.</p>
         <Link href="/" className="text-sm text-foreground">
           ← Back to grid
         </Link>
@@ -112,12 +112,12 @@ export default function CompanyContent({
   return (
     <main className="w-screen h-screen bg-background overflow-hidden flex">
       <GameView
-        companyId={id}
+        bureauId={id}
         onAgentClick={handleAgentClick}
         renderSidebar={({ feedItems, agents }) => (
-          <CompanySidebar
-            companyName={fetchState.company.name}
-            onlineCount={fetchState.company.active_agent_count}
+          <BureauSidebar
+            bureauName={fetchState.bureau.name}
+            onlineCount={fetchState.bureau.active_agent_count}
             feedItems={feedItems}
             agents={agents}
             onAgentClick={handleAgentClick}

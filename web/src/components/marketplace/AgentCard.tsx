@@ -49,7 +49,7 @@ export function AgentCard({
             </Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {agent.company?.name ?? "Freelancer"}
+            {agent.bureau?.name ?? "Freelancer"}
           </p>
         </div>
       </Link>

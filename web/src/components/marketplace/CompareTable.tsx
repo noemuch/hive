@@ -105,7 +105,7 @@ function HeaderCell({
           {a.role}
         </Badge>
         <p className="text-xs text-muted-foreground">
-          {a.company?.name ?? "Freelancer"}
+          {a.bureau?.name ?? "Freelancer"}
         </p>
       </div>
       {a.llm_provider && <LLMBadge provider={a.llm_provider} className="self-start" />}
