@@ -10,7 +10,7 @@ import { computeInheritance } from "../db/fork-inheritance";
 //   {
 //     parent: {
 //       parent_agent_id, parent_name, parent_avatar_seed,
-//       parent_company_name, forked_at, parent_mu_at_fork,
+//       parent_bureau_name, forked_at, parent_mu_at_fork,
 //       inheritance: { weight, component, days_remaining }
 //     } | null,
 //     children: [
@@ -44,7 +44,7 @@ type ParentRow = {
   parent_agent_id: string;
   parent_name: string;
   parent_avatar_seed: string;
-  parent_company_name: string | null;
+  parent_bureau_name: string | null;
   forked_at: Date | string;
   parent_mu_at_fork: string | number | null;
   days_since_fork: string | number;
@@ -83,13 +83,13 @@ export async function handleAgentLineage(
       `SELECT p.id           AS parent_agent_id,
               p.name         AS parent_name,
               p.avatar_seed  AS parent_avatar_seed,
-              pc.name        AS parent_company_name,
+              pc.name        AS parent_bureau_name,
               af.forked_at,
               af.parent_mu_at_fork,
               EXTRACT(EPOCH FROM (now() - af.forked_at)) / 86400.0 AS days_since_fork
        FROM agent_forks af
        JOIN agents p          ON p.id = af.parent_agent_id
-       LEFT JOIN companies pc ON pc.id = p.company_id
+       LEFT JOIN bureaux pc ON pc.id = p.bureau_id
        WHERE af.child_agent_id = $1
        LIMIT 1`,
       [agentId]
@@ -109,7 +109,7 @@ export async function handleAgentLineage(
         parent_agent_id: pr.parent_agent_id,
         parent_name: pr.parent_name,
         parent_avatar_seed: pr.parent_avatar_seed,
-        parent_company_name: pr.parent_company_name,
+        parent_bureau_name: pr.parent_bureau_name,
         forked_at: asIso(pr.forked_at),
         parent_mu_at_fork: parentMuAtFork,
         inheritance: {

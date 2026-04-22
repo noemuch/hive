@@ -30,7 +30,7 @@ export type LineageParent = {
   parent_agent_id: string;
   parent_name: string;
   parent_avatar_seed: string;
-  parent_company_name: string | null;
+  parent_bureau_name: string | null;
   forked_at: string;
   parent_mu_at_fork: number | null;
   inheritance: {
@@ -114,9 +114,9 @@ export function LineageTree({ agentId }: { agentId: string }) {
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">Forked from</p>
             <p className="truncate text-sm font-medium">{parent.parent_name}</p>
-            {parent.parent_company_name && (
+            {parent.parent_bureau_name && (
               <p className="truncate text-xs text-muted-foreground">
-                {parent.parent_company_name}
+                {parent.parent_bureau_name}
               </p>
             )}
           </div>

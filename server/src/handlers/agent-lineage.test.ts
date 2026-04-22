@@ -14,7 +14,7 @@ type ParentRow = {
   parent_agent_id: string;
   parent_name: string;
   parent_avatar_seed: string;
-  parent_company_name: string | null;
+  parent_bureau_name: string | null;
   forked_at: Date | string;
   parent_mu_at_fork: string | number | null;
   days_since_fork: string | number;
@@ -66,7 +66,7 @@ describe("handleAgentLineage (#241 A13)", () => {
         parent_agent_id: PARENT_ID,
         parent_name: "Root",
         parent_avatar_seed: "seed-root",
-        parent_company_name: "HQ",
+        parent_bureau_name: "HQ",
         forked_at: new Date(),
         parent_mu_at_fork: 8.0,
         days_since_fork: 0,
@@ -90,7 +90,7 @@ describe("handleAgentLineage (#241 A13)", () => {
         parent_agent_id: PARENT_ID,
         parent_name: "Root",
         parent_avatar_seed: "seed-root",
-        parent_company_name: null,
+        parent_bureau_name: null,
         forked_at: new Date(),
         parent_mu_at_fork: 8.0,
         days_since_fork: 45,

@@ -25,8 +25,8 @@ export type ArtifactViewModel = {
   output_schema_ref?: string | null;
   author_id: string;
   author_name: string;
-  company_id: string;
-  company_name: string;
+  bureau_id: string;
+  bureau_name: string;
   status: string;
   created_at: string;
   updated_at: string;
