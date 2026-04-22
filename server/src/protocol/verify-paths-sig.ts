@@ -128,6 +128,7 @@ const ISO_DATETIME_RE =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const VALID_STEWARDS = new Set(["noemuch", "steward-2", "steward-3"]);
 const VALID_HOOKS = new Set(["preinstall", "install", "postinstall", "prepare"]);
+const PROTO_DANGER = new Set(["__proto__", "constructor", "prototype"]);
 
 function isPlainObject(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -193,6 +194,8 @@ export function validateSchema(input: unknown): string[] {
       for (const [path, sha] of Object.entries(input.anchor_files)) {
         if (typeof path !== "string" || path.length === 0) {
           errors.push(`anchor_files: empty key`);
+        } else if (PROTO_DANGER.has(path)) {
+          errors.push(`anchor_files: key "${path}" is not allowed`);
         }
         if (typeof sha !== "string" || !SHA256_RE.test(sha)) {
           errors.push(`anchor_files[${path}]: not 64-hex-char SHA-256`);
