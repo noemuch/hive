@@ -1,0 +1,279 @@
+# @hive-protocol: meta-guard
+# ^ Pragma above identifies this file as a closure anchor per NORTHSTAR §2.1 #7.
+#   Role "meta-guard" must appear in PROTOCOL_PATHS.sig.pragma_roles[].
+
+name: Meta-Guard — §9.3 layer #2 (anchor integrity, protocol-path-guard SHA pin)
+
+# Independent sibling of protocol-path-guard.yml (layer #1). Enforces:
+#   - Every §2.1 anchor file exists on HEAD (deletion → BLOCK).
+#   - SHA-256 of protocol-path-guard.yml matches PROTOCOL_PATHS.sig.anchor_files[that path].
+#   - Unsigned commits touching any closure file → BLOCK.
+#   - Pragma count monotonicity: no shrink in `@hive-protocol:` or `@hive-protocol-test:`
+#     count between base and HEAD (hardens test-closure layer §9.3 #8).
+#   - Canonical canary test SHA-256 (server/src/__tests__/protocol-invariants.test.ts)
+#     matches PROTOCOL_PATHS.sig.canary_test_sha256 (layer §9.3 #11).
+#
+# On ANY failure: apply `protocol-change` + `agent-blocked` labels, post a
+# structured diagnostic comment, exit 1.
+#
+# Pre-genesis behavior: if PROTOCOL_PATHS.sig is absent (has not yet been
+# produced by the genesis ceremony §13.2), the SHA-pin / canary / pragma-role
+# allowlist checks are SKIPPED with a neutral notice — but the file-existence,
+# pragma-monotonicity, and unsigned-commit checks still run (they do not
+# depend on the signed anchor).
+#
+# Auth: NOEMUCH_PAT until HPA-scoped Steward tokens exist post-genesis.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: meta-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  meta-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout HEAD + fetch base
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run meta-guard checks
+        id: checks
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          failures_file="$RUNNER_TEMP/meta-guard-failures.txt"
+          : > "$failures_file"
+
+          record_failure() {
+            echo "- $1" >> "$failures_file"
+            echo "::error title=meta-guard::$1"
+          }
+
+          # --- §2.1 anchor files enumeration (must match NORTHSTAR §2.1) ---
+          anchors=(
+            "docs/kb/NORTHSTAR.md"
+            "docs/kb/HARD-FORK-PROCEDURE.md"
+            "docs/kb/FOUNDERS_KEYS.md"
+            "docs/kb/STEWARDS_KEYS.md"
+            "docs/kb/ENTITY_BYLAWS.md"
+            "docs/kb/RATCHET_FROZEN.json"
+            "docs/kb/PROTOCOL_PATHS.sig"
+            "docs/kb/APP_PERMISSIONS.json"
+            "docs/kb/MIRRORS.md"
+            "docs/kb/AUDITOR_POOL.md"
+            "docs/kb/CALIBRATION_AUDIT.md"
+            "docs/kb/RFC_MANIFESTS"
+            "server/src/db/agent-score-state.ts"
+            "server/src/engine/peer-evaluation.ts"
+            "server/src/__tests__/protocol-invariants.test.ts"
+            ".github/workflows/review.yml"
+            ".github/workflows/dispatch-ready.yml"
+            ".github/workflows/ratchet-phase-transition.yml"
+            ".github/workflows/ratify-rfc.yml"
+            ".github/workflows/protocol-path-guard.yml"
+            ".github/workflows/meta-guard.yml"
+            ".github/workflows/watchdog.yml"
+            "CODEOWNERS"
+          )
+
+          # --- Check 1: anchor existence ---
+          # PROTOCOL_PATHS.sig + some siblings are allowed to be absent
+          # pre-genesis. Record but DO NOT BLOCK unless post-genesis sig present.
+          PRE_GENESIS="false"
+          if [ ! -f "docs/kb/PROTOCOL_PATHS.sig" ]; then
+            PRE_GENESIS="true"
+            echo "::notice::PROTOCOL_PATHS.sig absent — pre-genesis mode. SHA-pin / canary checks SKIPPED."
+          fi
+
+          pre_genesis_tolerated=(
+            "docs/kb/PROTOCOL_PATHS.sig"
+            "docs/kb/HARD-FORK-PROCEDURE.md"
+            "docs/kb/FOUNDERS_KEYS.md"
+            "docs/kb/STEWARDS_KEYS.md"
+            "docs/kb/ENTITY_BYLAWS.md"
+            "docs/kb/RATCHET_FROZEN.json"
+            "docs/kb/CALIBRATION_AUDIT.md"
+            "docs/kb/RFC_MANIFESTS"
+            ".github/workflows/ratchet-phase-transition.yml"
+            ".github/workflows/ratify-rfc.yml"
+            ".github/workflows/protocol-path-guard.yml"
+          )
+
+          is_tolerated_pre_genesis() {
+            local p="$1"
+            for t in "${pre_genesis_tolerated[@]}"; do
+              [ "$p" = "$t" ] && return 0
+            done
+            return 1
+          }
+
+          for anchor in "${anchors[@]}"; do
+            if [ ! -e "$anchor" ]; then
+              if [ "$PRE_GENESIS" = "true" ] && is_tolerated_pre_genesis "$anchor"; then
+                echo "::notice::Anchor '$anchor' absent — tolerated pre-genesis."
+              else
+                record_failure "Anchor file missing from HEAD: \`$anchor\`"
+              fi
+            fi
+          done
+
+          # --- Check 2: protocol-path-guard.yml SHA matches sig ---
+          if [ "$PRE_GENESIS" = "false" ]; then
+            GUARD_PATH=".github/workflows/protocol-path-guard.yml"
+            if [ -f "$GUARD_PATH" ]; then
+              actual_sha=$(sha256sum "$GUARD_PATH" | awk '{print $1}')
+              expected_sha=$(jq -r --arg k "$GUARD_PATH" '.anchor_files[$k] // empty' docs/kb/PROTOCOL_PATHS.sig)
+              if [ -z "$expected_sha" ]; then
+                record_failure "protocol-path-guard.yml not pinned in PROTOCOL_PATHS.sig.anchor_files — missing entry."
+              elif [ "$actual_sha" != "$expected_sha" ]; then
+                record_failure "SHA-256 mismatch for \`$GUARD_PATH\`: actual \`$actual_sha\`, pinned \`$expected_sha\`. Either re-sign PROTOCOL_PATHS.sig via §5 RFC, or revert the unauthorized change."
+              fi
+            fi
+          fi
+
+          # --- Check 3: unsigned commits on closure files ---
+          # Any commit in the PR range that touched a §2.1 anchor MUST be GPG-signed.
+          git fetch --no-tags origin "$BASE_SHA" || true
+          commit_range="${BASE_SHA}..${HEAD_SHA}"
+          # Build a set of anchor path prefixes (treat directory anchors as prefixes)
+          anchor_paths_file="$RUNNER_TEMP/anchor-paths.txt"
+          printf '%s\n' "${anchors[@]}" > "$anchor_paths_file"
+
+          while read -r commit; do
+            [ -z "$commit" ] && continue
+            touched=$(git show --name-only --pretty=format: "$commit" | sort -u)
+            touched_closure="no"
+            while read -r f; do
+              [ -z "$f" ] && continue
+              while read -r anchor; do
+                if [ "$f" = "$anchor" ] || { [ -d "$anchor" ] && [[ "$f" == "$anchor/"* ]]; }; then
+                  touched_closure="yes"
+                  break
+                fi
+              done < "$anchor_paths_file"
+              [ "$touched_closure" = "yes" ] && break
+            done <<< "$touched"
+
+            if [ "$touched_closure" = "yes" ]; then
+              verify=$(git log -1 --format='%G?' "$commit" 2>/dev/null || echo "N")
+              case "$verify" in
+                G|U|E)
+                  # G = good, U = good but untrusted, E = expired but signed
+                  echo "::notice::Commit $commit signed ($verify) — closure write permitted."
+                  ;;
+                *)
+                  record_failure "Unsigned commit $commit touched a §2.1 closure file. All closure writes require GPG signature (verification status: \`$verify\`)."
+                  ;;
+              esac
+            fi
+          done < <(git rev-list "$commit_range" 2>/dev/null || echo "")
+
+          # --- Check 4: pragma count monotonicity ---
+          # HEAD must have ≥ base count for @hive-protocol: and @hive-protocol-test:
+          count_pragma_at() {
+            local ref="$1"
+            local needle="$2"
+            git grep -c -F "$needle" "$ref" -- \
+              ':!node_modules' ':!dist' ':!.next' ':!build' ':!out' \
+              2>/dev/null | awk -F: '{sum += $NF} END {print sum+0}'
+          }
+
+          base_protocol=$(count_pragma_at "$BASE_SHA" "@hive-protocol:")
+          head_protocol=$(count_pragma_at "$HEAD_SHA" "@hive-protocol:")
+          base_test=$(count_pragma_at "$BASE_SHA" "@hive-protocol-test:")
+          head_test=$(count_pragma_at "$HEAD_SHA" "@hive-protocol-test:")
+
+          echo "::notice::Pragma counts — @hive-protocol: base=$base_protocol head=$head_protocol | @hive-protocol-test: base=$base_test head=$head_test"
+
+          if [ "$head_protocol" -lt "$base_protocol" ]; then
+            record_failure "Pragma count shrank for \`@hive-protocol:\` ($base_protocol → $head_protocol). Removing protocol pragmas requires a §5 RFC."
+          fi
+          if [ "$head_test" -lt "$base_test" ]; then
+            record_failure "Pragma count shrank for \`@hive-protocol-test:\` ($base_test → $head_test). Test-closure shrink requires a §5 RFC."
+          fi
+
+          # --- Check 5: canary test SHA matches sig ---
+          if [ "$PRE_GENESIS" = "false" ]; then
+            CANARY="server/src/__tests__/protocol-invariants.test.ts"
+            if [ -f "$CANARY" ]; then
+              actual_canary_sha=$(sha256sum "$CANARY" | awk '{print $1}')
+              expected_canary_sha=$(jq -r '.canary_test_sha256 // empty' docs/kb/PROTOCOL_PATHS.sig)
+              if [ -z "$expected_canary_sha" ]; then
+                record_failure "canary_test_sha256 absent from PROTOCOL_PATHS.sig."
+              elif [ "$actual_canary_sha" != "$expected_canary_sha" ]; then
+                record_failure "Canary test SHA-256 mismatch (\`$CANARY\`): actual \`$actual_canary_sha\`, pinned \`$expected_canary_sha\`. Canary tampering detected (§9.3 layer #11)."
+              fi
+            fi
+          fi
+
+          # --- Report ---
+          if [ -s "$failures_file" ]; then
+            {
+              echo "failed=true"
+              echo "report<<EOF_META"
+              echo "## meta-guard failures"
+              echo ""
+              cat "$failures_file"
+              echo "EOF_META"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::meta-guard PASS — all anchor integrity checks satisfied."
+          fi
+
+      - name: Label + comment on failure
+        if: failure() && steps.checks.outputs.failed == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const pr = context.payload.pull_request.number;
+            const report = `${{ steps.checks.outputs.report }}` || '## meta-guard failure\n\nSee workflow logs for details.';
+
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: pr,
+              labels: ['protocol-change', 'agent-blocked'],
+            });
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: pr,
+              body: `${report}\n\n**This PR is BLOCKED** per NORTHSTAR §9.3 layer #2 (meta-guard). Resolution path:\n\n1. If the change is legitimate, open a §5 RFC proposing the anchor update.\n2. RFC ratification triggers \`update-protocol-paths.yml\` which re-signs \`PROTOCOL_PATHS.sig\` with fresh SHAs.\n3. Re-push the branch after the signing PR merges.\n\nIf the change is accidental, revert the affected files.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Log to automation log
+        if: always() && vars.AUTOMATION_LOG_ISSUE != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const logIssue = parseInt('${{ vars.AUTOMATION_LOG_ISSUE }}', 10);
+            if (!logIssue) return;
+            const pr = context.payload.pull_request.number;
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '🟢' : '🔴';
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: logIssue,
+              body: `${emoji} **meta-guard** PR #${pr} — status: \`${status}\` · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            });

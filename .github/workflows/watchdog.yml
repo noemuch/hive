@@ -1,0 +1,207 @@
+# @hive-protocol: watchdog
+# ^ Pragma above identifies this file as a closure anchor per NORTHSTAR §2.1 #7.
+#   Role "watchdog" must appear in PROTOCOL_PATHS.sig.pragma_roles[].
+
+name: Watchdog — §9.3 layer #3 (tertiary SHA-pin of meta-guard + path-guard)
+
+# Third, independent verifier that closes the circular-trust gap (S-R2-4):
+#   meta-guard verifies protocol-path-guard, but who verifies meta-guard?
+#   → THIS workflow does. It mutually pins both siblings' SHA-256 against
+#     PROTOCOL_PATHS.sig, and asserts both files exist (anti-deletion).
+#
+# Runs:
+#   - on every pull_request (opened/synchronize/reopened) — fast-path catch
+#   - cron every 6h — catches drift on main outside the PR window
+#
+# On failure: opens a `priority:critical` + `source:watchdog` incident issue,
+# assigns to HPA-admins (@noemuch pre-genesis → Stewards collectively post-genesis
+# via AUDITOR_POOL.md routing), and fails the workflow.
+#
+# Pre-genesis behavior: if PROTOCOL_PATHS.sig is absent, SHA-pin checks are
+# SKIPPED with a neutral notice. The existence checks (anti-deletion) still
+# run against meta-guard.yml and protocol-path-guard.yml. If path-guard.yml is
+# itself absent pre-genesis, existence check for THAT file is skipped too.
+#
+# Auth: NOEMUCH_PAT until HPA-scoped Steward tokens exist post-genesis.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '0 */6 * * *'  # every 6h
+  workflow_dispatch:
+
+concurrency:
+  group: watchdog-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Run watchdog checks
+        id: checks
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+        run: |
+          set -euo pipefail
+
+          failures_file="$RUNNER_TEMP/watchdog-failures.txt"
+          : > "$failures_file"
+
+          record_failure() {
+            echo "- $1" >> "$failures_file"
+            echo "::error title=watchdog::$1"
+          }
+
+          META_GUARD=".github/workflows/meta-guard.yml"
+          PATH_GUARD=".github/workflows/protocol-path-guard.yml"
+          SIG="docs/kb/PROTOCOL_PATHS.sig"
+
+          PRE_GENESIS="false"
+          if [ ! -f "$SIG" ]; then
+            PRE_GENESIS="true"
+            echo "::notice::PROTOCOL_PATHS.sig absent — pre-genesis. SHA-pin verification SKIPPED."
+          fi
+
+          # --- Check 1: anti-deletion of meta-guard.yml ---
+          if [ ! -f "$META_GUARD" ]; then
+            record_failure "meta-guard.yml DELETED or moved. This is a §9.3 layer-#2 guard; removal requires §5 RFC + multisig."
+          fi
+
+          # --- Check 2: anti-deletion of protocol-path-guard.yml ---
+          # Pre-genesis tolerance: path-guard may not yet be written. Post-genesis: required.
+          if [ ! -f "$PATH_GUARD" ]; then
+            if [ "$PRE_GENESIS" = "true" ]; then
+              echo "::notice::protocol-path-guard.yml absent — tolerated pre-genesis."
+            else
+              record_failure "protocol-path-guard.yml DELETED or moved. This is the §9.3 layer-#1 guard; removal requires §5 RFC + multisig."
+            fi
+          fi
+
+          # --- Check 3: SHA-256 pin of meta-guard.yml matches sig ---
+          if [ "$PRE_GENESIS" = "false" ] && [ -f "$META_GUARD" ]; then
+            actual_sha=$(sha256sum "$META_GUARD" | awk '{print $1}')
+            expected_sha=$(jq -r --arg k "$META_GUARD" '.anchor_files[$k] // empty' "$SIG")
+            if [ -z "$expected_sha" ]; then
+              record_failure "meta-guard.yml not pinned in PROTOCOL_PATHS.sig.anchor_files."
+            elif [ "$actual_sha" != "$expected_sha" ]; then
+              record_failure "meta-guard.yml SHA-256 mismatch: actual \`$actual_sha\`, pinned \`$expected_sha\`. Tampering with layer #2 detected."
+            fi
+          fi
+
+          # --- Check 4: SHA-256 pin of protocol-path-guard.yml matches sig ---
+          if [ "$PRE_GENESIS" = "false" ] && [ -f "$PATH_GUARD" ]; then
+            actual_sha=$(sha256sum "$PATH_GUARD" | awk '{print $1}')
+            expected_sha=$(jq -r --arg k "$PATH_GUARD" '.anchor_files[$k] // empty' "$SIG")
+            if [ -z "$expected_sha" ]; then
+              record_failure "protocol-path-guard.yml not pinned in PROTOCOL_PATHS.sig.anchor_files."
+            elif [ "$actual_sha" != "$expected_sha" ]; then
+              record_failure "protocol-path-guard.yml SHA-256 mismatch: actual \`$actual_sha\`, pinned \`$expected_sha\`. Tampering with layer #1 detected."
+            fi
+          fi
+
+          # --- Report ---
+          if [ -s "$failures_file" ]; then
+            {
+              echo "failed=true"
+              echo "report<<EOF_WD"
+              echo "## watchdog tertiary-pin failures (§9.3 layer #3)"
+              echo ""
+              cat "$failures_file"
+              echo ""
+              echo "This is a circular-trust closure alarm. The sibling guards of the 3-layer"
+              echo "defense stack (meta-guard.yml / protocol-path-guard.yml) are tampered with"
+              echo "or deleted. Per §9.3, this requires immediate Steward review."
+              echo "EOF_WD"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::watchdog PASS — tertiary SHA-pin integrity verified."
+          fi
+
+      - name: Block PR (if on pull_request event)
+        if: failure() && github.event_name == 'pull_request' && steps.checks.outputs.failed == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const pr = context.payload.pull_request.number;
+            const report = `${{ steps.checks.outputs.report }}`;
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: pr,
+              labels: ['protocol-change', 'agent-blocked'],
+            });
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: pr,
+              body: `${report}\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Open critical incident (cron or main)
+        if: failure() && github.event_name != 'pull_request' && steps.checks.outputs.failed == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const report = `${{ steps.checks.outputs.report }}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            // Dedup: look for open source:watchdog incidents with matching title root.
+            const { data: existing } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              labels: 'source:watchdog',
+              per_page: 20,
+            });
+            const title = `[WATCHDOG] Tertiary guard integrity failure on ${context.sha.slice(0, 7)}`;
+            const dupe = existing.find(i => i.title.startsWith('[WATCHDOG]'));
+            if (dupe) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: dupe.number,
+                body: `🔁 Re-occurred at ${context.sha.slice(0, 7)} — [run](${runUrl})\n\n${report}`,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              ...context.repo,
+              title,
+              body: `${report}\n\nCommit: \`${context.sha}\`\nRun: ${runUrl}\n\n**Assigned to HPA-admins** for immediate Steward review. See NORTHSTAR §9.3 layer #3, §8.4 (Emergency Response Panel if adversarial).`,
+              labels: ['priority:critical', 'source:watchdog', 'stop-autonomy'],
+              assignees: ['noemuch'],
+            });
+
+      - name: Log to automation log
+        if: always() && vars.AUTOMATION_LOG_ISSUE != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const logIssue = parseInt('${{ vars.AUTOMATION_LOG_ISSUE }}', 10);
+            if (!logIssue) return;
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '🟢' : '🚨';
+            const trigger = context.eventName === 'pull_request'
+              ? `PR #${context.payload.pull_request.number}`
+              : context.eventName;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: logIssue,
+              body: `${emoji} **watchdog** ${trigger} — status: \`${status}\` · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            });

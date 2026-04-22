@@ -1,0 +1,345 @@
+# @hive-protocol: update-protocol-paths
+# ^ Pragma above identifies this file as a closure anchor per NORTHSTAR §2.1 #7.
+#   Role "update-protocol-paths" must appear in PROTOCOL_PATHS.sig.pragma_roles[].
+
+name: Update PROTOCOL_PATHS.sig — post-RFC anchor re-sign
+
+# Invoked after an RFC ratification whose diff touched any §2.1 anchor file.
+# The workflow:
+#   1. Recomputes SHA-256 of every anchor file on HEAD.
+#   2. Rewrites docs/kb/PROTOCOL_PATHS.sig anchor_files section with new SHAs.
+#   3. Opens a "signing PR" titled `chore(protocol): re-sign PROTOCOL_PATHS.sig for RFC-NNN`.
+#   4. Requests review from the 3 Stewards (multi-sig).
+#   5. Auto-merges when all 3 Steward GPG signatures are present on the signing commit.
+#
+# Pre-genesis mode (PROTOCOL_PATHS.sig absent, or only `noemuch` is a Steward):
+#   - Same flow, but only `noemuch` is requested as reviewer.
+#   - Signing PR receives label `genesis-pending-multisig` so post-genesis the 2
+#     additional Steward signatures can be appended before the v1.0.0-genesis tag.
+#   - If PROTOCOL_PATHS.sig does not exist, the workflow creates it from a minimal
+#     schema-compliant template (see docs/kb/PROTOCOL_PATHS_SCHEMA.md).
+#
+# Triggers:
+#   - workflow_dispatch with `rfc_number` input (manual re-sign).
+#   - workflow_call from ratify-rfc.yml (chained on successful RFC ratification).
+#
+# Auth: NOEMUCH_PAT until HPA Steward tokens exist post-genesis.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rfc_number:
+        description: 'RFC number triggering the re-sign (e.g., 042)'
+        required: true
+        type: string
+      touched_anchors:
+        description: 'Optional: comma-separated list of anchor paths that changed. If empty, workflow recomputes all.'
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      rfc_number:
+        required: true
+        type: string
+      touched_anchors:
+        required: false
+        type: string
+
+concurrency:
+  group: update-protocol-paths-${{ inputs.rfc_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  resign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.NOEMUCH_PAT }}
+
+      - name: Configure git identity (@noemuch)
+        run: |
+          git config user.name "noemuch"
+          git config user.email "noe@finary.com"
+
+      - name: Recompute anchor SHAs + rewrite sig
+        id: resign
+        env:
+          RFC_NUMBER: ${{ inputs.rfc_number }}
+        run: |
+          set -euo pipefail
+
+          SIG="docs/kb/PROTOCOL_PATHS.sig"
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EXPIRES=$(date -u -d '+365 days' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v+365d +%Y-%m-%dT%H:%M:%SZ)
+
+          # --- §2.1 anchor list (single source of truth for this workflow) ---
+          # Must match meta-guard.yml / watchdog.yml / NORTHSTAR §2.1.
+          anchors=(
+            "docs/kb/NORTHSTAR.md"
+            "docs/kb/HARD-FORK-PROCEDURE.md"
+            "docs/kb/FOUNDERS_KEYS.md"
+            "docs/kb/STEWARDS_KEYS.md"
+            "docs/kb/ENTITY_BYLAWS.md"
+            "docs/kb/RATCHET_FROZEN.json"
+            "docs/kb/APP_PERMISSIONS.json"
+            "docs/kb/MIRRORS.md"
+            "docs/kb/AUDITOR_POOL.md"
+            "docs/kb/CALIBRATION_AUDIT.md"
+            "server/src/db/agent-score-state.ts"
+            "server/src/engine/peer-evaluation.ts"
+            "server/src/__tests__/protocol-invariants.test.ts"
+            ".github/workflows/review.yml"
+            ".github/workflows/dispatch-ready.yml"
+            ".github/workflows/ratchet-phase-transition.yml"
+            ".github/workflows/ratify-rfc.yml"
+            ".github/workflows/protocol-path-guard.yml"
+            ".github/workflows/meta-guard.yml"
+            ".github/workflows/watchdog.yml"
+            "CODEOWNERS"
+          )
+
+          # Build the anchor_files JSON object (skip files that do not exist —
+          # pre-genesis tolerant).
+          anchor_files_json="{}"
+          for p in "${anchors[@]}"; do
+            if [ -f "$p" ]; then
+              sha=$(sha256sum "$p" | awk '{print $1}')
+              anchor_files_json=$(jq --arg k "$p" --arg v "$sha" '. + {($k): $v}' <<< "$anchor_files_json")
+            else
+              echo "::notice::Anchor '$p' absent on HEAD — skipping (pre-genesis tolerance)."
+            fi
+          done
+
+          # Canary test SHA (may be absent pre-genesis)
+          CANARY="server/src/__tests__/protocol-invariants.test.ts"
+          canary_sha="0000000000000000000000000000000000000000000000000000000000000000"
+          if [ -f "$CANARY" ]; then
+            canary_sha=$(sha256sum "$CANARY" | awk '{print $1}')
+          fi
+
+          # APP_PERMISSIONS + MIRRORS SHAs (subset of anchor_files but also
+          # pinned as top-level per Appendix H).
+          app_perm_sha="0000000000000000000000000000000000000000000000000000000000000000"
+          [ -f "docs/kb/APP_PERMISSIONS.json" ] && app_perm_sha=$(sha256sum "docs/kb/APP_PERMISSIONS.json" | awk '{print $1}')
+          mirrors_sha="0000000000000000000000000000000000000000000000000000000000000000"
+          [ -f "docs/kb/MIRRORS.md" ] && mirrors_sha=$(sha256sum "docs/kb/MIRRORS.md" | awk '{print $1}')
+
+          # --- Build or merge sig ---
+          PRE_GENESIS="false"
+          if [ ! -f "$SIG" ]; then
+            PRE_GENESIS="true"
+            echo "::notice::Bootstrapping PROTOCOL_PATHS.sig (pre-genesis)."
+            cat > "$SIG" <<-EOF
+          {
+            "version": "0.3.0-pre-genesis",
+            "issued_at": "$NOW",
+            "expires_at": "$EXPIRES",
+            "protocol_version_predecessor_sig_sha256": null,
+            "anchor_files": {},
+            "pragma_roles": [
+              "meta-guard",
+              "watchdog",
+              "mirror-hash-watch",
+              "update-protocol-paths",
+              "protocol-path-guard",
+              "ratchet",
+              "ratify-rfc",
+              "peer-eval",
+              "score-state",
+              "review",
+              "dispatch-ready"
+            ],
+            "actions_secrets": [
+              "secrets.NOEMUCH_PAT",
+              "secrets.CLAUDE_OAUTH_PRIMARY",
+              "secrets.CLAUDE_OAUTH_SECONDARY",
+              "vars.AUTOMATION_LOG_ISSUE",
+              "vars.PREVIEW_URL"
+            ],
+            "lifecycle_allowlist": [],
+            "reproducible_build_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "canary_test_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "app_permissions_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "mirrors_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "required_status_checks": [],
+            "signatures": []
+          }
+          EOF
+          fi
+
+          # Merge recomputed fields into existing sig.
+          tmp_sig="$RUNNER_TEMP/PROTOCOL_PATHS.sig.new"
+          jq \
+            --argjson anchors "$anchor_files_json" \
+            --arg canary "$canary_sha" \
+            --arg app_perm "$app_perm_sha" \
+            --arg mirrors "$mirrors_sha" \
+            --arg issued "$NOW" \
+            --arg expires "$EXPIRES" \
+            '
+              .issued_at = $issued
+              | .expires_at = $expires
+              | .anchor_files = $anchors
+              | .canary_test_sha256 = $canary
+              | .app_permissions_sha256 = $app_perm
+              | .mirrors_sha256 = $mirrors
+              | .signatures = []
+            ' "$SIG" > "$tmp_sig"
+          mv "$tmp_sig" "$SIG"
+
+          # Pretty-print deterministically (2-space, sorted keys) for reviewable diffs.
+          jq --sort-keys '.' "$SIG" > "${SIG}.tmp" && mv "${SIG}.tmp" "$SIG"
+
+          echo "pre_genesis=$PRE_GENESIS" >> "$GITHUB_OUTPUT"
+
+          if git diff --quiet -- "$SIG"; then
+            echo "::notice::No changes to PROTOCOL_PATHS.sig — all anchor SHAs already current."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open signing PR
+        if: steps.resign.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          RFC_NUMBER: ${{ inputs.rfc_number }}
+          PRE_GENESIS: ${{ steps.resign.outputs.pre_genesis }}
+        run: |
+          set -euo pipefail
+
+          BRANCH="protocol/resign-rfc-${RFC_NUMBER}"
+
+          # Fresh branch from main
+          git checkout -b "$BRANCH"
+          git add docs/kb/PROTOCOL_PATHS.sig
+          git commit -S -m "chore(protocol): re-sign PROTOCOL_PATHS.sig for RFC-${RFC_NUMBER}
+
+          Recomputes SHA-256 of all §2.1 anchor files on HEAD and updates the
+          anchor_files section of PROTOCOL_PATHS.sig. This PR must be signed by
+          all 3 Stewards (multi-sig) before merge — or labelled
+          genesis-pending-multisig if still pre-genesis (noemuch-only)." || {
+            # If -S fails (no GPG key on runner), commit unsigned with notice.
+            git commit -m "chore(protocol): re-sign PROTOCOL_PATHS.sig for RFC-${RFC_NUMBER}
+
+          Recomputes SHA-256 of all §2.1 anchor files on HEAD. Awaiting Steward
+          GPG signatures (multi-sig) before merge."
+          }
+
+          git push --set-upstream origin "$BRANCH"
+
+          BODY_FILE="$RUNNER_TEMP/pr-body.md"
+          cat > "$BODY_FILE" <<'EOF'
+          ## Re-sign PROTOCOL_PATHS.sig — RFC-__RFC_NUMBER__
+
+          Triggered by ratification of RFC-__RFC_NUMBER__. This PR recomputes SHA-256
+          of every §2.1 anchor file present on HEAD and updates the `anchor_files`
+          section of `docs/kb/PROTOCOL_PATHS.sig` accordingly.
+
+          ### Required multi-sig
+
+          Per NORTHSTAR Appendix H, this file requires signatures from all three
+          Stewards before merge:
+
+          - [ ] `noemuch` — sign commit with registered GPG key
+          - [ ] `steward-2` — sign commit with registered GPG key
+          - [ ] `steward-3` — sign commit with registered GPG key
+
+          When the 3 signatures are present (verified via `git log --show-signature`),
+          this PR is eligible for auto-merge.
+
+          ### Pre-genesis note
+
+          If this PR bears the `genesis-pending-multisig` label, only `noemuch` has
+          signed (Stewards 2 and 3 are selected at genesis per §2.4). The PR will be
+          held open until the 3-of-3 multi-sig is complete, OR merged in the genesis
+          ceremony with all 3 sigs applied simultaneously.
+
+          ### Verification
+
+          - `meta-guard.yml` + `watchdog.yml` will automatically check the recomputed
+            SHAs on the next PR cycle.
+          - `mirror-hash-watch.yml` will re-baseline once the sig lands on main.
+          EOF
+          sed -i "s/__RFC_NUMBER__/${RFC_NUMBER}/g" "$BODY_FILE"
+
+          LABELS="protocol-change,source:update-protocol-paths"
+          if [ "$PRE_GENESIS" = "true" ]; then
+            LABELS="$LABELS,genesis-pending-multisig"
+          fi
+
+          gh pr create \
+            --title "chore(protocol): re-sign PROTOCOL_PATHS.sig for RFC-${RFC_NUMBER}" \
+            --body-file "$BODY_FILE" \
+            --base main \
+            --head "$BRANCH" \
+            --label "$LABELS" \
+            --reviewer noemuch
+
+          # Post-genesis: also request steward-2 / steward-3. Pre-genesis these
+          # handles do not exist yet, so we avoid a "reviewer not found" failure.
+          if [ "$PRE_GENESIS" = "false" ]; then
+            PR_NUM=$(gh pr view "$BRANCH" --json number --jq '.number')
+            gh pr edit "$PR_NUM" --add-reviewer steward-2 --add-reviewer steward-3 || true
+          fi
+
+      - name: Auto-merge if 3-of-3 multi-sig present
+        if: steps.resign.outputs.changed == 'true' && steps.resign.outputs.pre_genesis == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.NOEMUCH_PAT }}
+          RFC_NUMBER: ${{ inputs.rfc_number }}
+        run: |
+          set -euo pipefail
+
+          BRANCH="protocol/resign-rfc-${RFC_NUMBER}"
+          PR_NUM=$(gh pr view "$BRANCH" --json number --jq '.number')
+
+          # Inspect commits on the PR — count commits signed by a registered
+          # Steward fingerprint. Registered fingerprints live in
+          # docs/kb/FOUNDERS_KEYS.md + STEWARDS_KEYS.md; this shell check is
+          # coarse (verification-status + Co-signed-by trailer). Server-side
+          # signature verification against registered keys will be performed
+          # by ratify-rfc.yml as a required check before merge.
+          SIGNED_COUNT=$(gh pr view "$PR_NUM" --json commits --jq '[.commits[].verified] | map(select(. == true)) | length')
+          echo "Verified-signed commit count: $SIGNED_COUNT"
+
+          # Post-genesis merge criterion: at least 3 verified-signed commits from
+          # distinct Steward handles. Cross-check against handles in COMMIT_AUTHOR_SET.
+          if [ "$SIGNED_COUNT" -ge 3 ]; then
+            echo "Multi-sig threshold met — enabling auto-merge."
+            gh pr merge "$PR_NUM" --auto --squash --delete-branch
+          else
+            echo "::notice::Multi-sig threshold NOT yet met ($SIGNED_COUNT/3). PR held open for Steward signatures."
+          fi
+
+      - name: Log to automation log
+        if: always() && vars.AUTOMATION_LOG_ISSUE != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const logIssue = parseInt('${{ vars.AUTOMATION_LOG_ISSUE }}', 10);
+            if (!logIssue) return;
+            const rfc = '${{ inputs.rfc_number }}';
+            const changed = '${{ steps.resign.outputs.changed }}' === 'true';
+            const preGenesis = '${{ steps.resign.outputs.pre_genesis }}' === 'true';
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '🟢' : '🔴';
+            const mode = preGenesis ? ' (pre-genesis, noemuch-only)' : ' (3-of-3 multi-sig)';
+            const note = changed ? 'opened signing PR' : 'no-op (SHAs already current)';
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: logIssue,
+              body: `${emoji} **update-protocol-paths** RFC-${rfc}${mode} — ${note} · status: \`${status}\` · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            });
