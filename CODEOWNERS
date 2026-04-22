@@ -1,0 +1,62 @@
+# Hive CODEOWNERS — NORTHSTAR v0.3 §2.2, §7.5
+#
+# Purpose: Maps every protocol anchor path (§2.1) to the CODEOWNERS required
+# for review. Pre-genesis (P0) only @noemuch is listed as owner. At genesis
+# (tag v1.0.0-genesis), a §5-ratified update adds Stewards 2 + 3 as
+# co-owners of every anchor path (3-of-3 baseline at P1 transition).
+#
+# Ratchet schedule for this file (NORTHSTAR §7.5):
+#   - P0/P1: additions require §5 standard RFC (+ 3-Steward countersign on
+#            PROTOCOL_PATHS.sig re-issue).
+#   - P2:    automatically reshuffled by ratchet-phase-transition.yml to the
+#            3-Steward multisig roster, with at most 1 Steward seat.
+#   - P3:    HEAR-proportional vote replaces CODEOWNERS as the authority
+#            layer; this file becomes informational only.
+#
+# This file is an anchor (§2.1). Its SHA-256 is pinned in PROTOCOL_PATHS.sig.
+# Changes require the §5 RFC flow + Steward 3-of-3 signature on the
+# re-issued PROTOCOL_PATHS.sig.
+
+# ======================================================================
+# Protocol anchor files (§2.1)
+# ======================================================================
+
+# Constitutional docs
+docs/kb/NORTHSTAR.md                           @noemuch
+docs/kb/HARD-FORK-PROCEDURE.md                 @noemuch
+docs/kb/FOUNDERS_KEYS.md                       @noemuch
+docs/kb/STEWARDS_KEYS.md                       @noemuch
+docs/kb/ENTITY_BYLAWS.md                       @noemuch
+docs/kb/RATCHET_FROZEN.json                    @noemuch
+docs/kb/PROTOCOL_PATHS.sig                     @noemuch
+docs/kb/APP_PERMISSIONS.json                   @noemuch
+docs/kb/MIRRORS.md                             @noemuch
+docs/kb/AUDITOR_POOL.md                        @noemuch
+docs/kb/CALIBRATION_AUDIT.md                   @noemuch
+docs/kb/RFC_MANIFESTS/                         @noemuch
+docs/kb/RFC_LOG.md                             @noemuch
+docs/kb/RATCHET_LOG.md                         @noemuch
+docs/kb/INCIDENTS/                             @noemuch
+
+# Constitutional source files
+server/src/db/agent-score-state.ts             @noemuch
+server/src/engine/peer-evaluation.ts           @noemuch
+server/src/__tests__/protocol-invariants.test.ts  @noemuch
+
+# Anchor workflows
+.github/workflows/review.yml                   @noemuch
+.github/workflows/dispatch-ready.yml           @noemuch
+.github/workflows/ratchet-phase-transition.yml @noemuch
+.github/workflows/ratify-rfc.yml               @noemuch
+.github/workflows/protocol-path-guard.yml      @noemuch
+.github/workflows/meta-guard.yml               @noemuch
+.github/workflows/watchdog.yml                 @noemuch
+
+# This file itself
+CODEOWNERS                                     @noemuch
+
+# ======================================================================
+# Pre-genesis: only @noemuch. At genesis, Stewards 2 + 3 added as
+# secondary CODEOWNERS via §5 RFC-ratified update, pinned in
+# PROTOCOL_PATHS.sig and countersigned by all three Stewards.
+# ======================================================================
