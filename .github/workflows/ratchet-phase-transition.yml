@@ -1,0 +1,473 @@
+# @hive-protocol: ratchet-phase-transition
+# ^ Pragma above identifies this file as a closure anchor per NORTHSTAR §2.1 #7.
+#   Role "ratchet-phase-transition" must appear in PROTOCOL_PATHS.sig.pragma_roles[].
+
+name: Ratchet phase transition — §7 (kill-switch immune, daily evaluation)
+
+# NORTHSTAR §7 reference implementation. Wraps the pure `computeNextPhase`
+# function from `server/src/protocol/ratchet.ts`.
+#
+# §7.3 — kill-switch IMMUNE: §8 activation MUST NOT pause this workflow.
+#        The preflight step explicitly records the kill-switch state but
+#        never exits early on it.
+# §7.4 — Irreversibility: monotonic advance only. Reversal requires §5.8
+#        + 95% supermajority routed through `ratify-rfc.yml`; this workflow
+#        never emits a lower phase on its own.
+#
+# Daily cron (6am UTC) + manual workflow_dispatch. Pre-genesis: locks to P0.
+#
+# Auth: NOEMUCH_PAT (pre-genesis) → HPA-scoped Steward token (post-genesis).
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  # Hard serial — never run two ratchet evaluations simultaneously.
+  # cancel-in-progress: false so a manual dispatch waits for the cron to finish.
+  group: ratchet-phase-transition
+  cancel-in-progress: false
+
+permissions:
+  contents: write          # append to RATCHET_LOG.md, update CODEOWNERS on P2+
+  issues: write            # open public announcement issue
+  pull-requests: write     # label + comment
+  actions: read
+
+env:
+  RATCHET_LOG: docs/kb/RATCHET_LOG.md
+  RATCHET_FROZEN: docs/kb/RATCHET_FROZEN.json
+  KILL_SWITCH_STATE: .github/kill-switch-state.json
+  GENESIS_TAG: v1.0.0-genesis
+
+jobs:
+  ratchet-evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    outputs:
+      current_phase: ${{ steps.compute.outputs.current_phase }}
+      next_phase: ${{ steps.compute.outputs.next_phase }}
+      transitioned: ${{ steps.compute.outputs.transitioned }}
+      cumulative_active_90d: ${{ steps.compute.outputs.cumulative_active_90d }}
+      months_since_phase_entry: ${{ steps.compute.outputs.months_since_phase_entry }}
+      bitcoin_block_hash: ${{ steps.compute.outputs.bitcoin_block_hash }}
+      report: ${{ steps.compute.outputs.report }}
+      pre_genesis: ${{ steps.compute.outputs.pre_genesis }}
+
+    steps:
+      # -----------------------------------------------------------------
+      # STEP 1 — Checkout full history for git tag lookup + log append.
+      # -----------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.NOEMUCH_PAT }}
+
+      # -----------------------------------------------------------------
+      # STEP 2 — §7.3 kill-switch IMMUNITY notice.
+      #          Explicitly log whether the kill-switch is active; do NOT
+      #          exit early. This workflow is exempt from §8.
+      # -----------------------------------------------------------------
+      - name: Kill-switch immunity check (§7.3)
+        id: kill_switch
+        run: |
+          set -euo pipefail
+          if [ -f "${KILL_SWITCH_STATE}" ]; then
+            active=$(jq -r '.active // false' "${KILL_SWITCH_STATE}" 2>/dev/null || echo "false")
+            if [ "${active}" = "true" ]; then
+              echo "::warning title=ratchet-phase-transition::kill-switch is ACTIVE but §7.3 grants this workflow immunity — proceeding."
+              echo "ks_active=true"  >> "$GITHUB_OUTPUT"
+            else
+              echo "::notice::kill-switch file present but not active."
+              echo "ks_active=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "::notice::no kill-switch state file (${KILL_SWITCH_STATE})."
+            echo "ks_active=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # -----------------------------------------------------------------
+      # STEP 3 — Set up Bun runtime so we can call `computeNextPhase` from
+      #          server/src/protocol/ratchet.ts (the pure reference impl).
+      # -----------------------------------------------------------------
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9cf7b2c7b7e15f1  # v2 @ 2026-01-15
+        with:
+          bun-version: latest
+
+      # -----------------------------------------------------------------
+      # STEP 4 — Check genesis tag. Pre-genesis → phase = P0 and SKIP.
+      # -----------------------------------------------------------------
+      - name: Detect genesis tag
+        id: genesis
+        run: |
+          set -euo pipefail
+          if git tag -l | grep -qx "${GENESIS_TAG}"; then
+            echo "genesis_present=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::genesis tag '${GENESIS_TAG}' present — post-genesis evaluation."
+          else
+            echo "genesis_present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::genesis tag '${GENESIS_TAG}' NOT present — pre-genesis, phase locked to P0."
+          fi
+
+      # -----------------------------------------------------------------
+      # STEP 5 — Query PostgreSQL for cumulative_active_90d (§7.2).
+      #          Optional: DATABASE_URL may be absent pre-testnet.
+      # -----------------------------------------------------------------
+      - name: Compute cumulative active 90d (DB query)
+        id: active_count
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::notice::DATABASE_URL not set — pre-testnet, skipping DB query. cumulative_active_90d=0"
+            echo "cumulative_active_90d=0" >> "$GITHUB_OUTPUT"
+            echo "db_available=false"      >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Install psql if absent. Actions runners have postgresql-client preinstalled.
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -yq postgresql-client
+          fi
+
+          # §7.2: "Merged contribution" = PR to main, ≥ 5 non-whitespace non-comment LOC
+          # outside /docs/ and /agents/teams/*.yml, OR a peer-evaluated artifact in
+          # quality_evaluations. We implement the PR-contribution side; the
+          # artifact-contribution side is unioned via the second sub-query.
+          #
+          # Note: real schema for `merged_prs` is not yet shipped. Until the
+          # protocol-contribution table exists, the query degrades gracefully:
+          # if any referenced table is missing, we log and return 0.
+          SQL=$(cat <<'EOSQL'
+          WITH pr_contribs AS (
+            SELECT DISTINCT agent_id
+            FROM merged_prs
+            WHERE merged_at > NOW() - INTERVAL '90 days'
+              AND loc_delta >= 5
+              AND NOT (paths LIKE 'docs/%' OR paths LIKE 'agents/teams/%.yml')
+          ),
+          eval_contribs AS (
+            SELECT DISTINCT agent_id
+            FROM quality_evaluations
+            WHERE created_at > NOW() - INTERVAL '90 days'
+              AND NOT invalidated
+          )
+          SELECT COUNT(DISTINCT agent_id) AS active
+          FROM (
+            SELECT agent_id FROM pr_contribs
+            UNION
+            SELECT agent_id FROM eval_contribs
+          ) u;
+          EOSQL
+          )
+
+          active_count=$(psql "${DATABASE_URL}" -t -A -v ON_ERROR_STOP=0 -c "${SQL}" 2>&1 || echo "QUERY_FAILED")
+          if echo "${active_count}" | grep -q "QUERY_FAILED\|ERROR"; then
+            echo "::warning title=ratchet::DB query failed (schema not yet migrated?). Falling back to 0."
+            echo "cumulative_active_90d=0" >> "$GITHUB_OUTPUT"
+            echo "db_available=false"      >> "$GITHUB_OUTPUT"
+          else
+            count=$(echo "${active_count}" | tr -d ' \t\n\r')
+            : "${count:=0}"
+            echo "::notice::cumulative_active_90d=${count}"
+            echo "cumulative_active_90d=${count}" >> "$GITHUB_OUTPUT"
+            echo "db_available=true"              >> "$GITHUB_OUTPUT"
+          fi
+
+      # -----------------------------------------------------------------
+      # STEP 6 — Parse current phase + entry date from RATCHET_LOG.md.
+      # -----------------------------------------------------------------
+      - name: Read current phase from RATCHET_LOG
+        id: log_state
+        run: |
+          set -euo pipefail
+          if [ ! -f "${RATCHET_LOG}" ]; then
+            echo "::notice::${RATCHET_LOG} not found — initializing at P0."
+            echo "current_phase=P0"            >> "$GITHUB_OUTPUT"
+            echo "phase_entry_date=1970-01-01" >> "$GITHUB_OUTPUT"
+            echo "months_since=0"              >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Latest entry = last line matching `| P[0-3] |` in the table.
+          latest=$(grep -E '^\| P[0-3] \|' "${RATCHET_LOG}" | tail -n 1 || true)
+          if [ -z "${latest}" ]; then
+            echo "current_phase=P0"            >> "$GITHUB_OUTPUT"
+            echo "phase_entry_date=1970-01-01" >> "$GITHUB_OUTPUT"
+            echo "months_since=0"              >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          phase=$(echo "${latest}"  | awk -F'|' '{gsub(/ /,"",$2); print $2}')
+          entry=$(echo "${latest}"  | awk -F'|' '{gsub(/ /,"",$3); print $3}')
+          : "${phase:=P0}"
+          : "${entry:=1970-01-01}"
+
+          # months_since = floor((now - entry) / 30.44 days).
+          now_epoch=$(date -u +%s)
+          entry_epoch=$(date -u -d "${entry}" +%s 2>/dev/null || echo "0")
+          if [ "${entry_epoch}" = "0" ]; then
+            months=0
+          else
+            delta=$(( now_epoch - entry_epoch ))
+            months=$(( delta / (60 * 60 * 24 * 30) ))
+          fi
+
+          echo "::notice::current_phase=${phase} entry_date=${entry} months_since=${months}"
+          echo "current_phase=${phase}"      >> "$GITHUB_OUTPUT"
+          echo "phase_entry_date=${entry}"   >> "$GITHUB_OUTPUT"
+          echo "months_since=${months}"      >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------
+      # STEP 7 — Call `computeNextPhase` from the pure ratchet.ts function.
+      #          Also fetch the current Bitcoin block hash for the log entry
+      #          (§7 records external-clock anchor to prevent clock forgery).
+      # -----------------------------------------------------------------
+      - name: Compute next phase (pure function wrapper)
+        id: compute
+        env:
+          CURRENT_PHASE: ${{ steps.log_state.outputs.current_phase }}
+          MONTHS_SINCE: ${{ steps.log_state.outputs.months_since }}
+          CUMULATIVE_ACTIVE_90D: ${{ steps.active_count.outputs.cumulative_active_90d }}
+          GENESIS_PRESENT: ${{ steps.genesis.outputs.genesis_present }}
+          DB_AVAILABLE: ${{ steps.active_count.outputs.db_available }}
+        run: |
+          set -euo pipefail
+
+          # -------- Bitcoin block hash (external clock anchor) --------
+          # Best-effort. Non-blocking: the log entry notes "n/a" if absent.
+          btc_hash=$(curl -fsSL --max-time 10 https://blockchain.info/q/latesthash 2>/dev/null || echo "n/a")
+          case "${btc_hash}" in
+            [0-9a-f]*) : ;;  # looks like a hash
+            *) btc_hash="n/a" ;;
+          esac
+          echo "::notice::bitcoin_block_hash=${btc_hash}"
+
+          # -------- Pre-genesis short-circuit --------
+          if [ "${GENESIS_PRESENT}" != "true" ]; then
+            echo "::notice::pre-genesis, awaiting ${GENESIS_TAG}. phase=P0, no transition."
+            {
+              echo "current_phase=P0"
+              echo "next_phase=P0"
+              echo "transitioned=false"
+              echo "cumulative_active_90d=${CUMULATIVE_ACTIVE_90D}"
+              echo "months_since_phase_entry=${MONTHS_SINCE}"
+              echo "bitcoin_block_hash=${btc_hash}"
+              echo "pre_genesis=true"
+              echo "report<<EOF_RPT"
+              echo "## Ratchet evaluation — pre-genesis"
+              echo ""
+              echo "Phase locked to **P0** pending \`${GENESIS_TAG}\` tag."
+              echo ""
+              echo "- cumulative_active_90d: \`${CUMULATIVE_ACTIVE_90D}\` (db=${DB_AVAILABLE})"
+              echo "- bitcoin_block_hash: \`${btc_hash}\`"
+              echo "EOF_RPT"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # -------- Post-genesis: wrap the pure function --------
+          # Write a tiny Bun runner script that imports computeNextPhase
+          # and emits the resulting phase on stdout. This is the single
+          # source of truth — any divergence fails a §10.3 property test.
+          cat > /tmp/ratchet-eval.ts <<'EOTS'
+          import { computeNextPhase, type Phase, type RatchetState } from "./server/src/protocol/ratchet.ts";
+
+          const phase = (process.env.CURRENT_PHASE ?? "P0") as Phase;
+          const cumulativeActive90d = Number(process.env.CUMULATIVE_ACTIVE_90D ?? "0");
+          const monthsSincePhaseEntry = Number(process.env.MONTHS_SINCE ?? "0");
+
+          const state: RatchetState = {
+            phase,
+            cumulativeActive90d,
+            monthsSincePhaseEntry,
+          };
+          const next = computeNextPhase(state);
+          process.stdout.write(next);
+          EOTS
+
+          next_phase=$(bun run /tmp/ratchet-eval.ts)
+          : "${next_phase:=${CURRENT_PHASE}}"
+
+          if [ "${next_phase}" != "${CURRENT_PHASE}" ]; then
+            transitioned="true"
+            echo "::notice title=ratchet::TRANSITION ${CURRENT_PHASE} → ${next_phase}"
+          else
+            transitioned="false"
+            echo "::notice::no transition (${CURRENT_PHASE} → ${next_phase})"
+          fi
+
+          {
+            echo "current_phase=${CURRENT_PHASE}"
+            echo "next_phase=${next_phase}"
+            echo "transitioned=${transitioned}"
+            echo "cumulative_active_90d=${CUMULATIVE_ACTIVE_90D}"
+            echo "months_since_phase_entry=${MONTHS_SINCE}"
+            echo "bitcoin_block_hash=${btc_hash}"
+            echo "pre_genesis=false"
+            echo "report<<EOF_RPT"
+            echo "## Ratchet evaluation"
+            echo ""
+            echo "- current: \`${CURRENT_PHASE}\`"
+            echo "- next: \`${next_phase}\`"
+            echo "- transitioned: \`${transitioned}\`"
+            echo "- cumulative_active_90d: \`${CUMULATIVE_ACTIVE_90D}\` (db=${DB_AVAILABLE})"
+            echo "- months_since_phase_entry: \`${MONTHS_SINCE}\`"
+            echo "- bitcoin_block_hash: \`${btc_hash}\`"
+            echo "EOF_RPT"
+          } >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------
+      # STEP 8 — Apply new branch protection rules per phase (P2+).
+      #          P2: 2-of-3 Steward approval on anchor files; P3: HPA board.
+      # -----------------------------------------------------------------
+      - name: Apply branch protection (post-transition)
+        if: steps.compute.outputs.transitioned == 'true' && steps.compute.outputs.pre_genesis == 'false'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const next = '${{ steps.compute.outputs.next_phase }}';
+            const required = next === 'P2' ? 2 : (next === 'P3' ? 4 : 1);
+            try {
+              await github.rest.repos.updateBranchProtection({
+                ...context.repo,
+                branch: 'main',
+                required_status_checks: null,  // unchanged
+                enforce_admins: true,
+                required_pull_request_reviews: {
+                  required_approving_review_count: required,
+                  dismiss_stale_reviews: true,
+                  require_code_owner_reviews: true,
+                },
+                restrictions: null,
+              });
+              core.notice(`Branch protection: required approvals set to ${required} for phase ${next}.`);
+            } catch (err) {
+              core.warning(`Branch protection update failed (non-fatal, Stewards must repair manually): ${err.message}`);
+            }
+
+      # -----------------------------------------------------------------
+      # STEP 9 — Update CODEOWNERS per §7.5 (P2 roster selection).
+      #          P2 roster: top-3 HEAR from distinct PoP anchors, ≤ 1 Steward.
+      #          Pre-DB: this step records a TODO stub; real roster selection
+      #          requires the DB queries + PoP-anchor graph, implemented in
+      #          a follow-up once P1→P2 is imminent.
+      # -----------------------------------------------------------------
+      - name: Update CODEOWNERS (P2 roster selection, stub)
+        if: steps.compute.outputs.transitioned == 'true' && steps.compute.outputs.next_phase == 'P2'
+        run: |
+          set -euo pipefail
+          echo "::notice::P2 roster selection is a follow-up (requires PoP-anchor graph)."
+          # Intentional no-op for now — roster selection must be driven by the
+          # HEAR leaderboard + sponsor graph which do not exist in CI. When
+          # ready, this step rewrites CODEOWNERS with the 3 top HEAR agents.
+
+      # -----------------------------------------------------------------
+      # STEP 10 — Append immutable entry to RATCHET_LOG.md (on transition).
+      # -----------------------------------------------------------------
+      - name: Append to RATCHET_LOG
+        if: steps.compute.outputs.transitioned == 'true' && steps.compute.outputs.pre_genesis == 'false'
+        run: |
+          set -euo pipefail
+          today=$(date -u +%Y-%m-%d)
+          phase='${{ steps.compute.outputs.next_phase }}'
+          active='${{ steps.compute.outputs.cumulative_active_90d }}'
+          months='${{ steps.compute.outputs.months_since_phase_entry }}'
+          btc='${{ steps.compute.outputs.bitcoin_block_hash }}'
+
+          if [ ! -f "${RATCHET_LOG}" ]; then
+            cat > "${RATCHET_LOG}" <<'EOF_HDR'
+          # Ratchet log (NORTHSTAR §7)
+
+          Append-only record of phase transitions. Each row is committed by
+          `ratchet-phase-transition.yml`; rewrites are rejected by `meta-guard.yml`.
+
+          | Phase | Entry date | cumulative_active_90d | months_since_previous | bitcoin_block_hash | steward_signatures |
+          |-------|------------|-----------------------|------------------------|--------------------|--------------------|
+          EOF_HDR
+          fi
+
+          # Steward signatures: genesis-pending pre-P2; post-P2 the transition
+          # step collects detached GPG signatures from 3 Stewards via a separate
+          # ceremony. Stubbed here as "genesis-pending".
+          sigs="genesis-pending"
+
+          printf '| %s | %s | %s | %s | %s | %s |\n' \
+            "${phase}" "${today}" "${active}" "${months}" "${btc}" "${sigs}" \
+            >> "${RATCHET_LOG}"
+
+          # Commit as @noemuch (GPG-signed commits required post-genesis, stubbed here).
+          git config user.name  "noemuch"
+          git config user.email "noemuch@users.noreply.github.com"
+          git add "${RATCHET_LOG}"
+          git commit -m "ratchet: phase transition to ${phase} (cumulative_active_90d=${active})"
+          git push origin HEAD:main
+
+      # -----------------------------------------------------------------
+      # STEP 11 — Open public announcement issue on transition.
+      # -----------------------------------------------------------------
+      - name: Public announcement (on transition)
+        if: steps.compute.outputs.transitioned == 'true' && steps.compute.outputs.pre_genesis == 'false'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const next = '${{ steps.compute.outputs.next_phase }}';
+            const prev = '${{ steps.compute.outputs.current_phase }}';
+            const active = '${{ steps.compute.outputs.cumulative_active_90d }}';
+            const months = '${{ steps.compute.outputs.months_since_phase_entry }}';
+            const btc = '${{ steps.compute.outputs.bitcoin_block_hash }}';
+
+            await github.rest.issues.create({
+              ...context.repo,
+              title: `[RATCHET] Phase transition ${prev} → ${next}`,
+              body: [
+                `## Phase transition`,
+                ``,
+                `Per NORTHSTAR §7, the Hive protocol has advanced from **${prev}** to **${next}**.`,
+                ``,
+                `- cumulative_active_90d: \`${active}\``,
+                `- months_since_previous_phase: \`${months}\``,
+                `- bitcoin_block_hash: \`${btc}\``,
+                `- transition_date: \`${new Date().toISOString()}\``,
+                ``,
+                `See \`docs/kb/RATCHET_LOG.md\` for the immutable log entry.`,
+                ``,
+                `This transition is kill-switch immune (§7.3) and monotonic (§7.4).`,
+              ].join('\n'),
+              labels: ['source:ratchet', 'priority:high'],
+            });
+
+      # -----------------------------------------------------------------
+      # STEP 12 — Log to automation log (daily, even when no transition).
+      # -----------------------------------------------------------------
+      - name: Log to automation log
+        if: always() && vars.AUTOMATION_LOG_ISSUE != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          github-token: ${{ secrets.NOEMUCH_PAT }}
+          script: |
+            const logIssue = parseInt('${{ vars.AUTOMATION_LOG_ISSUE }}', 10);
+            if (!logIssue) return;
+            const transitioned = '${{ steps.compute.outputs.transitioned }}' === 'true';
+            const prev = '${{ steps.compute.outputs.current_phase }}' || 'P0';
+            const next = '${{ steps.compute.outputs.next_phase }}' || 'P0';
+            const active = '${{ steps.compute.outputs.cumulative_active_90d }}' || '0';
+            const status = '${{ job.status }}';
+            const emoji = transitioned ? '🚀' : (status === 'success' ? '🟢' : '🔴');
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const line = transitioned
+              ? `${emoji} **ratchet** phase **${prev} → ${next}** · active_90d=${active} · [run](${runUrl})`
+              : `${emoji} **ratchet** evaluated — phase \`${next}\` (no transition) · active_90d=${active} · [run](${runUrl})`;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: logIssue,
+              body: line,
+            });
