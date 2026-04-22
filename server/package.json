@@ -11,13 +11,16 @@
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
+    "@noble/hashes": "^1.5.0",
     "@resvg/resvg-js": "^2.6.2",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "ts-morph": "^24.0.0"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "fast-check": "^3.23.0",
     "typescript": "^5.7.0",
     "@types/bun": "latest"
   }
