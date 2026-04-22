@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_description": "Canonical fine-grained GitHub App permission manifest for the Hive Protocol Association's App. Anchor file per NORTHSTAR §2.1 and §6.2. meta-guard.yml fetches live App permissions via GH API every PR and BLOCKS on any permission exceeding this list. Widening follows §5 standard RFC.",
+  "_doc_reference": "https://docs.github.com/en/rest/apps/apps",
+  "_principle": "Least privilege. Each permission justified by a specific protocol operation. Anything not listed = denied by the App.",
+
+  "version": "1.0.0-genesis",
+  "issued_at": "2026-04-22",
+  "app_name": "hive-protocol",
+  "app_owner": "hive-protocol-association",
+
+  "permissions": {
+    "repository": {
+      "actions": "write",
+      "_actions_rationale": "Required to trigger workflow_dispatch for reviewer-nudge, ratchet-phase-transition, ratify-rfc. Also: read Actions logs for cost-comment metadata.",
+
+      "checks": "write",
+      "_checks_rationale": "Required to post Check Runs for HEAR evaluations (quality gate), protocol-path-guard status, meta-guard status.",
+
+      "contents": "write",
+      "_contents_rationale": "Required to create, update, delete files for: auto-generated RATCHET_LOG.md entries, RFC_MANIFESTS JSON commits, protocol_paths.sig signing PRs. NEVER used to modify protocol anchor files outside §5 RFC (enforced by protocol-path-guard.yml).",
+
+      "issues": "write",
+      "_issues_rationale": "Required to open: RFC drafts, incident reports (§8.5), bug bounty triage issues, daily-qa-digest, main-healer issues, weekly-retro issues, Sentry triage issues. Comment + label operations for the autonomous pipeline.",
+
+      "pull_requests": "write",
+      "_pull_requests_rationale": "Required to: open PRs for RFC ratification, auto-merge clean PRs (reviewer), apply agent-blocked / autofix-iter labels, request changes, post review comments. Also: update PR branches (proactive-rebase).",
+
+      "metadata": "read",
+      "_metadata_rationale": "Read-only repo metadata (default branch, visibility). Always required.",
+
+      "repository_administration": "read",
+      "_admin_rationale": "Read-only: verify branch protection rules state for meta-guard layer #3 enforcement. Write permissions intentionally EXCLUDED — the App cannot modify protection rules directly; those changes flow through §5 RFC + human CODEOWNERS sig on the rulesets file.",
+
+      "workflows": "write",
+      "_workflows_rationale": "Required to create workflow runs via workflow_dispatch. NEVER used to modify workflow YAML files outside §5 RFC.",
+
+      "statuses": "write",
+      "_statuses_rationale": "Post commit statuses for Quality Gate checks (HEAR, secrets scan, duplicate-utility scan).",
+
+      "discussions": "write",
+      "_discussions_rationale": "For Hive's chat-via-Discussion federation layer (T4 scalability tier)."
+    },
+
+    "organization": {
+      "members": "read",
+      "_members_rationale": "Required to look up membership for CODEOWNERS validation + HEAR leaderboard attribution.",
+
+      "administration": "read",
+      "_org_admin_rationale": "Read-only: verify Organizational Rulesets state (from P2 onward these prevent admin bypass on protocol paths)."
+    },
+
+    "user": {
+      "email": "read",
+      "_email_rationale": "Required for authenticated user-to-server endpoints when resolving builder identity. NEVER exposed in logs or stored beyond JWT claims."
+    }
+  },
+
+  "events_subscribed": {
+    "issues": [
+      "opened", "edited", "closed", "reopened", "labeled", "unlabeled",
+      "assigned", "unassigned"
+    ],
+    "issue_comment": ["created", "edited", "deleted"],
+    "pull_request": [
+      "opened", "edited", "closed", "reopened", "synchronize",
+      "labeled", "unlabeled", "review_requested", "ready_for_review"
+    ],
+    "pull_request_review": ["submitted", "edited", "dismissed"],
+    "pull_request_review_comment": ["created", "edited", "deleted"],
+    "check_run": ["created", "completed", "rerequested"],
+    "check_suite": ["completed"],
+    "workflow_run": ["completed"],
+    "workflow_dispatch": ["*"],
+    "repository_dispatch": ["*"],
+    "push": ["*"],
+    "delete": ["*"],
+    "create": ["*"]
+  },
+
+  "installation_scope": "single_repository",
+  "_scope_rationale": "Single-repo (this repository). Multi-repo expansion requires §5 RFC per target repo.",
+
+  "admin_distribution": {
+    "genesis_owners": [
+      "steward-1-noemuch",
+      "steward-2-tbd-top-bounty-reporter",
+      "steward-3-tbd-second-bounty-reporter"
+    ],
+    "bypass_branch_protection_from_p1": false,
+    "_bypass_rationale": "App is explicitly EXCLUDED from 'bypass branch protection' from Phase 1 onward. At P0 the founders can bypass for bootstrap; P1 transition removes bypass capability via Organizational Rulesets."
+  },
+
+  "permission_rotation": {
+    "policy": "no automatic rotation",
+    "_rotation_rationale": "Permission changes require §5 standard RFC. Stale permissions are worse than planned ones.",
+    "compromised_key_response": "Appendix B.4 emergency revocation (48h expedited)"
+  },
+
+  "_enforcement": {
+    "meta_guard_check": "fetch live App permissions via GH API, compare to this manifest. Any live permission not listed here = BLOCK PR.",
+    "admin_pr_exemption": false,
+    "manifest_update": "§5 RFC required; on ratification, new manifest signed by 3 Stewards + SHA pinned in PROTOCOL_PATHS.sig."
+  }
+}
