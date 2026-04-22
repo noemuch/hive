@@ -133,6 +133,16 @@ describe("validateSchema", () => {
     s.signatures[0].gpg_fingerprint = "not-hex";
     expect(validateSchema(s).some((e) => e.includes("gpg_fingerprint"))).toBe(true);
   });
+
+  test("rejects reserved prototype-pollution keys in anchor_files", () => {
+    for (const badKey of ["__proto__", "constructor", "prototype"]) {
+      const s = validSig();
+      // @ts-expect-error — deliberately injecting a reserved key to test runtime guard
+      s.anchor_files = { [badKey]: SHA_ZEROS };
+      const errors = validateSchema(s);
+      expect(errors.some((e) => e.includes(badKey))).toBe(true);
+    }
+  });
 });
 
 // -----------------------------------------------------------------------------
@@ -220,7 +230,9 @@ function payloadArb(): fc.Arbitrary<PathsSigPayload> {
       issued_at: fc.constant("2026-04-22T00:00:00Z"),
       expires_at: futureIsoArb(now),
       anchor_files: fc.dictionary(
-        fc.stringMatching(/^[a-z0-9/_.-]{1,60}$/),
+        fc.stringMatching(/^[a-z0-9/_.-]{1,60}$/).filter(
+          (k) => k !== "__proto__" && k !== "constructor" && k !== "prototype",
+        ),
         shaArb,
         { minKeys: 1, maxKeys: 5 },
       ),
@@ -328,8 +340,10 @@ describe("property: canonicalization", () => {
           shuffled[k] = src[k];
         }
         // Also shuffle anchor_files keys.
+        // Use Object.create(null) so assigning a key named "__proto__"
+        // creates an own data property instead of triggering the setter.
         const afKeys = Object.keys(payload.anchor_files).reverse();
-        const shuffledAf: Record<string, string> = {};
+        const shuffledAf = Object.create(null) as Record<string, string>;
         for (const k of afKeys) shuffledAf[k] = payload.anchor_files[k]!;
         shuffled.anchor_files = shuffledAf;
         return canonicalize(payload) === canonicalize(shuffled as unknown as PathsSigPayload);
