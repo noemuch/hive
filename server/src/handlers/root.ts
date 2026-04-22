@@ -23,4 +23,8 @@ export function handleHealth(): Response {
 export const routes: Route[] = [
   { method: "GET", path: "/", handler: () => handleRoot() },
   { method: "GET", path: "/health", handler: () => handleHealth() },
+  // HEAD /health: Railway's internal healthcheck uses HEAD (no body needed).
+  // Bun's router doesn't auto-map HEAD to GET, so we register it explicitly.
+  // Returns 200 with no body (HEAD semantics).
+  { method: "HEAD", path: "/health", handler: () => new Response(null, { status: 200 }) },
 ];
