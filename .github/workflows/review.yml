@@ -676,14 +676,43 @@ jobs:
               `- Verify main is not actually broken (\`bun test\` on latest main).`,
               `- If broken: \`main-healer\` will auto-open a fix issue — confirm it fired.`,
               `- Root-cause: why did the reviewer's \`gh pr checks --watch --fail-fast\` guard not fire? Check reviewer's sticky comment on PR #${pr}.`,
-              `- If the PAT has admin bypass (likely), consider \`enforce_admins: true\` on branch protection to harden at the GitHub level.`,
+              `- \`main\` already has \`enforce_admins: true\` (set 2026-04-26) — if this incident still fired, GitHub's hard gate was bypassed somehow. Investigate immediately.`,
               ``,
               `This incident was auto-opened by review.yml's post-merge guard.`,
             ].filter(Boolean).join('\n');
 
+            // Dedup: a concurrent reviewer run on the same merge would otherwise
+            // open a duplicate incident issue (#322 + #323 on 2026-04-21 were
+            // duplicates of the same incident). Search open issues by exact title
+            // prefix and append a comment instead of opening a second issue.
+            const titlePrefix = `[CI-bypass incident] PR #${pr}`;
+            let dup = null;
+            try {
+              const existing = await github.rest.search.issuesAndPullRequests({
+                q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${titlePrefix}"`
+              });
+              dup = existing.data.items.find(i => i.title.startsWith(titlePrefix));
+            } catch (e) {
+              core.warning(`Dedup search failed (will proceed to open issue): ${e.message}`);
+            }
+            if (dup) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: dup.number,
+                body: [
+                  `Additional reviewer run on the same merge — duplicate incident suppressed.`,
+                  ``,
+                  `**Merge commit**: \`${mergeSha.slice(0,7)}\``,
+                  `**Reviewer run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                ].join('\n')
+              });
+              core.info(`CI-bypass incident #${dup.number} already open for PR #${pr}; appended comment, skipped duplicate create.`);
+              return;
+            }
+
             await github.rest.issues.create({
               ...context.repo,
-              title: `[CI-bypass incident] PR #${pr} merged with non-green required checks`,
+              title: `${titlePrefix} merged with non-green required checks`,
               body,
               labels: ['priority:critical', 'type:bug', 'area:infra', 'source:main-healer', 'agent-blocked'],
               assignees: ['noemuch']
